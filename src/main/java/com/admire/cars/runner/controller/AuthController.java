@@ -18,30 +18,38 @@ import java.util.UUID;
 public class AuthController {
 
     private final UserRepository userRepository;
-n    @Autowired
-    public AuthController(UserRepository userRepository) {
+    private final com.admire.cars.runner.security.TokenService tokenService;
+
+    public AuthController(UserRepository userRepository, com.admire.cars.runner.security.TokenService tokenService) {
         this.userRepository = userRepository;
+        this.tokenService = tokenService;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
-        Optional<User> userOpt = userRepository.findByUsername(req.getUsername());
+        Optional<User> userOpt = userRepository.findByUserName(req.getUsername());
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         User user = userOpt.get();
-        // NOTE: passwords are stored in plain text in DB for this simple example.
-        if (!user.getPassword().equals(req.getPassword())) {
+        
+        if (!"ENABLED".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        String token = UUID.randomUUID().toString();
+        
+        // NOTE: passwords are stored in plain text in DB for this simple example.
+        if (!user.getUserPassword().equals(req.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String token = tokenService.createToken(user.getId());
         return ResponseEntity.ok(new LoginResponse(token));
     }
 
     public static class LoginRequest {
         private String username;
         private String password;
-n        public String getUsername() { return username; }
+
+        public String getUsername() { return username; }
         public void setUsername(String username) { this.username = username; }
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
@@ -49,7 +57,8 @@ public class AuthController {
 
     public static class LoginResponse {
         private String amToken;
-n        public LoginResponse(String amToken) { this.amToken = amToken; }
+
+        public LoginResponse(String amToken) { this.amToken = amToken; }
         public String getAmToken() { return amToken; }
         public void setAmToken(String amToken) { this.amToken = amToken; }
     }
