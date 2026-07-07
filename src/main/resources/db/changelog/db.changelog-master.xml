@@ -14,4 +14,7 @@
     <!-- Include User tables -->
     <include file="db/changelog/db.changelog-002-user-tables.xml"/>
 
+    <!-- Include ADS URL tables -->
+    <include file="db/changelog/db.changelog-003-ads-url-tables.xml"/>
+
 </databaseChangeLog>
