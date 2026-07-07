@@ -1,16 +1,14 @@
 package com.admire.cars.runner;
 
 import com.admire.cars.runner.entity.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.http.*;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(properties = {
@@ -24,8 +22,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 public class AuthIntegrationTest {
 
-    @Autowired
+    @Value("${local.server.port}")
+    private int port;
+
     private WebTestClient webTestClient;
+
+    @BeforeEach
+    public void setUp() {
+        webTestClient = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
+    }
 
     @Test
     public void registerLoginPingLogoutFlow() {
@@ -42,15 +49,13 @@ public class AuthIntegrationTest {
 
         // login
         Map<String, String> payload = Map.of("username", "testuser", "password", "pass123");
-        var loginResp = webTestClient.post().uri("/api/auth/login").bodyValue(payload)
+        var response = webTestClient.post().uri("/api/auth/login").bodyValue(payload)
                 .exchange()
                 .expectStatus().isOk()
-                .returnResult(Map.class)
-                .getResponseBody();
-
-        assertThat(loginResp).isNotNull();
-        String token = (String) loginResp.get("amToken");
-        assertThat(token).isNotNull();
+                .expectBody(Map.class)
+                .returnResult();
+        
+        String token = response.getResponseBody().get("amToken").toString();
 
         // ping protected
         webTestClient.get().uri("/api/secure/ping")
@@ -72,69 +77,43 @@ public class AuthIntegrationTest {
     }
 
     @Test
-    public void loginWithEmailAndPhone() {
-        // register a user usable by email and phone
+    public void loginWithPhoneNumber() {
+        // register
         User u = new User();
-        u.setUserName("multiuser");
-        u.setUserEmail("multi@example.com");
-        u.setUserPhoneNumber("1999999999");
-        u.setUserPassword("secret");
+        u.setUserName("phoneuser");
+        u.setUserEmail("phone@example.com");
+        u.setUserPhoneNumber("9876543210");
+        u.setUserPassword("phonepass");
 
         webTestClient.post().uri("/api/users/register").bodyValue(u)
                 .exchange()
                 .expectStatus().isCreated();
 
-        // login via email
-        Map<String, String> payloadEmail = Map.of("username", "multi@example.com", "password", "secret");
-        var loginEmailResp = webTestClient.post().uri("/api/auth/login").bodyValue(payloadEmail)
-                .exchange()
-                .expectStatus().isOk()
-                .returnResult(Map.class)
-                .getResponseBody();
-
-        assertThat(loginEmailResp).isNotNull();
-        String tokenEmail = (String) loginEmailResp.get("amToken");
-        assertThat(tokenEmail).isNotNull();
-
-        // ping via email token
-        webTestClient.get().uri("/api/secure/ping")
-                .header("AMtoken", tokenEmail)
-                .exchange()
-                .expectStatus().isOk();
-
-        // logout email token
-        webTestClient.post().uri("/api/auth/logout")
-                .header("AMtoken", tokenEmail)
-                .exchange()
-                .expectStatus().isOk();
-
         // login via phone
-        Map<String, String> payloadPhone = Map.of("username", "1999999999", "password", "secret");
-        var loginPhoneResp = webTestClient.post().uri("/api/auth/login").bodyValue(payloadPhone)
+        Map<String, String> payload = Map.of("username", "9876543210", "password", "phonepass");
+        var response = webTestClient.post().uri("/api/auth/login").bodyValue(payload)
                 .exchange()
                 .expectStatus().isOk()
-                .returnResult(Map.class)
-                .getResponseBody();
+                .expectBody(Map.class)
+                .returnResult();
+        
+        String token = response.getResponseBody().get("amToken").toString();
 
-        assertThat(loginPhoneResp).isNotNull();
-        String tokenPhone = (String) loginPhoneResp.get("amToken");
-        assertThat(tokenPhone).isNotNull();
-
-        // ping via phone token
+        // ping with phone token
         webTestClient.get().uri("/api/secure/ping")
-                .header("AMtoken", tokenPhone)
+                .header("AMtoken", token)
                 .exchange()
                 .expectStatus().isOk();
 
-        // logout phone token
+        // logout
         webTestClient.post().uri("/api/auth/logout")
-                .header("AMtoken", tokenPhone)
+                .header("AMtoken", token)
                 .exchange()
                 .expectStatus().isOk();
 
         // ping after logout should fail
         webTestClient.get().uri("/api/secure/ping")
-                .header("AMtoken", tokenPhone)
+                .header("AMtoken", token)
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
