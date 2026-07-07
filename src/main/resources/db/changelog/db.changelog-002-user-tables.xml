@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="user-001-create-ads-user-table" author="copilot">
+        <createTable tableName="ADS_USER">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="USER_EMAIL" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="USER_PHONE_NUMBER" type="VARCHAR(20)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="USER_PASSWORD" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="STATUS" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="user-002-create-ads-user-aud-table" author="copilot">
+        <createTable tableName="ADS_USER_AUD">
+            <column name="AUD_ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="USER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_ADS_USER_AUD_USER_ID" references="ADS_USER(ID)"/>
+            </column>
+            <column name="OPERATION" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OPERATION_DATE" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OLD_VALUE" type="LONGTEXT"/>
+            <column name="NEW_VALUE" type="LONGTEXT"/>
+            <column name="OPERATOR" type="VARCHAR(100)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="user-003-create-audit-index" author="copilot">
+        <createIndex indexName="IDX_ADS_USER_AUD_USER_ID" tableName="ADS_USER_AUD">
+            <column name="USER_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_USER_AUD_OPERATION_DATE" tableName="ADS_USER_AUD">
+            <column name="OPERATION_DATE"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="user-004-insert-admin-user" author="copilot" runAlways="true">
+        <preConditions onFail="MARK_RAN">
+            <rowCount tableName="ADS_USER" expectedRows="0"/>
+        </preConditions>
+        <insert tableName="ADS_USER">
+            <column name="USER_NAME" value="admin"/>
+            <column name="USER_EMAIL" value="albert.shuai.ai@gmail.com"/>
+            <column name="USER_PHONE_NUMBER" value="18161851963"/>
+            <column name="USER_PASSWORD" value="ssA@19901212"/>
+            <column name="STATUS" value="ENABLED"/>
+            <column name="CREATE_DATE" valueDate="now()"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
