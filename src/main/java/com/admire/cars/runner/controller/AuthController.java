@@ -54,9 +54,14 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String authHeader) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+    public ResponseEntity<Void> logout(
+            @org.springframework.web.bind.annotation.RequestHeader(value = "AMtoken", required = false) String amToken,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String authHeader) {
+        String token = null;
+        if (amToken != null && !amToken.isBlank()) token = amToken;
+        else if (authHeader != null && authHeader.startsWith("Bearer ")) token = authHeader.substring(7);
+
+        if (token != null) {
             tokenService.revokeToken(token);
         }
         return ResponseEntity.ok().build();

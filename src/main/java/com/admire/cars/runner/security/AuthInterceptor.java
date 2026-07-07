@@ -17,15 +17,26 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        // Accept AMtoken header primarily, fallback to Authorization: Bearer <token>
+        String token = null;
+        String amHeader = request.getHeader("AMtoken");
+        if (amHeader != null && !amHeader.isBlank()) {
+            token = amHeader;
+        } else {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+        }
+
+        if (token != null) {
             Long userId = tokenService.validateToken(token);
             if (userId != null) {
                 request.setAttribute("userId", userId);
                 return true;
             }
         }
+
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.getWriter().write("Unauthorized");
         return false;

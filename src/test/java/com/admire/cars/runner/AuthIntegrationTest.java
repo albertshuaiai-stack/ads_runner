@@ -48,7 +48,7 @@ public class AuthIntegrationTest {
 
         // ping protected
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(token);
+        headers.add("AMtoken", token);
         HttpEntity<Void> req = new HttpEntity<>(headers);
         ResponseEntity<Map> ping = restTemplate.exchange("/api/secure/ping", HttpMethod.GET, req, Map.class);
         assertThat(ping.getStatusCode()).isEqualTo(HttpStatus.OK);
