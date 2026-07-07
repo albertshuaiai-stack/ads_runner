@@ -27,21 +27,29 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
+        // identifier may be username, email or phone
         Optional<User> userOpt = userRepository.findByUserName(req.getUsername());
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findByUserEmail(req.getUsername());
+        }
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findByUserPhoneNumber(req.getUsername());
+        }
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         User user = userOpt.get();
-        
+
         if (!"ENABLED".equals(user.getStatus())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
+
         // NOTE: passwords are stored in plain text in DB for this simple example.
         if (!user.getUserPassword().equals(req.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        String token = tokenService.createToken(user.getId());
+        // create token using phone number and password; token never expires
+        String token = tokenService.createToken(user.getUserPhoneNumber(), user.getUserPassword());
         return ResponseEntity.ok(new LoginResponse(token));
     }
 
