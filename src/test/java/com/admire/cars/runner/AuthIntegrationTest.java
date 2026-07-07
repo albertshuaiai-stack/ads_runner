@@ -4,7 +4,7 @@ import com.admire.cars.runner.entity.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.http.*;
 import org.springframework.test.context.TestPropertySource;
 
@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class AuthIntegrationTest {
 
     @Autowired
-    private TestRestTemplate restTemplate;
+    private WebTestClient webTestClient;
 
     @Test
     public void registerLoginPingLogoutFlow() {
@@ -36,31 +36,39 @@ public class AuthIntegrationTest {
         u.setUserPhoneNumber("1234567890");
         u.setUserPassword("pass123");
 
-        ResponseEntity<Map> reg = restTemplate.postForEntity("/api/users/register", u, Map.class);
-        assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        webTestClient.post().uri("/api/users/register").bodyValue(u)
+                .exchange()
+                .expectStatus().isCreated();
 
         // login
         Map<String, String> payload = Map.of("username", "testuser", "password", "pass123");
-        ResponseEntity<Map> login = restTemplate.postForEntity("/api/auth/login", payload, Map.class);
-        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
-        String token = (String) ((Map)login.getBody()).get("amToken");
+        var loginResp = webTestClient.post().uri("/api/auth/login").bodyValue(payload)
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(Map.class)
+                .getResponseBody();
+
+        assertThat(loginResp).isNotNull();
+        String token = (String) loginResp.get("amToken");
         assertThat(token).isNotNull();
 
         // ping protected
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("AMtoken", token);
-        HttpEntity<Void> req = new HttpEntity<>(headers);
-        ResponseEntity<Map> ping = restTemplate.exchange("/api/secure/ping", HttpMethod.GET, req, Map.class);
-        assertThat(ping.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(ping.getBody().get("userId")).isNotNull();
+        webTestClient.get().uri("/api/secure/ping")
+                .header("AMtoken", token)
+                .exchange()
+                .expectStatus().isOk();
 
         // logout
-        ResponseEntity<Void> logout = restTemplate.exchange("/api/auth/logout", HttpMethod.POST, req, Void.class);
-        assertThat(logout.getStatusCode()).isEqualTo(HttpStatus.OK);
+        webTestClient.post().uri("/api/auth/logout")
+                .header("AMtoken", token)
+                .exchange()
+                .expectStatus().isOk();
 
         // ping after logout should fail
-        ResponseEntity<String> ping2 = restTemplate.exchange("/api/secure/ping", HttpMethod.GET, req, String.class);
-        assertThat(ping2.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        webTestClient.get().uri("/api/secure/ping")
+                .header("AMtoken", token)
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     @Test
@@ -72,47 +80,62 @@ public class AuthIntegrationTest {
         u.setUserPhoneNumber("1999999999");
         u.setUserPassword("secret");
 
-        ResponseEntity<Map> reg = restTemplate.postForEntity("/api/users/register", u, Map.class);
-        assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        webTestClient.post().uri("/api/users/register").bodyValue(u)
+                .exchange()
+                .expectStatus().isCreated();
 
         // login via email
         Map<String, String> payloadEmail = Map.of("username", "multi@example.com", "password", "secret");
-        ResponseEntity<Map> loginEmail = restTemplate.postForEntity("/api/auth/login", payloadEmail, Map.class);
-        assertThat(loginEmail.getStatusCode()).isEqualTo(HttpStatus.OK);
-        String tokenEmail = (String) ((Map) loginEmail.getBody()).get("amToken");
+        var loginEmailResp = webTestClient.post().uri("/api/auth/login").bodyValue(payloadEmail)
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(Map.class)
+                .getResponseBody();
+
+        assertThat(loginEmailResp).isNotNull();
+        String tokenEmail = (String) loginEmailResp.get("amToken");
         assertThat(tokenEmail).isNotNull();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("AMtoken", tokenEmail);
-        HttpEntity<Void> req = new HttpEntity<>(headers);
-        ResponseEntity<Map> pingEmail = restTemplate.exchange("/api/secure/ping", HttpMethod.GET, req, Map.class);
-        assertThat(pingEmail.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(pingEmail.getBody().get("userId")).isNotNull();
+        // ping via email token
+        webTestClient.get().uri("/api/secure/ping")
+                .header("AMtoken", tokenEmail)
+                .exchange()
+                .expectStatus().isOk();
 
         // logout email token
-        ResponseEntity<Void> logout = restTemplate.exchange("/api/auth/logout", HttpMethod.POST, req, Void.class);
-        assertThat(logout.getStatusCode()).isEqualTo(HttpStatus.OK);
+        webTestClient.post().uri("/api/auth/logout")
+                .header("AMtoken", tokenEmail)
+                .exchange()
+                .expectStatus().isOk();
 
         // login via phone
         Map<String, String> payloadPhone = Map.of("username", "1999999999", "password", "secret");
-        ResponseEntity<Map> loginPhone = restTemplate.postForEntity("/api/auth/login", payloadPhone, Map.class);
-        assertThat(loginPhone.getStatusCode()).isEqualTo(HttpStatus.OK);
-        String tokenPhone = (String) ((Map) loginPhone.getBody()).get("amToken");
+        var loginPhoneResp = webTestClient.post().uri("/api/auth/login").bodyValue(payloadPhone)
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(Map.class)
+                .getResponseBody();
+
+        assertThat(loginPhoneResp).isNotNull();
+        String tokenPhone = (String) loginPhoneResp.get("amToken");
         assertThat(tokenPhone).isNotNull();
 
-        headers = new HttpHeaders();
-        headers.add("AMtoken", tokenPhone);
-        req = new HttpEntity<>(headers);
-        ResponseEntity<Map> pingPhone = restTemplate.exchange("/api/secure/ping", HttpMethod.GET, req, Map.class);
-        assertThat(pingPhone.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(pingPhone.getBody().get("userId")).isNotNull();
+        // ping via phone token
+        webTestClient.get().uri("/api/secure/ping")
+                .header("AMtoken", tokenPhone)
+                .exchange()
+                .expectStatus().isOk();
 
         // logout phone token
-        ResponseEntity<Void> logout2 = restTemplate.exchange("/api/auth/logout", HttpMethod.POST, req, Void.class);
-        assertThat(logout2.getStatusCode()).isEqualTo(HttpStatus.OK);
+        webTestClient.post().uri("/api/auth/logout")
+                .header("AMtoken", tokenPhone)
+                .exchange()
+                .expectStatus().isOk();
 
-        // ping after logout phone should fail
-        ResponseEntity<String> pingFail = restTemplate.exchange("/api/secure/ping", HttpMethod.GET, req, String.class);
-        assertThat(pingFail.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        // ping after logout should fail
+        webTestClient.get().uri("/api/secure/ping")
+                .header("AMtoken", tokenPhone)
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 }
