@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Create Liquibase tracking tables if they do not exist -->
+
+    <changeSet id="000-init-databasechangelog" author="automation">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="DATABASECHANGELOG"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="DATABASECHANGELOG">
+            <column name="ID" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="AUTHOR" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="FILENAME" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DATEEXECUTED" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ORDEREXECUTED" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EXECTYPE" type="varchar(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="MD5SUM" type="varchar(35)"/>
+            <column name="DESCRIPTION" type="varchar(255)"/>
+            <column name="COMMENTS" type="varchar(255)"/>
+            <column name="TAG" type="varchar(255)"/>
+            <column name="LIQUIBASE" type="varchar(20)"/>
+            <column name="CONTEXTS" type="varchar(255)"/>
+            <column name="LABELS" type="varchar(255)"/>
+            <column name="DEPLOYMENT_ID" type="varchar(10)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="000-init-databasechangeloglock" author="automation">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="DATABASECHANGELOGLOCK"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="DATABASECHANGELOGLOCK">
+            <column name="ID" type="int">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="LOCKED" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LOCKGRANTED" type="datetime"/>
+            <column name="LOCKEDBY" type="varchar(255)"/>
+        </createTable>
+
+        <!-- Ensure a single row exists with ID = 1 for Liquibase lock table on DBs that require it -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <and>
+                    <tableExists tableName="DATABASECHANGELOGLOCK"/>
+                    <sqlCheck expectedResult="0">SELECT COUNT(*) FROM DATABASECHANGELOGLOCK WHERE ID = 1</sqlCheck>
+                </and>
+            </not>
+        </preConditions>
+        <insert tableName="DATABASECHANGELOGLOCK">
+            <column name="ID" valueNumeric="1"/>
+            <column name="LOCKED" valueBoolean="false"/>
+            <column name="LOCKGRANTED" valueDate="1970-01-01T00:00:00"/>
+            <column name="LOCKEDBY" value=""/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
