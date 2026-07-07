@@ -9,9 +9,9 @@ import java.io.IOException;
 
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
-    private final TokenService tokenService;
+    private final JwtTokenService tokenService;
 
-    public AuthInterceptor(TokenService tokenService) {
+    public AuthInterceptor(JwtTokenService tokenService) {
         this.tokenService = tokenService;
     }
 

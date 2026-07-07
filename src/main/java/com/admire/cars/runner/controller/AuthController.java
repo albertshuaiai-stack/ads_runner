@@ -18,9 +18,9 @@ import java.util.UUID;
 public class AuthController {
 
     private final UserRepository userRepository;
-    private final com.admire.cars.runner.security.TokenService tokenService;
+    private final com.admire.cars.runner.security.JwtTokenService tokenService;
 
-    public AuthController(UserRepository userRepository, com.admire.cars.runner.security.TokenService tokenService) {
+    public AuthController(UserRepository userRepository, com.admire.cars.runner.security.JwtTokenService tokenService) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
     }
@@ -43,6 +43,15 @@ public class AuthController {
         }
         String token = tokenService.createToken(user.getId());
         return ResponseEntity.ok(new LoginResponse(token));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            tokenService.revokeToken(token);
+        }
+        return ResponseEntity.ok().build();
     }
 
     public static class LoginRequest {
