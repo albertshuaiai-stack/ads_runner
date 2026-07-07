@@ -82,7 +82,7 @@ public class AdsUrlService {
     }
 
     public List<AdsUrlAud> getAdsUrlAuditHistory(Long id) {
-        return adsUrlAudRepository.findById(id);
+        return adsUrlAudRepository.findByIdOrderByReversionDesc(id);
     }
 
     @Transactional

@@ -7,6 +7,6 @@ import java.util.List;
 
 @Repository
 public interface AdsUrlAudRepository extends JpaRepository<AdsUrlAud, Long> {
-    List<AdsUrlAud> findById(Long id);
+    List<AdsUrlAud> findByIdOrderByReversionDesc(Long id);
     List<AdsUrlAud> findByCapMainName(String capMainName);
 }
