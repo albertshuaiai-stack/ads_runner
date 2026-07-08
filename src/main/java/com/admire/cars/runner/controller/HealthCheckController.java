@@ -1,5 +1,6 @@
 package com.admire.cars.runner.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +16,7 @@ import java.util.Map;
 public class HealthCheckController {
 
     @GetMapping
+    @Operation(summary = "Health status", security = {})
     public ResponseEntity<Map<String, Object>> health() {
         Map<String, Object> response = new HashMap<>();
         response.put("status", "UP");
@@ -24,11 +26,13 @@ public class HealthCheckController {
     }
 
     @GetMapping("/ping")
+    @Operation(summary = "Ping endpoint", security = {})
     public ResponseEntity<String> ping() {
         return ResponseEntity.ok("pong");
     }
 
     @GetMapping("/ready")
+    @Operation(summary = "Readiness status", security = {})
     public ResponseEntity<Map<String, Object>> readiness() {
         Map<String, Object> response = new HashMap<>();
         response.put("ready", true);

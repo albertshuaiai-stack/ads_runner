@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-role-001-create-table" author="copilot">
+        <createTable tableName="ADS_ROLE">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ROLE_NAME" type="VARCHAR(32)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="ads-role-002-seed-default-roles" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="ADS_ROLE"/>
+        </preConditions>
+        <insert tableName="ADS_ROLE">
+            <column name="ROLE_NAME" value="Admin"/>
+        </insert>
+        <insert tableName="ADS_ROLE">
+            <column name="ROLE_NAME" value="Matrix"/>
+        </insert>
+        <insert tableName="ADS_ROLE">
+            <column name="ROLE_NAME" value="Normal"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

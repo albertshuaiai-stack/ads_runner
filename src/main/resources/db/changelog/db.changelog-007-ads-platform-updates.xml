@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-platform-003-align-schema" author="copilot">
+        <addUniqueConstraint tableName="ADS_PLATFORM"
+                             columnNames="PLATFORM_NAME"
+                             constraintName="UQ_ADS_PLATFORM_PLATFORM_NAME"/>
+        <dropColumn tableName="ADS_PLATFORM" columnName="PAYMENT_METHOD"/>
+        <modifyDataType tableName="ADS_PLATFORM" columnName="PLATFORM_NAME" newDataType="VARCHAR(32)"/>
+        <modifyDataType tableName="ADS_PLATFORM" columnName="REMARKS" newDataType="VARCHAR(256)"/>
+    </changeSet>
+
+</databaseChangeLog>

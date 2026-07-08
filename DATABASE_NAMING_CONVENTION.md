@@ -7,6 +7,7 @@ All tables must follow **UPPERCASE** naming convention:
 ### Application Tables: `ADS_*`
 - **ADS_USER** - User management
 - **ADS_USER_AUD** - User audit trail
+- **ADS_PLATFORM** - ADS platform master data
 - **ADS_*** - Other application tables
 
 ### Scheduler Tables: `QRTZ_*`

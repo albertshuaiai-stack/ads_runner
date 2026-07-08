@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="normal-ads-001-create-table" author="copilot">
+        <createTable tableName="ADS_NORMAL_INFO">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="CAMPAIN_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CAMPAIN_COUNTRY" type="VARCHAR(8)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(32)">
+                <constraints nullable="false" foreignKeyName="FK_ADS_NORMAL_INFO_PLATFORM_NAME" references="ADS_PLATFORM(PLATFORM_NAME)"/>
+            </column>
+            <column name="AFFILITE_URL" type="VARCHAR(128)"/>
+            <column name="LANDING_PAGE_URL" type="VARCHAR(128)"/>
+            <column name="DYNAMIC_PROXY_INFO" type="VARCHAR(256)"/>
+            <column name="DYNAMIC_PROXY_INFO_BACKUP" type="VARCHAR(256)"/>
+            <column name="INTERVAL_TIME" type="BIGINT"/>
+            <column name="STATUS" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false" foreignKeyName="FK_ADS_NORMAL_INFO_ADS_OWNER" references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="normal-ads-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_ADS_NORMAL_INFO_CAMPAIN_NAME" tableName="ADS_NORMAL_INFO">
+            <column name="CAMPAIN_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_INFO_PLATFORM_NAME" tableName="ADS_NORMAL_INFO">
+            <column name="PLATFORM_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_INFO_STATUS" tableName="ADS_NORMAL_INFO">
+            <column name="STATUS"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_INFO_ADS_OWNER" tableName="ADS_NORMAL_INFO">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

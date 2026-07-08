@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="user-005-add-user-management-columns" author="copilot">
+        <addColumn tableName="ADS_USER">
+            <column name="USER_ROLE" type="VARCHAR(128)"/>
+            <column name="EXPIRE_DATE" type="TIMESTAMP"/>
+            <column name="NORMAL_ADS_NUMBER" type="BIGINT"/>
+            <column name="MATRIX_ADS_NUMBER" type="BIGINT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="user-006-backfill-admin-user-management-values" author="copilot">
+        <update tableName="ADS_USER">
+            <column name="USER_ROLE" value="ADMIN"/>
+            <column name="NORMAL_ADS_NUMBER" valueNumeric="0"/>
+            <column name="MATRIX_ADS_NUMBER" valueNumeric="0"/>
+            <where>USER_NAME = 'admin'</where>
+        </update>
+    </changeSet>
+
+    <changeSet id="user-007-adjust-user-column-lengths" author="copilot">
+        <modifyDataType tableName="ADS_USER" columnName="USER_NAME" newDataType="VARCHAR(32)"/>
+        <modifyDataType tableName="ADS_USER" columnName="USER_EMAIL" newDataType="VARCHAR(32)"/>
+        <modifyDataType tableName="ADS_USER" columnName="USER_PHONE_NUMBER" newDataType="VARCHAR(16)"/>
+        <modifyDataType tableName="ADS_USER" columnName="USER_PASSWORD" newDataType="VARCHAR(128)"/>
+    </changeSet>
+
+</databaseChangeLog>

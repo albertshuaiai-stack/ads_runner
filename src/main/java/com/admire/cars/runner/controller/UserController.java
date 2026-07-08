@@ -3,10 +3,14 @@ package com.admire.cars.runner.controller;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.entity.UserAudit;
 import com.admire.cars.runner.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 import java.util.HashMap;
@@ -24,6 +28,7 @@ public class UserController {
     }
 
     @PostMapping("/register")
+    @Operation(summary = "Register a new user", security = {})
     public ResponseEntity<Map<String, Object>> registerUser(@RequestBody User user) {
         try {
             User registeredUser = userService.registerUser(user);
@@ -52,6 +57,24 @@ public class UserController {
     }
 
     @GetMapping
+    @Operation(summary = "Query users with pagination")
+    public ResponseEntity<Page<User>> queryUsers(
+            @RequestParam(required = false) String phoneNumber,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String userName,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        Page<User> users = userService.searchUsers(
+                phoneNumber,
+                email,
+                userName,
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        return ResponseEntity.ok(users);
+    }
+
+    @GetMapping("/all")
     public ResponseEntity<List<User>> getAllUsers() {
         List<User> users = userService.getAllUsers();
         return ResponseEntity.ok(users);

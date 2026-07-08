@@ -17,4 +17,25 @@
     <!-- Include ADS URL tables -->
     <include file="db/changelog/db.changelog-003-ads-url-tables.xml"/>
 
+    <!-- Include ADS PLATFORM table -->
+    <include file="db/changelog/db.changelog-004-ads-platform-table.xml"/>
+
+    <!-- Include User management schema updates -->
+    <include file="db/changelog/db.changelog-005-user-management-updates.xml"/>
+
+    <!-- Include ADS ROLE table -->
+    <include file="db/changelog/db.changelog-006-ads-role-table.xml"/>
+
+    <!-- Include ADS PLATFORM updates -->
+    <include file="db/changelog/db.changelog-007-ads-platform-updates.xml"/>
+
+    <!-- Include ADS NORMAL_INFO table -->
+    <include file="db/changelog/db.changelog-008-normal-ads-table.xml"/>
+
+    <!-- Include ADS MATRIX_INFO tables -->
+    <include file="db/changelog/db.changelog-009-matrix-ads-table.xml"/>
+
+    <!-- Include ADS URL shift-link updates -->
+    <include file="db/changelog/db.changelog-010-shift-link-management.xml"/>
+
 </databaseChangeLog>

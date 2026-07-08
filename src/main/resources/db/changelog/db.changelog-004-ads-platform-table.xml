@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-platform-001-create-table" author="copilot">
+        <createTable tableName="ADS_PLATFORM">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PAYMENT_METHOD" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMARKS" type="VARCHAR(1024)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="ads-platform-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_ADS_PLATFORM_PLATFORM_NAME" tableName="ADS_PLATFORM">
+            <column name="PLATFORM_NAME"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
