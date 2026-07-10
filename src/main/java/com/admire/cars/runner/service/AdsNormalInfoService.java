@@ -3,10 +3,13 @@ package com.admire.cars.runner.service;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsPlatform;
 import com.admire.cars.runner.entity.User;
+import com.admire.cars.runner.event.AdsAutoTaskAction;
+import com.admire.cars.runner.event.AdsAutoTaskRegistrationEvent;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -17,7 +20,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @Transactional
@@ -26,20 +28,26 @@ public class AdsNormalInfoService {
     private final AdsNormalInfoRepository adsNormalInfoRepository;
     private final AdsPlatformRepository adsPlatformRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AdsNormalInfoService(
             AdsNormalInfoRepository adsNormalInfoRepository,
             AdsPlatformRepository adsPlatformRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.adsNormalInfoRepository = adsNormalInfoRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
-    public AdsNormalInfo create(AdsNormalInfo adsNormalInfo) {
+    public AdsNormalInfo create(AdsNormalInfo adsNormalInfo, Long currentUserId) {
+        adsNormalInfo.setAdsOwner(resolveAdsOwner(currentUserId));
         validateAndNormalize(adsNormalInfo);
         adsNormalInfo.setCreateDate(LocalDateTime.now());
-        return adsNormalInfoRepository.save(adsNormalInfo);
+        AdsNormalInfo saved = adsNormalInfoRepository.save(adsNormalInfo);
+        publishAutoTaskRegistration(saved);
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -48,7 +56,10 @@ public class AdsNormalInfoService {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_INFO not found: " + id));
     }
 
-    public Page<AdsNormalInfo> search(String campainName, String platformName, String status, String adsOwner, Pageable pageable) {
+    public Page<AdsNormalInfo> search(String campainName, String platformName, String status, String adsOwner, Long currentUserId, Pageable pageable) {
+        User currentUser = getCurrentUser(currentUserId);
+        boolean admin = isAdmin(currentUser);
+        String scopedAdsOwner = admin ? adsOwner : currentUser.getUserPhoneNumber();
         Specification<AdsNormalInfo> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -67,10 +78,10 @@ public class AdsNormalInfoService {
                         criteriaBuilder.lower(root.get("status")),
                         status.toLowerCase()));
             }
-            if (StringUtils.hasText(adsOwner)) {
+            if (StringUtils.hasText(scopedAdsOwner)) {
                 predicates.add(criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("adsOwner")),
-                        "%" + adsOwner.toLowerCase() + "%"));
+                        "%" + scopedAdsOwner.toLowerCase() + "%"));
             }
 
             return predicates.isEmpty()
@@ -81,7 +92,7 @@ public class AdsNormalInfoService {
         return adsNormalInfoRepository.findAll(specification, pageable);
     }
 
-    public AdsNormalInfo update(Long id, AdsNormalInfo updateData) {
+    public AdsNormalInfo update(Long id, AdsNormalInfo updateData, Long currentUserId) {
         AdsNormalInfo existing = getById(id);
 
         if (updateData.getCampainName() != null) {
@@ -111,17 +122,18 @@ public class AdsNormalInfoService {
         if (updateData.getStatus() != null) {
             existing.setStatus(updateData.getStatus());
         }
-        if (updateData.getAdsOwner() != null) {
-            existing.setAdsOwner(updateData.getAdsOwner());
-        }
+        existing.setAdsOwner(resolveAdsOwner(currentUserId));
 
         validateAndNormalize(existing);
         existing.setUpdateDate(LocalDateTime.now());
-        return adsNormalInfoRepository.save(existing);
+        AdsNormalInfo saved = adsNormalInfoRepository.save(existing);
+        publishAutoTaskRegistration(saved);
+        return saved;
     }
 
     public void delete(Long id) {
         AdsNormalInfo existing = getById(id);
+        publishAutoTaskDelete(existing);
         adsNormalInfoRepository.delete(existing);
     }
 
@@ -144,13 +156,11 @@ public class AdsNormalInfoService {
 
         AdsPlatform platform = adsPlatformRepository.findByPlatformNameIgnoreCase(adsNormalInfo.getPlatformName().trim())
                 .orElseThrow(() -> new IllegalArgumentException("ADS_PLATFORM not found: " + adsNormalInfo.getPlatformName()));
-        Optional<User> owner = userRepository.findByUserPhoneNumber(adsNormalInfo.getAdsOwner().trim());
-        if (owner.isEmpty()) {
-            throw new IllegalArgumentException("ADS_USER not found by phone number: " + adsNormalInfo.getAdsOwner());
-        }
+        User owner = userRepository.findByUserPhoneNumber(adsNormalInfo.getAdsOwner().trim())
+                .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + adsNormalInfo.getAdsOwner()));
 
         adsNormalInfo.setPlatformName(platform.getPlatformName());
-        adsNormalInfo.setAdsOwner(owner.get().getUserPhoneNumber());
+        adsNormalInfo.setAdsOwner(owner.getUserPhoneNumber());
         adsNormalInfo.setCampainName(adsNormalInfo.getCampainName().trim());
         adsNormalInfo.setCampainCountry(adsNormalInfo.getCampainCountry().trim());
         adsNormalInfo.setStatus(normalizeStatus(adsNormalInfo.getStatus()));
@@ -187,5 +197,49 @@ public class AdsNormalInfoService {
             throw new IllegalArgumentException("status must be PAUSED or RUNNING");
         }
         return normalized;
+    }
+
+    private void publishAutoTaskRegistration(AdsNormalInfo saved) {
+        Long intervalTime = saved.getIntervalTime();
+        if (intervalTime == null) {
+            return;
+        }
+        if (intervalTime <= 0) {
+            throw new IllegalArgumentException("intervalTime must be greater than 0");
+        }
+
+        eventPublisher.publishEvent(new AdsAutoTaskRegistrationEvent(
+                AdsAutoTaskAction.UPSERT,
+                saved.getId(),
+                saved.getAdsOwner(),
+                "Normal",
+                intervalTime,
+                saved.getStatus()));
+    }
+
+    private void publishAutoTaskDelete(AdsNormalInfo existing) {
+        eventPublisher.publishEvent(new AdsAutoTaskRegistrationEvent(
+                AdsAutoTaskAction.DELETE,
+                existing.getId(),
+                existing.getAdsOwner(),
+                "Normal",
+                existing.getIntervalTime(),
+                existing.getStatus()));
+    }
+
+    private String resolveAdsOwner(Long currentUserId) {
+        return getCurrentUser(currentUserId).getUserPhoneNumber();
+    }
+
+    private User getCurrentUser(Long currentUserId) {
+        return userRepository.findById(currentUserId)
+                .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by id: " + currentUserId));
+    }
+
+    private boolean isAdmin(User user) {
+        return user.getUserRole() != null
+                && java.util.Arrays.stream(user.getUserRole().split(","))
+                .map(String::trim)
+                .anyMatch(role -> "admin".equalsIgnoreCase(role));
     }
 }

@@ -13,7 +13,9 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -22,13 +24,18 @@ public class JwtTokenService {
     @Value("${jwt.secret}")
     private String secret;
 
+    @Value("${jwt.expiration-seconds:1800}")
+    private long expirationSeconds;
+
     // blacklist to support logout: token -> blockedUntilMillis (Long.MAX_VALUE for permanent)
     private final ConcurrentHashMap<String, Long> blacklist = new ConcurrentHashMap<>();
 
     private final UserRepository userRepository;
+    private final PasswordCryptoService passwordCryptoService;
 
-    public JwtTokenService(UserRepository userRepository) {
+    public JwtTokenService(UserRepository userRepository, PasswordCryptoService passwordCryptoService) {
         this.userRepository = userRepository;
+        this.passwordCryptoService = passwordCryptoService;
     }
 
     private static String sha256Hex(String input) {
@@ -43,15 +50,17 @@ public class JwtTokenService {
         }
     }
 
-    // Create token using phone number and password. Token does NOT include expiration.
+    // Create token using phone number and password with configured expiration.
     public String createToken(String phone, String password) {
         String key = Base64.getEncoder().encodeToString(secret.getBytes());
         Instant now = Instant.now();
         Date issuedAt = Date.from(now);
-        String pwdHash = sha256Hex(password);
+        Date expiration = Date.from(now.plusSeconds(expirationSeconds));
+        String pwdHash = sha256Hex(passwordCryptoService.decrypt(password));
         return Jwts.builder()
                 .setSubject(phone)
                 .setIssuedAt(issuedAt)
+                .setExpiration(expiration)
                 .claim("p", pwdHash)
                 .signWith(SignatureAlgorithm.HS256, key)
                 .compact();
@@ -74,20 +83,43 @@ public class JwtTokenService {
             Optional<User> uOpt = userRepository.findByUserPhoneNumber(phone);
             if (uOpt.isEmpty()) return null;
             User u = uOpt.get();
-            String storedPwd = u.getUserPassword();
-            String storedHash = sha256Hex(storedPwd);
-            if (!storedHash.equals(claimPwdHash)) return null;
+            Set<String> validHashes = buildValidPasswordHashes(u.getUserPassword());
+            if (!validHashes.contains(claimPwdHash)) return null;
             return u.getId();
         } catch (Exception e) {
             return null;
         }
     }
 
-    // Revoke token permanently (no expiration tokens)
+    // Revoke token until its natural expiration.
     public void revokeToken(String token) {
         if (token == null) return;
-        // mark as permanently blocked
-        blacklist.put(token, Long.MAX_VALUE);
+        try {
+            String key = Base64.getEncoder().encodeToString(secret.getBytes());
+            Claims claims = Jwts.parser().setSigningKey(key).parseClaimsJws(token).getBody();
+            Date expiration = claims.getExpiration();
+            long blockedUntil = expiration != null ? expiration.getTime() : Long.MAX_VALUE;
+            blacklist.put(token, blockedUntil);
+        } catch (Exception e) {
+            blacklist.put(token, Long.MAX_VALUE);
+        }
+    }
+
+    private Set<String> buildValidPasswordHashes(String storedPassword) {
+        Set<String> hashes = new LinkedHashSet<>();
+        if (storedPassword == null) {
+            return hashes;
+        }
+
+        hashes.add(sha256Hex(storedPassword));
+        try {
+            String decryptedPassword = passwordCryptoService.decrypt(storedPassword);
+            if (decryptedPassword != null) {
+                hashes.add(sha256Hex(decryptedPassword));
+            }
+        } catch (Exception ignored) {
+            // Keep compatibility with tokens created from the stored value even if decrypt fails.
+        }
+        return hashes;
     }
 }
-

@@ -2,6 +2,7 @@ package com.admire.cars.runner.controller;
 
 import com.admire.cars.runner.entity.AdsRole;
 import com.admire.cars.runner.service.AdsRoleService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,11 +15,8 @@ import java.util.Map;
 @RequestMapping("/api/roles")
 public class AdsRoleController {
 
-    private final AdsRoleService adsRoleService;
-
-    public AdsRoleController(AdsRoleService adsRoleService) {
-        this.adsRoleService = adsRoleService;
-    }
+    @Autowired
+    private AdsRoleService adsRoleService;
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody AdsRole adsRole) {

@@ -26,6 +26,9 @@ public class User {
     @Column(name = "USER_PHONE_NUMBER", nullable = false, unique = true, length = 16)
     private String userPhoneNumber;
 
+    @Column(name = "API_KEY", nullable = false, unique = true, length = 256)
+    private String apiKey;
+
     @Column(name = "USER_ROLE", length = 128)
     private String userRole;
 

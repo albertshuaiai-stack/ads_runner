@@ -21,7 +21,12 @@ public class WebConfig implements WebMvcConfigurer {
         // Protect all API endpoints under /api/** except registration and health endpoints and login
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/users/register", "/api/health/**", "/api/auth/login");
+                .excludePathPatterns(
+                        "/api/users/register",
+                        "/api/health/**",
+                        "/api/auth/login",
+                        "/api/normal/ads",
+                        "/api/matrix/ads");
     }
 
     @Override

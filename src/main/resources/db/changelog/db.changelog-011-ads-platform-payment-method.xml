@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-platform-004-add-payment-method" author="copilot">
+        <addColumn tableName="ADS_PLATFORM">
+            <column name="PAYMENT_METHOD" type="VARCHAR(64)"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

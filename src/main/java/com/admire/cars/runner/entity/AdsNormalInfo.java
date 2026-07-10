@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Transient;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -61,6 +62,12 @@ public class AdsNormalInfo {
 
     @Column(name = "UPDATE_DATE")
     private LocalDateTime updateDate;
+
+    @Transient
+    private LocalDateTime lastExecuteTime;
+
+    @Transient
+    private LocalDateTime nextExecuteTime;
 
     @jakarta.persistence.PrePersist
     protected void onCreate() {

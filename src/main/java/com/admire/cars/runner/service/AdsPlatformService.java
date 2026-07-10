@@ -42,6 +42,9 @@ public class AdsPlatformService {
         if (updateData.getPlatformName() != null) {
             existing.setPlatformName(updateData.getPlatformName());
         }
+        if (updateData.getPaymentMethod() != null) {
+            existing.setPaymentMethod(updateData.getPaymentMethod());
+        }
         if (updateData.getRemarks() != null) {
             existing.setRemarks(updateData.getRemarks());
         }
@@ -67,6 +70,9 @@ public class AdsPlatformService {
         }
         if (adsPlatform.getPlatformName().length() > 32) {
             throw new IllegalArgumentException("platformName must be at most 32 characters");
+        }
+        if (adsPlatform.getPaymentMethod() != null && adsPlatform.getPaymentMethod().length() > 64) {
+            throw new IllegalArgumentException("paymentMethod must be at most 64 characters");
         }
         if (adsPlatform.getRemarks() != null && adsPlatform.getRemarks().length() > 256) {
             throw new IllegalArgumentException("remarks must be at most 256 characters");

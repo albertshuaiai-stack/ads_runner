@@ -66,7 +66,8 @@ public class AdsRoleService {
             case "admin" -> "Admin";
             case "matrix" -> "Matrix";
             case "normal" -> "Normal";
-            default -> throw new IllegalArgumentException("roleName must be Admin, Matrix, or Normal");
+            case "both" -> "Both";
+            default -> throw new IllegalArgumentException("roleName must be Admin, Matrix, Normal, or Both");
         };
         adsRole.setRoleName(normalized);
     }

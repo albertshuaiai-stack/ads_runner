@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="user-008-add-api-key-column" author="copilot">
+        <addColumn tableName="ADS_USER">
+            <column name="API_KEY" type="VARCHAR(256)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="user-009-backfill-api-key" author="copilot">
+        <sql>UPDATE ADS_USER SET API_KEY = USER_PHONE_NUMBER WHERE API_KEY IS NULL OR API_KEY = '';</sql>
+    </changeSet>
+
+    <changeSet id="user-010-apply-api-key-constraints" author="copilot">
+        <addNotNullConstraint tableName="ADS_USER" columnName="API_KEY" columnDataType="VARCHAR(256)"/>
+        <addUniqueConstraint tableName="ADS_USER" columnNames="API_KEY" constraintName="UK_ADS_USER_API_KEY"/>
+    </changeSet>
+
+</databaseChangeLog>

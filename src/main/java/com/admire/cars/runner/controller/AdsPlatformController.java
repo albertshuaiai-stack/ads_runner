@@ -2,6 +2,7 @@ package com.admire.cars.runner.controller;
 
 import com.admire.cars.runner.entity.AdsPlatform;
 import com.admire.cars.runner.service.AdsPlatformService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -16,11 +17,9 @@ import java.util.Map;
 @RequestMapping("/api/platforms")
 public class AdsPlatformController {
 
-    private final AdsPlatformService adsPlatformService;
+    @Autowired
+    private AdsPlatformService adsPlatformService;
 
-    public AdsPlatformController(AdsPlatformService adsPlatformService) {
-        this.adsPlatformService = adsPlatformService;
-    }
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody AdsPlatform adsPlatform) {

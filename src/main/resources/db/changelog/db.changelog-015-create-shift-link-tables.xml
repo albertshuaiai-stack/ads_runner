@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="shift-link-001-create-shift-link-table" author="copilot">
+        <createTable tableName="SHIFT_LINK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_TYPE" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_ID" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANDING_PAGE_URL" type="VARCHAR(128)"/>
+            <column name="FULL_URL" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="URL_SUFFIX" type="VARCHAR(256)"/>
+            <column name="DISPLAY_NUMBER" type="BIGINT" defaultValueNumeric="0"/>
+            <column name="DISPLAY_TIMES" type="BIGINT" defaultValueNumeric="0"/>
+            <column name="SEQ_NUMBER" type="BIGINT"/>
+            <column name="REMARKS" type="VARCHAR(64)"/>
+            <column name="STATUS" type="VARCHAR(16)" defaultValue="RUNNING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="shift-link-002-create-shift-link-indexes" author="copilot">
+        <createIndex indexName="IDX_SHIFT_LINK_ADS_TYPE_ADS_ID" tableName="SHIFT_LINK">
+            <column name="ADS_TYPE"/>
+            <column name="ADS_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_SHIFT_LINK_PLATFORM_NAME" tableName="SHIFT_LINK">
+            <column name="PLATFORM_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_SHIFT_LINK_STATUS" tableName="SHIFT_LINK">
+            <column name="STATUS"/>
+        </createIndex>
+        <createIndex indexName="IDX_SHIFT_LINK_ADS_OWNER" tableName="SHIFT_LINK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="shift-link-003-create-shift-link-aud-table" author="copilot">
+        <createTable tableName="SHIFT_LINK_AUD">
+            <column name="AUD_ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="SHIFT_LINK_ID" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OPERATION" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OPERATION_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OLD_VALUE" type="LONGTEXT"/>
+            <column name="NEW_VALUE" type="LONGTEXT"/>
+            <column name="OPERATOR" type="VARCHAR(100)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="shift-link-004-create-shift-link-aud-indexes" author="copilot">
+        <createIndex indexName="IDX_SHIFT_LINK_AUD_SHIFT_LINK_ID" tableName="SHIFT_LINK_AUD">
+            <column name="SHIFT_LINK_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_SHIFT_LINK_AUD_OPERATION_DATE" tableName="SHIFT_LINK_AUD">
+            <column name="OPERATION_DATE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -22,6 +22,9 @@ public class AdsPlatform {
     @Column(name = "PLATFORM_NAME", nullable = false, unique = true, length = 32)
     private String platformName;
 
+    @Column(name = "PAYMENT_METHOD", length = 64)
+    private String paymentMethod;
+
     @Column(name = "REMARKS", length = 256)
     private String remarks;
 }

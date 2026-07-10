@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Transient;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -63,6 +64,12 @@ public class AdsMatrixInfo {
 
     @Column(name = "UPDATE_DATE")
     private LocalDateTime updateDate;
+
+    @Transient
+    private LocalDateTime lastExecuteTime;
+
+    @Transient
+    private LocalDateTime nextExecuteTime;
 
     @OneToMany(mappedBy = "matrixInfo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonManagedReference
