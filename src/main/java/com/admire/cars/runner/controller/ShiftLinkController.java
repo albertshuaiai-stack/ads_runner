@@ -1,7 +1,6 @@
 package com.admire.cars.runner.controller;
 
 import com.admire.cars.runner.entity.ShiftLink;
-import com.admire.cars.runner.entity.ShiftLinkAud;
 import com.admire.cars.runner.service.ShiftLinkService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.io.ByteArrayResource;
@@ -13,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.HashMap;
 import java.util.List;
@@ -125,20 +123,6 @@ public class ShiftLinkController {
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-        }
-    }
-
-    @GetMapping("/{id}/audit")
-    public ResponseEntity<Map<String, Object>> getAuditHistory(@PathVariable Long id) {
-        try {
-            shiftLinkService.getShiftLinkById(id);
-            List<ShiftLinkAud> auditHistory = shiftLinkService.getShiftLinkAuditHistory(id);
-            Map<String, Object> response = new HashMap<>();
-            response.put("id", id);
-            response.put("auditHistory", auditHistory);
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
 

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="shift-link-log-001-create-table" author="copilot">
+        <createTable tableName="SHIFT_LINK_LOG">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_TYPE" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_SHIFT_LINK_LOG_PLATFORM_NAME"
+                             references="ADS_PLATFORM(PLATFORM_NAME)"/>
+            </column>
+            <column name="ADS_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="FULL_URL" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DISPLAY_TIMES" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMARKS" type="VARCHAR(64)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_SHIFT_LINK_LOG_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="shift-link-log-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_SHIFT_LINK_LOG_QUERY_SCOPE" tableName="SHIFT_LINK_LOG">
+            <column name="ADS_OWNER"/>
+            <column name="ADS_TYPE"/>
+            <column name="PLATFORM_NAME"/>
+            <column name="ADS_NAME"/>
+            <column name="CREATE_DATE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

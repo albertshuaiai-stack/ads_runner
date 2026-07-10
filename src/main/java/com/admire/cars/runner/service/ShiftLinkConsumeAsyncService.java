@@ -1,8 +1,8 @@
 package com.admire.cars.runner.service;
 
 import com.admire.cars.runner.entity.ShiftLink;
-import com.admire.cars.runner.entity.ShiftLinkAud;
-import com.admire.cars.runner.repository.ShiftLinkAudRepository;
+import com.admire.cars.runner.entity.ShiftLinkLog;
+import com.admire.cars.runner.repository.ShiftLinkLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -12,11 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ShiftLinkConsumeAsyncService {
 
     private final ShiftLinkRepository shiftLinkRepository;
-    private final ShiftLinkAudRepository shiftLinkAudRepository;
+    private final ShiftLinkLogRepository shiftLinkLogRepository;
 
-    public ShiftLinkConsumeAsyncService(ShiftLinkRepository shiftLinkRepository, ShiftLinkAudRepository shiftLinkAudRepository) {
+    public ShiftLinkConsumeAsyncService(
+            ShiftLinkRepository shiftLinkRepository,
+            ShiftLinkLogRepository shiftLinkLogRepository) {
         this.shiftLinkRepository = shiftLinkRepository;
-        this.shiftLinkAudRepository = shiftLinkAudRepository;
+        this.shiftLinkLogRepository = shiftLinkLogRepository;
     }
 
     @Async("adsAsyncExecutor")
@@ -30,16 +32,15 @@ public class ShiftLinkConsumeAsyncService {
         shiftLink.setDisplayTimes(nextDisplayTimes);
         shiftLinkRepository.save(shiftLink);
 
-        ShiftLinkAud audit = new ShiftLinkAud();
-        audit.setShiftLinkId(shiftLink.getId());
-        audit.setAdsOwner(shiftLink.getAdsOwner());
-        audit.setAdsName(shiftLink.getAdsName());
-        audit.setAdsType(shiftLink.getAdsType());
-        audit.setSeqNumber(shiftLink.getSeqNumber());
-        audit.setOperation("CONSUME");
-        audit.setOldValue("displayTimes=" + previousDisplayTimes);
-        audit.setNewValue("displayTimes=" + nextDisplayTimes);
-        audit.setOperator("API_KEY");
-        shiftLinkAudRepository.save(audit);
+        ShiftLinkLog log = new ShiftLinkLog();
+        log.setAdsType(shiftLink.getAdsType());
+        log.setPlatformName(shiftLink.getPlatformName());
+        log.setAdsName(shiftLink.getAdsName());
+        log.setFullUrl(shiftLink.getFullUrl());
+        log.setDisplayTimes(nextDisplayTimes);
+        log.setRemarks(shiftLink.getRemarks());
+        log.setAdsOwner(shiftLink.getAdsOwner());
+        shiftLinkLogRepository.save(log);
+
     }
 }

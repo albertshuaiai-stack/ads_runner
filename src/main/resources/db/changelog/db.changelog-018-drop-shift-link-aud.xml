@@ -5,12 +5,11 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
-    <changeSet id="ads-url-drop-aud-table" author="copilot">
-        <dropTable tableName="ADS_URL_AUD"/>
-    </changeSet>
-
-    <changeSet id="ads-url-drop-main-table" author="copilot">
-        <dropTable tableName="ADS_URL"/>
+    <changeSet id="shift-link-aud-drop-001" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="SHIFT_LINK_AUD"/>
+        </preConditions>
+        <dropTable tableName="SHIFT_LINK_AUD"/>
     </changeSet>
 
 </databaseChangeLog>

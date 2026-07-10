@@ -5,7 +5,6 @@ import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
-import com.admire.cars.runner.repository.ShiftLinkAudRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import com.admire.cars.runner.security.PasswordCryptoService;
@@ -70,9 +69,6 @@ public class AuthIntegrationTest {
 
     @Autowired
     private ShiftLinkRepository shiftLinkRepository;
-
-    @Autowired
-    private ShiftLinkAudRepository shiftLinkAudRepository;
 
     @Autowired
     private Scheduler scheduler;
@@ -1894,10 +1890,10 @@ public class AuthIntegrationTest {
         org.junit.jupiter.api.Assertions.assertEquals("https://example.com/matrix-shift-1", firstMatrixUrl);
         org.junit.jupiter.api.Assertions.assertEquals(1, ((Number) matrixResponse.getResponseBody().get("seqNumber")).intValue());
 
-        waitForCondition(() -> shiftLinkAudRepository
-                .findFirstByAdsOwnerAndAdsNameAndAdsTypeOrderByOperationDateDesc("19912345678", "Summer Sale Matrix", "Matrix")
-                .filter(aud -> Long.valueOf(1L).equals(aud.getSeqNumber()) && "CONSUME".equals(aud.getOperation()))
-                .isPresent());
+        waitForCondition(() -> shiftLinkRepository
+                .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc("19912345678", "Summer Sale Matrix", "Matrix")
+                .stream()
+                .anyMatch(link -> Long.valueOf(1L).equals(link.getSeqNumber()) && Long.valueOf(1L).equals(link.getDisplayTimes())));
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
@@ -1910,10 +1906,10 @@ public class AuthIntegrationTest {
                 .jsonPath("$.fullUrl").isEqualTo("https://example.com/matrix-shift-2")
                 .jsonPath("$.seqNumber").isEqualTo(2);
 
-        waitForCondition(() -> shiftLinkAudRepository
-                .findFirstByAdsOwnerAndAdsNameAndAdsTypeOrderByOperationDateDesc("19912345678", "Summer Sale Matrix", "Matrix")
-                .filter(aud -> Long.valueOf(2L).equals(aud.getSeqNumber()) && "CONSUME".equals(aud.getOperation()))
-                .isPresent());
+        waitForCondition(() -> shiftLinkRepository
+                .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc("19912345678", "Summer Sale Matrix", "Matrix")
+                .stream()
+                .allMatch(link -> Long.valueOf(1L).equals(link.getDisplayTimes())));
 
         var currentScopedLinks = shiftLinkRepository
                 .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc("19912345678", "Summer Sale Matrix", "Matrix");
@@ -1936,120 +1932,6 @@ public class AuthIntegrationTest {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.message").isEqualTo("api_key is required");
-    }
-
-    @Test
-    public void queryShiftLinkAuditsWithFiltersAndPagination() {
-        User user = new User();
-        user.setUserName("auditqueryuser");
-        user.setUserEmail("auditquery@example.com");
-        user.setUserPhoneNumber("1999000001");
-        user.setUserPassword("pass123");
-
-        webTestClient.post().uri("/api/users/register").bodyValue(user)
-                .exchange()
-                .expectStatus().isCreated();
-
-        String token = webTestClient.post().uri("/api/auth/login")
-                .bodyValue(Map.of("loginId", "auditquery@example.com", "password", "pass123"))
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(Map.class)
-                .returnResult()
-                .getResponseBody()
-                .get("amToken")
-                .toString();
-
-        webTestClient.post().uri("/api/platforms")
-                .header("AMtoken", token)
-                .bodyValue(Map.of("platformName", "Audit Platform", "remarks", "Audit platform"))
-                .exchange()
-                .expectStatus().isCreated();
-
-        webTestClient.post().uri("/api/normal-ads")
-                .header("AMtoken", token)
-                .bodyValue(Map.of(
-                        "campainName", "Audit Normal Campaign",
-                        "campainCountry", "US",
-                        "platformName", "Audit Platform",
-                        "status", "RUNNING"))
-                .exchange()
-                .expectStatus().isCreated();
-
-        webTestClient.post().uri("/api/matrix-ads")
-                .header("AMtoken", token)
-                .bodyValue(Map.of(
-                        "campainName", "Audit Matrix Campaign",
-                        "campainCountry", "US",
-                        "status", "RUNNING",
-                        "affiliateInfos", java.util.List.of(
-                                Map.of("platformName", "Audit Platform", "affiliteUrl", "https://example.com/audit-matrix"))))
-                .exchange()
-                .expectStatus().isCreated();
-
-        Long normalShiftLinkId = ((Number) webTestClient.post().uri("/api/shift-links")
-                .header("AMtoken", token)
-                .bodyValue(Map.of(
-                        "adsType", "Normal",
-                        "adsName", "Audit Normal Campaign",
-                        "platformName", "Audit Platform",
-                        "fullUrl", "https://example.com/audit-normal-1",
-                        "status", "RUNNING"))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(Map.class)
-                .returnResult()
-                .getResponseBody()
-                .get("id")).longValue();
-
-        webTestClient.post().uri("/api/shift-links")
-                .header("AMtoken", token)
-                .bodyValue(Map.of(
-                        "adsType", "Matrix",
-                        "adsName", "Audit Matrix Campaign",
-                        "platformName", "Audit Platform",
-                        "fullUrl", "https://example.com/audit-matrix-1",
-                        "status", "RUNNING"))
-                .exchange()
-                .expectStatus().isCreated();
-
-        webTestClient.put().uri("/api/shift-links/" + normalShiftLinkId)
-                .header("AMtoken", token)
-                .bodyValue(Map.of("status", "PAUSED"))
-                .exchange()
-                .expectStatus().isOk();
-
-        webTestClient.get().uri(uriBuilder -> uriBuilder.path("/api/shift-link-audits")
-                        .queryParam("adsType", "Normal")
-                        .queryParam("platformName", "Audit Platform")
-                        .queryParam("campainName", "Audit Normal Campaign")
-                        .queryParam("page", 0)
-                        .queryParam("size", 1)
-                        .build())
-                .header("AMtoken", token)
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.totalElements").isEqualTo(2)
-                .jsonPath("$.content.length()").isEqualTo(1)
-                .jsonPath("$.content[0].adsType").isEqualTo("Normal")
-                .jsonPath("$.content[0].adsName").isEqualTo("Audit Normal Campaign");
-
-        webTestClient.get().uri(uriBuilder -> uriBuilder.path("/api/shift-link-audits")
-                        .queryParam("adsType", "Matrix")
-                        .queryParam("platformName", "Audit Platform")
-                        .queryParam("campainName", "Audit Matrix Campaign")
-                        .queryParam("page", 0)
-                        .queryParam("size", 10)
-                        .build())
-                .header("AMtoken", token)
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.totalElements").isEqualTo(1)
-                .jsonPath("$.content.length()").isEqualTo(1)
-                .jsonPath("$.content[0].adsType").isEqualTo("Matrix")
-                .jsonPath("$.content[0].adsName").isEqualTo("Audit Matrix Campaign");
     }
 
     @Test

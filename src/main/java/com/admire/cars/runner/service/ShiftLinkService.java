@@ -1,13 +1,11 @@
 package com.admire.cars.runner.service;
 
 import com.admire.cars.runner.entity.ShiftLink;
-import com.admire.cars.runner.entity.ShiftLinkAud;
 import com.admire.cars.runner.entity.AdsPlatform;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
-import com.admire.cars.runner.repository.ShiftLinkAudRepository;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
@@ -44,7 +42,6 @@ import java.util.stream.Collectors;
 public class ShiftLinkService {
 
     private final ShiftLinkRepository shiftLinkRepository;
-    private final ShiftLinkAudRepository shiftLinkAudRepository;
     private final UserRepository userRepository;
     private final AdsPlatformRepository adsPlatformRepository;
     private final AdsNormalInfoRepository adsNormalInfoRepository;
@@ -52,13 +49,11 @@ public class ShiftLinkService {
 
     public ShiftLinkService(
             ShiftLinkRepository shiftLinkRepository,
-            ShiftLinkAudRepository shiftLinkAudRepository,
             UserRepository userRepository,
             AdsPlatformRepository adsPlatformRepository,
             AdsNormalInfoRepository adsNormalInfoRepository,
             AdsMatrixInfoRepository adsMatrixInfoRepository) {
         this.shiftLinkRepository = shiftLinkRepository;
-        this.shiftLinkAudRepository = shiftLinkAudRepository;
         this.userRepository = userRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
@@ -67,9 +62,7 @@ public class ShiftLinkService {
 
     public ShiftLink createShiftLink(ShiftLink shiftLink, Long currentUserId) {
         prepareForSave(shiftLink, currentUserId);
-        ShiftLink saved = shiftLinkRepository.save(shiftLink);
-        createAuditEntry(saved, "INSERT");
-        return saved;
+        return shiftLinkRepository.save(shiftLink);
     }
 
     @Transactional(readOnly = true)
@@ -133,9 +126,7 @@ public class ShiftLinkService {
         }
 
         mergeForUpdate(existing, updateData, currentUserId);
-        ShiftLink updated = shiftLinkRepository.save(existing);
-        createAuditEntry(updated, "UPDATE");
-        return updated;
+        return shiftLinkRepository.save(existing);
     }
 
     public void deleteShiftLink(Long id, Long currentUserId) {
@@ -151,19 +142,12 @@ public class ShiftLinkService {
         }
 
         shiftLinkRepository.delete(existing);
-        createAuditEntry(existing, "DELETE");
-    }
-
-    @Transactional(readOnly = true)
-    public List<ShiftLinkAud> getShiftLinkAuditHistory(Long shiftLinkId) {
-        return shiftLinkAudRepository.findByShiftLinkIdOrderByOperationDateDesc(shiftLinkId);
     }
 
     public void incrementDisplayTimes(Long id) {
         ShiftLink shiftLink = getShiftLinkById(id);
         shiftLink.setDisplayTimes((shiftLink.getDisplayTimes() != null ? shiftLink.getDisplayTimes() : 0L) + 1L);
         shiftLinkRepository.save(shiftLink);
-        createAuditEntry(shiftLink, "UPDATE");
     }
 
     public BulkUploadResult bulkUploadByExcel(MultipartFile file, Long currentUserId) {
@@ -528,9 +512,6 @@ public class ShiftLinkService {
     private void deleteShiftLinksByScope(String adsOwner, String adsName, String adsType) {
         List<ShiftLink> existingLinks = shiftLinkRepository
                 .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(adsOwner, adsName, adsType);
-        for (ShiftLink existingLink : existingLinks) {
-            createAuditEntry(existingLink, "DELETE");
-        }
         shiftLinkRepository.deleteAll(existingLinks);
     }
 
@@ -544,18 +525,6 @@ public class ShiftLinkService {
             throw new IllegalArgumentException("status must be PAUSED or RUNNING");
         }
         shiftLink.setStatus(normalizedStatus);
-    }
-
-    private void createAuditEntry(ShiftLink shiftLink, String operation) {
-        ShiftLinkAud audit = new ShiftLinkAud();
-        audit.setShiftLinkId(shiftLink.getId());
-        audit.setAdsOwner(shiftLink.getAdsOwner());
-        audit.setAdsName(shiftLink.getAdsName());
-        audit.setAdsType(shiftLink.getAdsType());
-        audit.setSeqNumber(shiftLink.getSeqNumber());
-        audit.setOperation(operation);
-        audit.setOperationDate(LocalDateTime.now());
-        shiftLinkAudRepository.save(audit);
     }
 
     private User getCurrentUser(Long currentUserId) {

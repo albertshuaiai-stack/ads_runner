@@ -4,6 +4,7 @@ import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.UserService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,32 +32,25 @@ public class AdsApiConsumeController {
 
     @GetMapping("/normal/ads")
     public ResponseEntity<Map<String, Object>> consumeNormalAds(
-            @RequestParam("campain_name") String campainName,
+            @RequestParam("campaign_name") String campaignName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
-        return consume("normal", campainName, apiKeyParam);
+        return consume("normal", campaignName, apiKeyParam);
     }
 
-    @GetMapping("/matrix/ads")
-    public ResponseEntity<Map<String, Object>> consumeMatrixAds(
-            @RequestParam("campain_name") String campainName,
+    @GetMapping(value = "/matrix/ads", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> consumeMatrixAds(
+            @RequestParam("campaign_name") String campaignName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
-            AdsApiConsumeService.MatrixConsumeResult result = adsApiConsumeService.consumeMatrixAds(campainName, apiKey);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("adsType", "matrix");
-            response.put("campainName", result.campainName());
-            response.put("adsOwner", result.adsOwner());
-            response.put("seqNumber", result.seqNumber());
-            response.put("fullUrl", result.fullUrl());
-            return ResponseEntity.ok(response);
+            AdsApiConsumeService.MatrixConsumeResult result = adsApiConsumeService.consumeMatrixAds(campaignName, apiKey);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(result.fullUrl());
         } catch (IllegalArgumentException e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(e.getMessage());
         }
     }
 

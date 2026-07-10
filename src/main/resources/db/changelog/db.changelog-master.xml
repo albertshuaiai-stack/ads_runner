@@ -14,9 +14,6 @@
     <!-- Include User tables -->
     <include file="db/changelog/db.changelog-002-user-tables.xml"/>
 
-    <!-- Include ADS URL tables -->
-    <include file="db/changelog/db.changelog-003-ads-url-tables.xml"/>
-
     <!-- Include ADS PLATFORM table -->
     <include file="db/changelog/db.changelog-004-ads-platform-table.xml"/>
 
@@ -35,22 +32,22 @@
     <!-- Include ADS MATRIX_INFO tables -->
     <include file="db/changelog/db.changelog-009-matrix-ads-table.xml"/>
 
-    <!-- Include ADS URL shift-link updates -->
-    <include file="db/changelog/db.changelog-010-shift-link-management.xml"/>
-
     <!-- Include ADS PLATFORM payment method restore -->
     <include file="db/changelog/db.changelog-011-ads-platform-payment-method.xml"/>
 
     <!-- Include ADS USER API key -->
     <include file="db/changelog/db.changelog-012-user-api-key.xml"/>
 
-    <!-- Remove ADS_URL tables -->
-    <include file="db/changelog/db.changelog-014-remove-ads-url-tables.xml"/>
-
     <!-- Create SHIFT_LINK tables -->
     <include file="db/changelog/db.changelog-015-create-shift-link-tables.xml"/>
 
     <!-- Add SHIFT_LINK_AUD scope columns -->
     <include file="db/changelog/db.changelog-016-shift-link-aud-scope.xml"/>
+
+    <!-- Create SHIFT_LINK_LOG table -->
+    <include file="db/changelog/db.changelog-017-shift-link-log-table.xml"/>
+
+    <!-- Drop SHIFT_LINK_AUD table -->
+    <include file="db/changelog/db.changelog-018-drop-shift-link-aud.xml"/>
 
 </databaseChangeLog>
