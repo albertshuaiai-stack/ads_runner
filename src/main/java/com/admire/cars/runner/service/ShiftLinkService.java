@@ -17,6 +17,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -27,6 +28,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -205,8 +207,27 @@ public class ShiftLinkService {
     }
 
     public byte[] createTemplateWorkbook() {
-        try (var inputStream = new ClassPathResource("template/Shift_Link_Temp.xlsx").getInputStream()) {
-            return inputStream.readAllBytes();
+        ClassPathResource templateResource = new ClassPathResource("template/Shift_Link_Temp.xlsx");
+        if (templateResource.exists()) {
+            try (var inputStream = templateResource.getInputStream()) {
+                return inputStream.readAllBytes();
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to create template", e);
+            }
+        }
+
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("SHIFT_LINK_TEMPLATE");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Ads_Type");
+            header.createCell(1).setCellValue("Ads_Name");
+            header.createCell(2).setCellValue("Platform_Name");
+            header.createCell(3).setCellValue("Full_URL");
+            header.createCell(4).setCellValue("Landing_Page_URL");
+            header.createCell(5).setCellValue("Dsplay_Number");
+            header.createCell(6).setCellValue("Remarks");
+            workbook.write(out);
+            return out.toByteArray();
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to create template", e);
         }
@@ -224,11 +245,27 @@ public class ShiftLinkService {
                 throw new IllegalArgumentException("Excel header row is missing");
             }
             int headerCount = Math.max(headerRow.getLastCellNum(), 0);
-            if (headerCount < 7) {
+            if (headerCount < 5) {
                 throw new IllegalArgumentException("Excel header row has insufficient columns");
-
             }
-            validateExcelHeader(headerRow, formatter);
+
+            Map<String, Integer> headerIndexes = new java.util.HashMap<>();
+            for (int i = 0; i < headerCount; i++) {
+                String headerValue = readCell(headerRow, i, formatter);
+                if (!StringUtils.hasText(headerValue)) {
+                    continue;
+                }
+                headerIndexes.put(normalizeHeaderKey(headerValue), i);
+            }
+
+            Integer adsTypeIndex = resolveColumnIndex(headerIndexes, "adstype");
+            Integer adsNameIndex = resolveColumnIndex(headerIndexes, "adsname", "campainname", "campaignname");
+            Integer platformNameIndex = resolveColumnIndex(headerIndexes, "platformname");
+            Integer fullUrlIndex = resolveColumnIndex(headerIndexes, "fullurl");
+            Integer landingPageUrlIndex = resolveColumnIndex(headerIndexes, "landingpageurl");
+            Integer displayNumberIndex = resolveColumnIndex(headerIndexes, "displaynumber", "dsplaynumber");
+            Integer remarksIndex = resolveColumnIndex(headerIndexes, "remarks", "remark");
+            boolean useNamedMapping = adsNameIndex != null && platformNameIndex != null && fullUrlIndex != null;
 
             List<ExcelRowData> rows = new ArrayList<>();
             for (int rowNum = sheet.getFirstRowNum() + 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
@@ -236,16 +273,56 @@ public class ShiftLinkService {
                 if (row == null) {
                     continue;
                 }
-                String adsType = readCell(row, 0, formatter);
-                String adsName = readCell(row, 1, formatter);
-                String platformName = readCell(row, 2, formatter);
-                String fullUrl = readCell(row, 3, formatter);
-                String landingPageUrl = readCell(row, 4, formatter);
-                String displayNumber = readCell(row, 5, formatter);
-                String remarks = readCell(row, 6, formatter);
-                if (isSupportedAdsType(adsType)) {
+                String rawAdsType;
+                String adsName;
+                String platformName;
+                String fullUrl;
+                String landingPageUrl;
+                String displayNumber;
+                String remarks;
+
+                if (useNamedMapping) {
+                    rawAdsType = adsTypeIndex != null ? readCell(row, adsTypeIndex, formatter) : "Normal";
+                    adsName = readCell(row, adsNameIndex, formatter);
+                    platformName = readCell(row, platformNameIndex, formatter);
+                    fullUrl = readCell(row, fullUrlIndex, formatter);
+                    landingPageUrl = landingPageUrlIndex != null ? readCell(row, landingPageUrlIndex, formatter) : null;
+                    displayNumber = displayNumberIndex != null ? readCell(row, displayNumberIndex, formatter) : null;
+                    remarks = remarksIndex != null ? readCell(row, remarksIndex, formatter) : null;
+                } else {
+                    String firstColumn = readCell(row, 0, formatter);
+                    if (isSupportedAdsType(firstColumn)) {
+                        rawAdsType = firstColumn;
+                        adsName = readCell(row, 1, formatter);
+                        platformName = readCell(row, 2, formatter);
+                        fullUrl = readCell(row, 3, formatter);
+                        if (headerCount >= 7) {
+                            landingPageUrl = readCell(row, 4, formatter);
+                            displayNumber = readCell(row, 5, formatter);
+                            remarks = readCell(row, 6, formatter);
+                        } else {
+                            landingPageUrl = null;
+                            displayNumber = readCell(row, 4, formatter);
+                            remarks = readCell(row, 5, formatter);
+                        }
+                    } else {
+                        rawAdsType = "Normal";
+                        adsName = readCell(row, 0, formatter);
+                        platformName = readCell(row, 1, formatter);
+                        fullUrl = readCell(row, 2, formatter);
+                        landingPageUrl = null;
+                        displayNumber = readCell(row, 3, formatter);
+                        remarks = readCell(row, 4, formatter);
+                    }
+                }
+
+                String normalizedAdsType = normalizeAdsType(rawAdsType);
+                if (normalizedAdsType != null
+                        && StringUtils.hasText(adsName)
+                        && StringUtils.hasText(platformName)
+                        && StringUtils.hasText(fullUrl)) {
                     rows.add(new ExcelRowData(
-                            adsType,
+                            normalizedAdsType,
                             adsName.trim(),
                             platformName.trim(),
                             fullUrl.trim(),
@@ -262,41 +339,42 @@ public class ShiftLinkService {
 
 
 
-    private void validateExcelHeader (Row headerRow, DataFormatter formatter) {
-        if (headerRow.getCell(0) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(0))) ||
-                !"adsType".equals(formatter.formatCellValue(headerRow.getCell(0)).trim())) {
-            throw new IllegalArgumentException("Excel header row first column should be adsType");
+    private String normalizeHeaderKey(String headerValue) {
+        return headerValue.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
+    }
+
+    private Integer resolveColumnIndex(Map<String, Integer> headerIndexes, String... aliases) {
+        for (String key : headerIndexes.keySet()) {
+            for (String alias : aliases) {
+                if (key.contains(alias)) {
+                    return headerIndexes.get(key);
+                }
+            }
         }
-        if (headerRow.getCell(1) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(1))) ||
-                !"adsName".equals(formatter.formatCellValue(headerRow.getCell(1)).trim())) {
-            throw new IllegalArgumentException("Excel header row second column should be adsName");
-        }
-        if (headerRow.getCell(2) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(2))) ||
-                !"platformName".equals(formatter.formatCellValue(headerRow.getCell(2)).trim())) {
-            throw new IllegalArgumentException("Excel header row third column should be platformName");
-        }
-        if (headerRow.getCell(3) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(3))) ||
-                !"fullUrl".equals(formatter.formatCellValue(headerRow.getCell(3)).trim())) {
-            throw new IllegalArgumentException("Excel header row fourth column should be fullUrl");
-        }
-        if (headerRow.getCell(4) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(4))) ||
-                !"landingPageUrl".equals(formatter.formatCellValue(headerRow.getCell(4)).trim())) {
-            throw new IllegalArgumentException("Excel header row fifth column should be landingPageUrl");
-        }
-        if (headerRow.getCell(5) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(5))) ||
-                !"displayNumber".equals(formatter.formatCellValue(headerRow.getCell(5)).trim())) {
-            throw new IllegalArgumentException("Excel header row sixth column should be displayNumber");
-        }
-        if (headerRow.getCell(6) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(6))) ||
-                !"remarks".equals(formatter.formatCellValue(headerRow.getCell(6)).trim())) {
-            throw new IllegalArgumentException("Excel header row seventh column should be remarks");
-        }
+        return null;
     }
 
 
     private boolean isSupportedAdsType(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         return "NORMAL".equals(normalized) || "MATRIX".equals(normalized);
+    }
+
+    private String normalizeAdsType(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if ("NORMAL".equals(normalized)) {
+            return "Normal";
+        }
+        if ("MATRIX".equals(normalized)) {
+            return "Matrix";
+        }
+        return null;
     }
 
 
