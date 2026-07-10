@@ -66,7 +66,7 @@ public class ShiftLink {
     protected void onCreate() {
         createDate = LocalDateTime.now();
         if (displayNumber == null) {
-            displayNumber = 0L;
+            displayNumber = 5L;
         }
         if (displayTimes == null) {
             displayTimes = 0L;

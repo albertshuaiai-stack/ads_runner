@@ -13,6 +13,7 @@ import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -31,13 +32,12 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -182,38 +182,42 @@ public class ShiftLinkService {
         User owner = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));
 
-        int insertedCount = 0;
-        String adsOwner = owner.getUserPhoneNumber();
-        Set<String> replacedScopes = new HashSet<>();
-        Map<String, Long> seqByScope = new HashMap<>();
-
-        for (ExcelRowData row : rows) {
-            String normalizedAdsType = normalizeAdsTypeValue(row.adsType());
-            String scopeKey = buildScopeKey(adsOwner, row.adsName(), normalizedAdsType);
-            if (replacedScopes.add(scopeKey)) {
-                deleteShiftLinksByScope(adsOwner, row.adsName(), normalizedAdsType);
-                seqByScope.put(scopeKey, 0L);
+        Map<String,List<ExcelRowData>> rowsByAdsType = rows.stream().collect(Collectors.groupingBy(ExcelRowData :: adsType, Collectors.toList()));
+        AtomicInteger insertedCount = new AtomicInteger(0);
+        rowsByAdsType.keySet().forEach(adsType -> {
+            if (!"Normal".equals(adsType) && !"Matrix".equals(adsType)) {
+                throw new IllegalArgumentException("Invalid adsType in Excel: " + adsType);
             }
-
-            ShiftLink shiftLink = new ShiftLink();
-            shiftLink.setAdsType(normalizedAdsType);
-            shiftLink.setAdsName(row.adsName());
-            shiftLink.setPlatformName(row.platformName());
-            shiftLink.setFullUrl(row.fullUrl());
-            shiftLink.setLandingPageUrl(row.landingPageUrl());
-            shiftLink.setDisplayNumber(row.displayNumber());
-            shiftLink.setDisplayTimes(row.displayNumber());
-            shiftLink.setRemarks(row.remarks());
-            shiftLink.setStatus("RUNNING");
-            shiftLink.setAdsOwner(adsOwner);
-            long nextSeq = seqByScope.compute(scopeKey, (key, current) -> current == null ? 1L : current + 1L);
-            shiftLink.setSeqNumber(nextSeq);
-
-            createShiftLink(shiftLink, currentUserId);
-            insertedCount++;
-        }
-
-        return new BulkUploadResult(rows.size(), insertedCount);
+            List<ExcelRowData> rowsByAdsTypeList = rowsByAdsType.get(adsType);
+            rowsByAdsTypeList.stream().collect(Collectors.groupingBy(ExcelRowData::adsName, Collectors.toList()))
+                    .forEach((adsName, groupedRows) -> {
+                        //delete existing shift links for this adsName and adsType
+                        deleteShiftLinksByScope(owner.getUserPhoneNumber(), adsName, adsType);
+                        String normalizedAdsType = adsType.trim().toUpperCase();
+                        Long adsId = resolveAdsId(adsName, owner.getUserPhoneNumber(), normalizedAdsType);
+                        AtomicReference<Long> sequenceNum = new AtomicReference<>(0L);
+                        List<ShiftLink> shiftLinkList = Lists.newArrayList();
+                        //Initial shift link for bulk saving
+                        groupedRows.stream().forEach(row -> {
+                            ShiftLink shiftLink = new ShiftLink();
+                            shiftLink.setAdsType(row.adsType());
+                            shiftLink.setAdsId(adsId);
+                            shiftLink.setAdsName(row.adsName());
+                            shiftLink.setPlatformName(row.platformName());
+                            shiftLink.setFullUrl(row.fullUrl());
+                            shiftLink.setLandingPageUrl(row.landingPageUrl());
+                            shiftLink.setDisplayNumber(row.displayNumber() != null ? row.displayNumber() : 5L);
+                            shiftLink.setRemarks(row.remarks());
+                            shiftLink.setAdsOwner(owner.getUserPhoneNumber());
+                            shiftLink.setSeqNumber(sequenceNum.get() + 1);
+                            sequenceNum.getAndSet(sequenceNum.get() + 1);
+                            shiftLinkList.add(shiftLink);
+                        });
+                        shiftLinkRepository.saveAll(shiftLinkList);
+                        insertedCount.addAndGet(shiftLinkList.size());
+            });
+        });
+        return new BulkUploadResult(rows.size(), insertedCount.get());
     }
 
     public byte[] createTemplateWorkbook() {
@@ -235,48 +239,12 @@ public class ShiftLinkService {
             if (headerRow == null) {
                 throw new IllegalArgumentException("Excel header row is missing");
             }
-
-            Map<String, Integer> headerIndexes = new LinkedHashMap<>();
-            for (int i = headerRow.getFirstCellNum(); i < headerRow.getLastCellNum(); i++) {
-                String header = formatter.formatCellValue(headerRow.getCell(i));
-                if (header != null && !header.isBlank()) {
-                    headerIndexes.put(normalizeHeader(header), i);
-                }
-            }
-
             int headerCount = Math.max(headerRow.getLastCellNum(), 0);
-            boolean detectedAdsTypeColumn = resolveHeaderIndex(headerIndexes, null, "ads_type") != null
-                    || looksLikeAdsTypeInFirstDataColumn(sheet, formatter);
-            boolean detectedLandingPageColumn = resolveHeaderIndex(headerIndexes, null, "landing_page_url") != null;
-            if (!detectedLandingPageColumn) {
-                detectedLandingPageColumn = looksLikeLandingPageColumn(sheet, formatter, detectedAdsTypeColumn, headerCount);
-            }
+            if (headerCount < 7) {
+                throw new IllegalArgumentException("Excel header row has insufficient columns");
 
-            Integer adsTypeIndex = detectedAdsTypeColumn
-                    ? findOptionalHeaderIndex(headerIndexes, 0, "ads_type")
-                    : null;
-            Integer adsNameIndex = findHeaderIndex(headerIndexes, 0, "ads_name", "campaign_name", "campain_name");
-            Integer platformIndex = findHeaderIndex(headerIndexes, 1, "platform_name", "platform");
-            Integer fullUrlIndex = findHeaderIndex(headerIndexes, 2, "full_url");
-            Integer landingPageIndex = detectedLandingPageColumn
-                    ? findOptionalHeaderIndex(headerIndexes, 3, "landing_page_url")
-                    : null;
-            Integer displayNumberIndex = findHeaderIndex(headerIndexes, detectedLandingPageColumn ? 4 : 3, "dsplay_number", "display_number");
-            Integer remarksIndex = findOptionalHeaderIndex(headerIndexes, headerCount > (detectedLandingPageColumn ? 4 : 3) ? (detectedLandingPageColumn ? 5 : 4) : null, "remarks", "remark");
-
-            if (detectedAdsTypeColumn) {
-                adsNameIndex = shiftIndexWhenFallback(adsNameIndex, 0, 1);
-                platformIndex = shiftIndexWhenFallback(platformIndex, 1, 2);
-                fullUrlIndex = shiftIndexWhenFallback(fullUrlIndex, 2, 3);
-                if (detectedLandingPageColumn) {
-                    landingPageIndex = shiftIndexWhenFallback(landingPageIndex, 3, 4);
-                    displayNumberIndex = shiftIndexWhenFallback(displayNumberIndex, 4, 5);
-                    remarksIndex = shiftIndexWhenFallback(remarksIndex, 5, 6);
-                } else {
-                    displayNumberIndex = shiftIndexWhenFallback(displayNumberIndex, 3, 4);
-                    remarksIndex = shiftIndexWhenFallback(remarksIndex, 4, 5);
-                }
             }
+            validateExcelHeader(headerRow, formatter);
 
             List<ExcelRowData> rows = new ArrayList<>();
             for (int rowNum = sheet.getFirstRowNum() + 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
@@ -284,46 +252,23 @@ public class ShiftLinkService {
                 if (row == null) {
                     continue;
                 }
-
-                String adsType = readCell(row, adsTypeIndex, formatter);
-                String adsName = readCell(row, adsNameIndex, formatter);
-                String platformName = readCell(row, platformIndex, formatter);
-                String fullUrl = readCell(row, fullUrlIndex, formatter);
-                String landingPageUrl = readCell(row, landingPageIndex, formatter);
-                String displayNumber = readCell(row, displayNumberIndex, formatter);
-                String remarks = readCell(row, remarksIndex, formatter);
-
-                boolean hasAdsTypeColumn = adsTypeIndex != null;
-                if ((!hasAdsTypeColumn || adsType == null || adsType.isBlank())
-                        && (adsName == null || adsName.isBlank())
-                        && (platformName == null || platformName.isBlank())
-                        && (fullUrl == null || fullUrl.isBlank())
-                        && (displayNumber == null || displayNumber.isBlank())
-                        && (remarks == null || remarks.isBlank())) {
-                    continue;
+                String adsType = readCell(row, 0, formatter);
+                String adsName = readCell(row, 1, formatter);
+                String platformName = readCell(row, 2, formatter);
+                String fullUrl = readCell(row, 3, formatter);
+                String landingPageUrl = readCell(row, 4, formatter);
+                String displayNumber = readCell(row, 5, formatter);
+                String remarks = readCell(row, 6, formatter);
+                if (isSupportedAdsType(adsType)) {
+                    rows.add(new ExcelRowData(
+                            adsType,
+                            adsName.trim(),
+                            platformName.trim(),
+                            fullUrl.trim(),
+                            trimToNull(landingPageUrl),
+                            parseLong(displayNumber),
+                            trimToNull(remarks)));
                 }
-
-                if (hasAdsTypeColumn && !StringUtils.hasText(adsType)) {
-                    throw new IllegalArgumentException("Ads_Type is required at row " + (rowNum + 1));
-                }
-                if (!StringUtils.hasText(adsName)) {
-                    throw new IllegalArgumentException("Ads_Name is required at row " + (rowNum + 1));
-                }
-                if (!StringUtils.hasText(platformName)) {
-                    throw new IllegalArgumentException("Platform_Name is required at row " + (rowNum + 1));
-                }
-                if (!StringUtils.hasText(fullUrl)) {
-                    throw new IllegalArgumentException("Full_URL is required at row " + (rowNum + 1));
-                }
-
-                rows.add(new ExcelRowData(
-                        hasAdsTypeColumn ? adsType.trim() : "Normal",
-                        adsName.trim(),
-                        platformName.trim(),
-                        fullUrl.trim(),
-                        trimToNull(landingPageUrl),
-                        parseLong(displayNumber),
-                        trimToNull(remarks)));
             }
             return rows;
         } catch (IOException e) {
@@ -331,106 +276,45 @@ public class ShiftLinkService {
         }
     }
 
-    private Integer findHeaderIndex(Map<String, Integer> headerIndexes, Integer fallbackIndex, String... candidates) {
-        Integer index = resolveHeaderIndex(headerIndexes, fallbackIndex, candidates);
-        if (index != null) {
-            return index;
+
+
+    private void validateExcelHeader (Row headerRow, DataFormatter formatter) {
+        if (headerRow.getCell(0) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(0))) ||
+                !"adsType".equals(formatter.formatCellValue(headerRow.getCell(0)).trim())) {
+            throw new IllegalArgumentException("Excel header row first column should be adsType");
         }
-        throw new IllegalArgumentException("Missing required column: " + candidates[0]);
-    }
-
-    private Integer findOptionalHeaderIndex(Map<String, Integer> headerIndexes, Integer fallbackIndex, String... candidates) {
-        return resolveHeaderIndex(headerIndexes, fallbackIndex, candidates);
-    }
-
-    private Integer resolveHeaderIndex(Map<String, Integer> headerIndexes, Integer fallbackIndex, String... candidates) {
-        for (String candidate : candidates) {
-            String normalizedCandidate = normalizeHeader(candidate);
-            Integer exactIndex = headerIndexes.get(normalizedCandidate);
-            if (exactIndex != null) {
-                return exactIndex;
-            }
-
-            for (Map.Entry<String, Integer> entry : headerIndexes.entrySet()) {
-                String normalizedHeader = entry.getKey();
-                if (normalizedHeader.contains(normalizedCandidate) || normalizedCandidate.contains(normalizedHeader)) {
-                    return entry.getValue();
-                }
-            }
+        if (headerRow.getCell(1) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(1))) ||
+                !"adsName".equals(formatter.formatCellValue(headerRow.getCell(1)).trim())) {
+            throw new IllegalArgumentException("Excel header row second column should be adsName");
         }
-        return fallbackIndex;
+        if (headerRow.getCell(2) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(2))) ||
+                !"platformName".equals(formatter.formatCellValue(headerRow.getCell(2)).trim())) {
+            throw new IllegalArgumentException("Excel header row third column should be platformName");
+        }
+        if (headerRow.getCell(3) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(3))) ||
+                !"fullUrl".equals(formatter.formatCellValue(headerRow.getCell(3)).trim())) {
+            throw new IllegalArgumentException("Excel header row fourth column should be fullUrl");
+        }
+        if (headerRow.getCell(4) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(4))) ||
+                !"landingPageUrl".equals(formatter.formatCellValue(headerRow.getCell(4)).trim())) {
+            throw new IllegalArgumentException("Excel header row fifth column should be landingPageUrl");
+        }
+        if (headerRow.getCell(5) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(5))) ||
+                !"displayNumber".equals(formatter.formatCellValue(headerRow.getCell(5)).trim())) {
+            throw new IllegalArgumentException("Excel header row sixth column should be displayNumber");
+        }
+        if (headerRow.getCell(6) == null || !StringUtils.hasText(formatter.formatCellValue(headerRow.getCell(6))) ||
+                !"remarks".equals(formatter.formatCellValue(headerRow.getCell(6)).trim())) {
+            throw new IllegalArgumentException("Excel header row seventh column should be remarks");
+        }
     }
 
-    private boolean looksLikeAdsTypeInFirstDataColumn(Sheet sheet, DataFormatter formatter) {
-        for (int rowNum = sheet.getFirstRowNum() + 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
-            Row row = sheet.getRow(rowNum);
-            if (row == null) {
-                continue;
-            }
-            String firstCellValue = trimToNull(formatter.formatCellValue(row.getCell(0)));
-            if (firstCellValue == null) {
-                continue;
-            }
-            return isSupportedAdsType(firstCellValue);
-        }
-        return false;
-    }
 
     private boolean isSupportedAdsType(String value) {
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         return "NORMAL".equals(normalized) || "MATRIX".equals(normalized);
     }
 
-    private boolean looksLikeLandingPageColumn(Sheet sheet, DataFormatter formatter, boolean detectedAdsTypeColumn, int headerCount) {
-        int baseOffset = detectedAdsTypeColumn ? 1 : 0;
-        if (headerCount < baseOffset + 6) {
-            return false;
-        }
-
-        for (int rowNum = sheet.getFirstRowNum() + 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
-            Row row = sheet.getRow(rowNum);
-            if (row == null) {
-                continue;
-            }
-
-            String landingPageCandidate = trimToNull(formatter.formatCellValue(row.getCell(baseOffset + 3)));
-            String displayNumberCandidate = trimToNull(formatter.formatCellValue(row.getCell(baseOffset + 4)));
-            if (landingPageCandidate == null && displayNumberCandidate == null) {
-                continue;
-            }
-
-            return looksLikeUrl(landingPageCandidate) && looksLikeLong(displayNumberCandidate);
-        }
-
-        return false;
-    }
-
-    private boolean looksLikeUrl(String value) {
-        if (value == null) {
-            return false;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return normalized.startsWith("http://") || normalized.startsWith("https://");
-    }
-
-    private boolean looksLikeLong(String value) {
-        if (value == null) {
-            return true;
-        }
-        try {
-            Long.parseLong(value.trim());
-            return true;
-        } catch (NumberFormatException ex) {
-            return false;
-        }
-    }
-
-    private Integer shiftIndexWhenFallback(Integer currentIndex, int legacyIndex, int adsTypeIndex) {
-        if (currentIndex == null) {
-            return null;
-        }
-        return currentIndex.equals(legacyIndex) ? adsTypeIndex : currentIndex;
-    }
 
     private String readCell(Row row, Integer index, DataFormatter formatter) {
         if (index == null) {
@@ -439,11 +323,6 @@ public class ShiftLinkService {
         return formatter.formatCellValue(row.getCell(index));
     }
 
-    private String normalizeHeader(String header) {
-        String normalized = header.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
-        normalized = normalized.replaceAll("^_+|_+$", "");
-        return normalized;
-    }
 
     private String trimToNull(String value) {
         if (value == null) {
@@ -461,11 +340,15 @@ public class ShiftLinkService {
         try {
             return Long.valueOf(normalized);
         } catch (NumberFormatException ex) {
-            BigDecimal decimal = new BigDecimal(normalized);
-            if (decimal.stripTrailingZeros().scale() > 0) {
+            try {
+                BigDecimal decimal = new BigDecimal(normalized);
+                if (decimal.stripTrailingZeros().scale() > 0) {
+                    throw new IllegalArgumentException("Invalid whole number: " + value);
+                }
+                return decimal.longValueExact();
+            } catch (NumberFormatException decimalEx) {
                 throw new IllegalArgumentException("Invalid whole number: " + value);
             }
-            return decimal.longValueExact();
         }
     }
 
@@ -498,14 +381,9 @@ public class ShiftLinkService {
         }
 
         if (shiftLink.getDisplayNumber() == null) {
-            shiftLink.setDisplayNumber(0L);
+            shiftLink.setDisplayNumber(5L);
         }
-        if (shiftLink.getDisplayTimes() == null) {
-            shiftLink.setDisplayTimes(0L);
-        }
-        if (shiftLink.getSeqNumber() == null) {
-            shiftLink.setSeqNumber(1L);
-        }
+        shiftLink.setDisplayTimes(0L);
 
         validateRequiredFields(shiftLink);
         validateAdsReference(shiftLink);
@@ -609,37 +487,20 @@ public class ShiftLinkService {
 
         String normalizedAdsType = adsType.trim().toUpperCase();
 
-        validateScopedSeqNumberUniqueness(shiftLink);
+        shiftLink.setSeqNumber(calculateSequenceNum(shiftLink));
 
         shiftLink.setAdsId(resolveAdsId(adsName, adsOwner, normalizedAdsType));
     }
 
-    private void validateScopedSeqNumberUniqueness(ShiftLink shiftLink) {
+    private Long calculateSequenceNum(ShiftLink shiftLink) {
         String adsName = shiftLink.getAdsName();
         String adsOwner = shiftLink.getAdsOwner();
-        String adsType = shiftLink.getAdsType().trim().toUpperCase();
-        Long seqNumber = shiftLink.getSeqNumber();
-        Long currentId = shiftLink.getId();
-
-        var existingLinks = shiftLinkRepository.findAll((root, query, cb) -> {
-            var predicates = new ArrayList<Predicate>();
-            predicates.add(cb.equal(root.get("adsName"), adsName));
-            predicates.add(cb.equal(root.get("adsOwner"), adsOwner));
-            predicates.add(cb.equal(root.get("adsType"), adsType));
-            predicates.add(cb.equal(root.get("seqNumber"), seqNumber));
-
-            if (currentId != null) {
-                predicates.add(cb.notEqual(root.get("id"), currentId));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        });
-
-        if (!existingLinks.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "seqNumber '" + seqNumber + "' is already used for adsName '" + adsName
-                            + "', adsType '" + adsType + "', owner '" + adsOwner + "'");
-        }
+        String adsType = shiftLink.getAdsType();
+        Long maxSeqNumber = shiftLinkRepository
+                .findTopByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberDesc(adsOwner, adsName, adsType)
+                .map(ShiftLink::getSeqNumber)
+                .orElse(0L);
+        return maxSeqNumber + 1L;
     }
 
     private Long resolveAdsId(String adsName, String adsOwner, String normalizedAdsType) {
@@ -662,19 +523,7 @@ public class ShiftLinkService {
         shiftLink.setPlatformName(platform.getPlatformName());
     }
 
-    private String normalizeAdsTypeValue(String adsType) {
-        if (!StringUtils.hasText(adsType)) {
-            throw new IllegalArgumentException("adsType is required");
-        }
-        String normalized = adsType.trim().toUpperCase(Locale.ROOT);
-        if ("NORMAL".equals(normalized)) {
-            return "Normal";
-        }
-        if ("MATRIX".equals(normalized)) {
-            return "Matrix";
-        }
-        throw new IllegalArgumentException("adsType must be Normal or Matrix");
-    }
+
 
     private void deleteShiftLinksByScope(String adsOwner, String adsName, String adsType) {
         List<ShiftLink> existingLinks = shiftLinkRepository
@@ -685,9 +534,6 @@ public class ShiftLinkService {
         shiftLinkRepository.deleteAll(existingLinks);
     }
 
-    private String buildScopeKey(String adsOwner, String adsName, String adsType) {
-        return adsOwner + "|" + adsName + "|" + adsType;
-    }
 
     private void normalizeStatus(ShiftLink shiftLink) {
         if (shiftLink.getStatus() == null || shiftLink.getStatus().isBlank()) {

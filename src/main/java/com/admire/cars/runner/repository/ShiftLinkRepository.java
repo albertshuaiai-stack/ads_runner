@@ -14,6 +14,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
     List<ShiftLink> findByAdsIdAndAdsType(Long adsId, String adsType);
     List<ShiftLink> findByAdsOwner(String adsOwner);
     List<ShiftLink> findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(String adsOwner, String adsName, String adsType);
+    Optional<ShiftLink> findTopByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberDesc(String adsOwner, String adsName, String adsType);
     @Query("""
             select s from ShiftLink s
             where s.adsOwner = :adsOwner
