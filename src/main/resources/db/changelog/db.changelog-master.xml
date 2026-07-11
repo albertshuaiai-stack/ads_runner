@@ -50,4 +50,10 @@
     <!-- Drop SHIFT_LINK_AUD table -->
     <include file="db/changelog/db.changelog-018-drop-shift-link-aud.xml"/>
 
+    <!-- Create TOOL_EMAL table -->
+    <include file="db/changelog/db.changelog-019-tool-emal-table.xml"/>
+
+    <!-- Create TOOL_ACCOUNT table -->
+    <include file="db/changelog/db.changelog-020-tool-account-table.xml"/>
+
 </databaseChangeLog>

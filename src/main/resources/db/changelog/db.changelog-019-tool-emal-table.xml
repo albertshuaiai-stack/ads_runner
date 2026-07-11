@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="tool-emal-001-create-table" author="copilot">
+        <createTable tableName="TOOL_EMAL">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(16)"/>
+            <column name="BIRTHDAY_DATE" type="DATE"/>
+            <column name="EMAIL_ADDRESS" type="VARCHAR(64)"/>
+            <column name="EMALI_PWD" type="VARCHAR(64)"/>
+            <column name="PARENT_EMAIL" type="VARCHAR(64)"/>
+            <column name="ADDRESS" type="VARCHAR(128)"/>
+            <column name="REMARKS" type="VARCHAR(64)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_TOOL_EMAL_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="tool-emal-002-create-indexes" author="copilot">
+        <addUniqueConstraint tableName="TOOL_EMAL"
+                             columnNames="EMAIL_ADDRESS"
+                             constraintName="UQ_TOOL_EMAL_EMAIL_ADDRESS"/>
+        <addUniqueConstraint tableName="TOOL_EMAL"
+                             columnNames="USER_NAME"
+                             constraintName="UQ_TOOL_EMAL_USER_NAME"/>
+        <createIndex indexName="IDX_TOOL_EMAL_ADS_OWNER" tableName="TOOL_EMAL">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_EMAL_USER_NAME" tableName="TOOL_EMAL">
+            <column name="USER_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_EMAL_EMAIL_ADDRESS" tableName="TOOL_EMAL">
+            <column name="EMAIL_ADDRESS"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
