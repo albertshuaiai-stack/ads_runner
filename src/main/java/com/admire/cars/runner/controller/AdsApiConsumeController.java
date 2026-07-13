@@ -33,24 +33,20 @@ public class AdsApiConsumeController {
     @GetMapping("/normal/ads")
     public ResponseEntity<Map<String, Object>> consumeNormalAds(
             @RequestParam(value = "campaign_name", required = false) String campaignName,
-            @RequestParam(value = "campain_name", required = false) String legacyCampaignName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
-        return consume("normal", resolveCampaignName(campaignName, legacyCampaignName), apiKeyParam);
+        return consume("normal", campaignName, apiKeyParam);
     }
 
     @GetMapping(value = "/matrix/ads", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> consumeMatrixAds(
             @RequestParam(value = "campaign_name", required = false) String campaignName,
-            @RequestParam(value = "campain_name", required = false) String legacyCampaignName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
-            AdsApiConsumeService.MatrixConsumeResult result = adsApiConsumeService.consumeMatrixAds(
-                    resolveCampaignName(campaignName, legacyCampaignName),
-                    apiKey);
+            String result = adsApiConsumeService.consumeMatrixAds(campaignName,apiKey);
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_PLAIN)
-                    .body(result.fullUrl());
+                    .body(result);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .contentType(MediaType.TEXT_PLAIN)
@@ -93,15 +89,6 @@ public class AdsApiConsumeController {
         throw new IllegalArgumentException("api_key is required");
     }
 
-    private String resolveCampaignName(String campaignName, String legacyCampaignName) {
-        if (StringUtils.hasText(campaignName)) {
-            return campaignName;
-        }
-        if (StringUtils.hasText(legacyCampaignName)) {
-            return legacyCampaignName;
-        }
-        throw new IllegalArgumentException("campain_name is required");
-    }
 
     private String buildUniqueUrl(String adsType, String campainName) {
         String encodedCampainName = UriUtils.encodePathSegment(campainName.trim(), StandardCharsets.UTF_8);

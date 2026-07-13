@@ -30,13 +30,13 @@ public class AdsApiConsumeService {
     }
 
     @Transactional(readOnly = true)
-    public MatrixConsumeResult consumeMatrixAds(String campainName, String apiKey) {
-        if (!StringUtils.hasText(campainName)) {
-            throw new IllegalArgumentException("campaign_name is required");
+    public String consumeMatrixAds(String campaignName, String apiKey) {
+        if (!StringUtils.hasText(campaignName)) {
+            throw new IllegalArgumentException("campaignName is required");
         }
 
         User user = userService.getEnabledUserByApiKey(apiKey);
-        String normalizedCampaignName = campainName.trim();
+        String normalizedCampaignName = campaignName.trim();
         String adsOwner = user.getUserPhoneNumber();
 
         List<ShiftLink> eligibleLinks = shiftLinkRepository.findEligibleForConsume(
@@ -50,20 +50,10 @@ public class AdsApiConsumeService {
 
         int randomIndex = ThreadLocalRandom.current().nextInt(eligibleLinks.size());
         ShiftLink selectedLink = eligibleLinks.get(randomIndex);
-
+        String shiftLink = selectedLink.getFullUrl().replace(selectedLink.getLandingPageUrl(),"{lpurl}");
         shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
 
-        return new MatrixConsumeResult(
-                normalizedCampaignName,
-                adsOwner,
-                selectedLink.getSeqNumber(),
-                selectedLink.getFullUrl());
+        return shiftLink;
     }
 
-    public record MatrixConsumeResult(
-            String campainName,
-            String adsOwner,
-            Long seqNumber,
-            String fullUrl) {
-    }
 }
