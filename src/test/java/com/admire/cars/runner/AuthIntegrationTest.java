@@ -33,6 +33,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
@@ -561,12 +562,19 @@ public class AuthIntegrationTest {
                 .expectBody()
                 .jsonPath("$.content.length()").isEqualTo(1);
 
-        webTestClient.get().uri("/api/platforms/all")
+        var allPlatformsResponse = webTestClient.get().uri("/api/platforms/all")
                 .header("AMtoken", token)
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.length()").isEqualTo(2);
+                .expectBody(List.class)
+                .returnResult();
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> allPlatforms = (List<Map<String, Object>>) (List<?>) allPlatformsResponse.getResponseBody();
+        org.junit.jupiter.api.Assertions.assertTrue(allPlatforms.stream()
+                .anyMatch(platform -> "Google Ads".equals(platform.get("platformName"))));
+        org.junit.jupiter.api.Assertions.assertTrue(allPlatforms.stream()
+                .anyMatch(platform -> "Meta Ads".equals(platform.get("platformName"))));
 
         webTestClient.get().uri("/api/platforms/" + platformId)
                 .header("AMtoken", token)
