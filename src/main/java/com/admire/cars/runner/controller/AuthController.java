@@ -69,8 +69,6 @@ public class AuthController {
         if (!passwordCryptoService.matches(req.getPassword(), user.getUserPassword())) {
             return failure(HttpStatus.UNAUTHORIZED, "Password is incorrect");
         }
-        Long normalAdsTotalCount = adsNormalInfoRepository.countByAdsOwner(user.getUserPhoneNumber());
-        Long matrixAdsTotalCount = adsMatrixInfoRepository.countByAdsOwner(user.getUserPhoneNumber());
         String token = tokenService.createToken(user.getUserPhoneNumber(), user.getUserPassword());
         return ResponseEntity.ok(new AuthLoginResponse(
                 token,
@@ -78,8 +76,8 @@ public class AuthController {
                 user.getUserName(),
                 user.getUserRole(),
                 normalizeRoles(user.getUserRole()),
-                normalAdsTotalCount == null ? 0L : normalAdsTotalCount,
-                matrixAdsTotalCount == null ? 0L : matrixAdsTotalCount));
+                user.getNormalAdsNumber(),
+                user.getMatrixAdsNumber()));
     }
 
     @PostMapping("/logout")
