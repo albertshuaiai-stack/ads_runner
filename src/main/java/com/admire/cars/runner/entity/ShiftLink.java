@@ -32,7 +32,7 @@ public class ShiftLink {
     @Column(name = "LANDING_PAGE_URL", length = 128)
     private String landingPageUrl;
 
-    @Column(name = "FULL_URL", nullable = false, length = 512)
+    @Column(name = "FULL_URL", nullable = false, length = 1024)
     private String fullUrl;
 
     @Column(name = "URL_SUFFIX", length = 256)

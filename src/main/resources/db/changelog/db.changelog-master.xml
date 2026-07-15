@@ -59,4 +59,7 @@
     <!-- Create TOOL_PAYPAL, TOOL_INCOME, TOOL_OUTCOME tables -->
     <include file="db/changelog/db.changelog-021-tool-finance-tables.xml"/>
 
+    <!-- Increase SHIFT_LINK and SHIFT_LINK_LOG FULL_URL length -->
+    <include file="db/changelog/db.changelog-022-shift-link-full-url-length.xml"/>
+
 </databaseChangeLog>

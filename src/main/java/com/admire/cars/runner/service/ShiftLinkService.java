@@ -536,8 +536,8 @@ public class ShiftLinkService {
         if (shiftLink.getAdsName().length() > 32) {
             throw new IllegalArgumentException("adsName must be at most 32 characters");
         }
-        if (shiftLink.getFullUrl().length() > 512) {
-            throw new IllegalArgumentException("fullUrl must be at most 512 characters");
+        if (shiftLink.getFullUrl().length() > 1024) {
+            throw new IllegalArgumentException("fullUrl must be at most 1024 characters");
         }
         if (shiftLink.getPlatformName().length() > 32) {
             throw new IllegalArgumentException("platformName must be at most 32 characters");

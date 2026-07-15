@@ -36,7 +36,7 @@ public class ShiftLinkLog {
     @Column(name = "ADS_NAME", nullable = false, length = 32)
     private String adsName;
 
-    @Column(name = "FULL_URL", nullable = false, length = 512)
+    @Column(name = "FULL_URL", nullable = false, length = 1024)
     private String fullUrl;
 
     @Column(name = "DISPLAY_TIMES", nullable = false)

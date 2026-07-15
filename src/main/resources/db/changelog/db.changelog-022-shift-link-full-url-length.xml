@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="shift-link-005-alter-full-url-length" author="copilot">
+        <modifyDataType tableName="SHIFT_LINK" columnName="FULL_URL" newDataType="VARCHAR(1024)"/>
+        <modifyDataType tableName="SHIFT_LINK_LOG" columnName="FULL_URL" newDataType="VARCHAR(1024)"/>
+    </changeSet>
+
+</databaseChangeLog>
