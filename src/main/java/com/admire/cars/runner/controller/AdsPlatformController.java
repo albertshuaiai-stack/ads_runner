@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -56,6 +57,11 @@ public class AdsPlatformController {
         int safeSize = Math.max(size, 1);
         return ResponseEntity.ok(adsPlatformService.getAll(
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"))));
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<List<AdsPlatform>> getAllPlatforms() {
+        return ResponseEntity.ok(adsPlatformService.getAll());
     }
 
     @PutMapping("/{id}")

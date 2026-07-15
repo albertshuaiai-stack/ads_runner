@@ -83,12 +83,24 @@ public class ShiftLinkService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ShiftLink> searchShiftLinks(String platformName, String status, String adsOwner, Long currentUserId, Pageable pageable) {
+    public Page<ShiftLink> searchShiftLinks(String adsType, String adsName, String platformName, String status, String adsOwner, Long currentUserId, Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
         boolean admin = isAdmin(currentUser);
         String scopedAdsOwner = admin ? adsOwner : currentUser.getUserPhoneNumber();
         Specification<ShiftLink> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            if (StringUtils.hasText(adsType)) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("adsType")),
+                        "%" + adsType.toLowerCase() + "%"));
+            }
+
+            if (StringUtils.hasText(adsName)) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("adsName")),
+                        "%" + adsName.toLowerCase() + "%"));
+            }
 
             if (StringUtils.hasText(platformName)) {
                 predicates.add(criteriaBuilder.like(

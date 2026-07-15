@@ -56,4 +56,7 @@
     <!-- Create TOOL_ACCOUNT table -->
     <include file="db/changelog/db.changelog-020-tool-account-table.xml"/>
 
+    <!-- Create TOOL_PAYPAL, TOOL_INCOME, TOOL_OUTCOME tables -->
+    <include file="db/changelog/db.changelog-021-tool-finance-tables.xml"/>
+
 </databaseChangeLog>

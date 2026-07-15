@@ -561,6 +561,13 @@ public class AuthIntegrationTest {
                 .expectBody()
                 .jsonPath("$.content.length()").isEqualTo(1);
 
+        webTestClient.get().uri("/api/platforms/all")
+                .header("AMtoken", token)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2);
+
         webTestClient.get().uri("/api/platforms/" + platformId)
                 .header("AMtoken", token)
                 .exchange()
@@ -792,6 +799,23 @@ public class AuthIntegrationTest {
                 .exchange()
                 .expectStatus().isCreated();
 
+        webTestClient.post().uri("/api/platforms")
+                .header("AMtoken", ownerOneToken)
+                .bodyValue(Map.of("platformName", "Scoped Filter Platform", "remarks", "filter scope"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        webTestClient.post().uri("/api/shift-links")
+                .header("AMtoken", ownerOneToken)
+                .bodyValue(Map.of(
+                        "adsType", "Normal",
+                        "adsName", "Scope Filter Target",
+                        "platformName", "Scoped Filter Platform",
+                        "fullUrl", "https://example.com/shift-filter-target",
+                        "status", "RUNNING"))
+                .exchange()
+                .expectStatus().isCreated();
+
         webTestClient.get().uri("/api/normal-ads?page=0&size=10&campainName=Scope&adsOwner=7000000003")
                 .header("AMtoken", ownerOneToken)
                 .exchange()
@@ -815,6 +839,16 @@ public class AuthIntegrationTest {
                 .expectBody()
                 .jsonPath("$.totalElements").isEqualTo(1)
                 .jsonPath("$.content[0].adsOwner").isEqualTo("7000000002");
+
+        webTestClient.get().uri("/api/shift-links?page=0&size=10&adsType=Normal&adsName=Scope Filter Target&platformName=Scoped Filter Platform")
+                .header("AMtoken", ownerOneToken)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.content[0].adsType").isEqualTo("Normal")
+                .jsonPath("$.content[0].adsName").isEqualTo("Scope Filter Target")
+                .jsonPath("$.content[0].platformName").isEqualTo("Scoped Filter Platform");
 
         var nonAdminShiftLinks = webTestClient.get().uri("/api/shift-links/all")
                 .header("AMtoken", ownerOneToken)
@@ -2026,6 +2060,236 @@ public class AuthIntegrationTest {
 
         waitForJobGroup("8899000001-Normal", 0);
         waitForJobGroup("8899000001-Matrix", 1);
+    }
+
+    @Test
+    public void crudToolPaypalIncomeOutcomeWithOwnerScopedQueries() {
+        webTestClient.post().uri("/api/users/register")
+                .bodyValue(Map.of(
+                        "userName", "financeowner1",
+                        "userEmail", "financeowner1@example.com",
+                        "userPhoneNumber", "1888000101",
+                        "userPassword", "pass123"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        webTestClient.post().uri("/api/users/register")
+                .bodyValue(Map.of(
+                        "userName", "financeowner2",
+                        "userEmail", "financeowner2@example.com",
+                        "userPhoneNumber", "1888000102",
+                        "userPassword", "pass123"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        String token1 = webTestClient.post().uri("/api/auth/login")
+                .bodyValue(Map.of("loginId", "financeowner1@example.com", "password", "pass123"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(Map.class)
+                .returnResult()
+                .getResponseBody()
+                .get("amToken")
+                .toString();
+
+        String token2 = webTestClient.post().uri("/api/auth/login")
+                .bodyValue(Map.of("loginId", "financeowner2@example.com", "password", "pass123"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(Map.class)
+                .returnResult()
+                .getResponseBody()
+                .get("amToken")
+                .toString();
+
+        webTestClient.post().uri("/api/platforms")
+                .header("AMtoken", token1)
+                .bodyValue(Map.of("platformName", "Finance Platform 101", "remarks", "Finance platform 101"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        webTestClient.post().uri("/api/platforms")
+                .header("AMtoken", token2)
+                .bodyValue(Map.of("platformName", "Finance Platform 102", "remarks", "Finance platform 102"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        webTestClient.post().uri("/api/tool-emails")
+                .header("AMtoken", token1)
+                .bodyValue(Map.of(
+                        "userName", "financeu101",
+                        "emailAddress", "financeu101@example.com",
+                        "emaliPwd", "pwd101",
+                        "remarks", "owner1 tool email"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        webTestClient.post().uri("/api/tool-emails")
+                .header("AMtoken", token2)
+                .bodyValue(Map.of(
+                        "userName", "financeu102",
+                        "emailAddress", "financeu102@example.com",
+                        "emaliPwd", "pwd102",
+                        "remarks", "owner2 tool email"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        var paypal1 = webTestClient.post().uri("/api/tool-paypals")
+                .header("AMtoken", token1)
+                .bodyValue(Map.of(
+                        "paypalEmail", "paypal101@example.com",
+                        "primaryEmail", "primary101@example.com",
+                        "paypalId", "paypal-id-101",
+                        "adsOwner", "should-be-overridden"))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Map.class)
+                .returnResult();
+
+        webTestClient.post().uri("/api/tool-paypals")
+                .header("AMtoken", token2)
+                .bodyValue(Map.of(
+                        "paypalEmail", "paypal102@example.com",
+                        "primaryEmail", "primary102@example.com",
+                        "paypalId", "paypal-id-102"))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Map.class)
+                .returnResult();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "1888000101",
+                ((Map<?, ?>) paypal1.getResponseBody().get("data")).get("adsOwner"));
+
+        webTestClient.post().uri("/api/tool-incomes")
+                .header("AMtoken", token1)
+                .bodyValue(Map.of(
+                        "platformName", "Finance Platform 101",
+                        "userName", "financeu101",
+                        "incomeAmount", 123.45,
+                        "currency", "usd",
+                        "paymentMethod", "Wire",
+                        "paypalAccount", "paypal101@example.com",
+                        "payoutDate", "2026-07-10",
+                        "remarks", "owner1 income",
+                        "adsOwner", "override-me"))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Map.class)
+                .returnResult();
+
+        var income2 = webTestClient.post().uri("/api/tool-incomes")
+                .header("AMtoken", token2)
+                .bodyValue(Map.of(
+                        "platformName", "Finance Platform 102",
+                        "userName", "financeu102",
+                        "incomeAmount", 88.88,
+                        "currency", "CNY",
+                        "paymentMethod", "Paypal",
+                        "paypalAccount", "paypal102@example.com",
+                        "payoutDate", "2026-07-11",
+                        "remarks", "owner2 income"))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Map.class)
+                .returnResult();
+
+        Long income2Id = ((Number) income2.getResponseBody().get("id")).longValue();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/tool-incomes")
+                        .queryParam("page", 0)
+                        .queryParam("size", 10)
+                        .queryParam("platformName", "Finance Platform 101")
+                        .build())
+                .header("AMtoken", token1)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.content[0].adsOwner").isEqualTo("1888000101")
+                .jsonPath("$.content[0].currency").isEqualTo("USD");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/tool-incomes")
+                        .queryParam("page", 0)
+                        .queryParam("size", 10)
+                        .queryParam("userName", "financeu101")
+                        .queryParam("paypalAccount", "paypal101@example.com")
+                        .queryParam("payoutDateBegin", "2026-07-01")
+                        .queryParam("payoutDateEnd", "2026-07-31")
+                        .build())
+                .header("AMtoken", token1)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.totalElements").isEqualTo(1);
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/tool-incomes")
+                        .queryParam("page", 0)
+                        .queryParam("size", 10)
+                        .queryParam("platformName", "Finance Platform 102")
+                        .build())
+                .header("AMtoken", token1)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.totalElements").isEqualTo(0);
+
+        webTestClient.get()
+                .uri("/api/tool-incomes/" + income2Id)
+                .header("AMtoken", token1)
+                .exchange()
+                .expectStatus().isNotFound();
+
+        webTestClient.post().uri("/api/tool-outcomes")
+                .header("AMtoken", token1)
+                .bodyValue(Map.of(
+                        "outcomeType", "IP Proxy",
+                        "outcomeAmount", 11.11,
+                        "currency", "usd",
+                        "payDate", "2026-07-12",
+                        "remarks", "owner1 outcome"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        var outcome2 = webTestClient.post().uri("/api/tool-outcomes")
+                .header("AMtoken", token2)
+                .bodyValue(Map.of(
+                        "outcomeType", "SEMRUSH",
+                        "outcomeAmount", 22.22,
+                        "currency", "CNY",
+                        "payDate", "2026-07-13",
+                        "remarks", "owner2 outcome"))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(Map.class)
+                .returnResult();
+
+        Long outcome2Id = ((Number) outcome2.getResponseBody().get("id")).longValue();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/tool-outcomes")
+                        .queryParam("page", 0)
+                        .queryParam("size", 10)
+                        .queryParam("outcomeType", "ip proxy")
+                        .queryParam("payDateBegin", "2026-07-01")
+                        .queryParam("payDateEnd", "2026-07-31")
+                        .build())
+                .header("AMtoken", token1)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.totalElements").isEqualTo(1)
+                .jsonPath("$.content[0].outcomeType").isEqualTo("IP PROXY")
+                .jsonPath("$.content[0].adsOwner").isEqualTo("1888000101");
+
+        webTestClient.get()
+                .uri("/api/tool-outcomes/" + outcome2Id)
+                .header("AMtoken", token1)
+                .exchange()
+                .expectStatus().isNotFound();
     }
 
     private void waitForJobGroup(String groupName, int expectedSize) throws Exception {

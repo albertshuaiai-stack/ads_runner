@@ -47,9 +47,7 @@ public class AdsApiConsumeService {
         if (eligibleLinks.isEmpty()) {
             throw new IllegalArgumentException("No available SHIFT_LINK found for matrix ads");
         }
-
-        int randomIndex = ThreadLocalRandom.current().nextInt(eligibleLinks.size());
-        ShiftLink selectedLink = eligibleLinks.get(randomIndex);
+        ShiftLink selectedLink = eligibleLinks.get(0);
         String shiftLink = selectedLink.getFullUrl().replace(selectedLink.getLandingPageUrl(),"{lpurl}");
         shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
 

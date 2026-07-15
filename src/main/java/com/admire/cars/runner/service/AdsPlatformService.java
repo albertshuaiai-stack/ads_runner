@@ -4,8 +4,11 @@ import com.admire.cars.runner.entity.AdsPlatform;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @Transactional
@@ -34,6 +37,11 @@ public class AdsPlatformService {
     @Transactional(readOnly = true)
     public Page<AdsPlatform> getAll(Pageable pageable) {
         return adsPlatformRepository.findAll(pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdsPlatform> getAll() {
+        return adsPlatformRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
     }
 
     public AdsPlatform update(Long id, AdsPlatform updateData) {

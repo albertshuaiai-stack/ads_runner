@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="tool-paypal-001-create-table" author="copilot">
+        <createTable tableName="TOOL_PAYPAL">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="PAYPAL_EMAIL" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PRIMARY_EMAIL" type="VARCHAR(128)"/>
+            <column name="PAYPAL_ID" type="VARCHAR(64)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_TOOL_PAYPAL_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="tool-paypal-002-create-indexes" author="copilot">
+        <addUniqueConstraint tableName="TOOL_PAYPAL"
+                             columnNames="PAYPAL_EMAIL"
+                             constraintName="UQ_TOOL_PAYPAL_PAYPAL_EMAIL"/>
+        <createIndex indexName="IDX_TOOL_PAYPAL_ADS_OWNER" tableName="TOOL_PAYPAL">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_PAYPAL_PRIMARY_EMAIL" tableName="TOOL_PAYPAL">
+            <column name="PRIMARY_EMAIL"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="tool-income-001-create-table" author="copilot">
+        <createTable tableName="TOOL_INCOME">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(32)">
+                <constraints foreignKeyName="FK_TOOL_INCOME_PLATFORM_NAME" references="ADS_PLATFORM(PLATFORM_NAME)"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(16)">
+                <constraints foreignKeyName="FK_TOOL_INCOME_USER_NAME" references="TOOL_EMAL(USER_NAME)"/>
+            </column>
+            <column name="INCOME_AMOUNT" type="DECIMAL(19,4)"/>
+            <column name="CURRENCY" type="VARCHAR(32)"/>
+            <column name="PAYMENT_METHOD" type="VARCHAR(64)"/>
+            <column name="PAYPAL_ACCOUNT" type="VARCHAR(128)">
+                <constraints foreignKeyName="FK_TOOL_INCOME_PAYPAL_ACCOUNT" references="TOOL_PAYPAL(PAYPAL_EMAIL)"/>
+            </column>
+            <column name="PAYOUT_DATE" type="DATE"/>
+            <column name="REMARKS" type="VARCHAR(128)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_TOOL_INCOME_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="tool-income-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_TOOL_INCOME_ADS_OWNER" tableName="TOOL_INCOME">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_INCOME_PLATFORM_NAME" tableName="TOOL_INCOME">
+            <column name="PLATFORM_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_INCOME_USER_NAME" tableName="TOOL_INCOME">
+            <column name="USER_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_INCOME_PAYPAL_ACCOUNT" tableName="TOOL_INCOME">
+            <column name="PAYPAL_ACCOUNT"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_INCOME_PAYOUT_DATE" tableName="TOOL_INCOME">
+            <column name="PAYOUT_DATE"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="tool-outcome-001-create-table" author="copilot">
+        <createTable tableName="TOOL_OUTCOME">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="OUTCOME_TYPE" type="VARCHAR(64)"/>
+            <column name="OUTCOME_AMOUNT" type="DECIMAL(19,4)"/>
+            <column name="CURRENCY" type="VARCHAR(32)"/>
+            <column name="PAY_DATE" type="DATE"/>
+            <column name="REMARKS" type="VARCHAR(128)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_TOOL_OUTCOME_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="tool-outcome-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_TOOL_OUTCOME_ADS_OWNER" tableName="TOOL_OUTCOME">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_OUTCOME_OUTCOME_TYPE" tableName="TOOL_OUTCOME">
+            <column name="OUTCOME_TYPE"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_OUTCOME_PAY_DATE" tableName="TOOL_OUTCOME">
+            <column name="PAY_DATE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

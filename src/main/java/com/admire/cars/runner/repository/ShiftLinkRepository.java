@@ -22,7 +22,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
               and s.adsType = :adsType
               and upper(s.status) = upper(:status)
               and coalesce(s.displayTimes, 0) < coalesce(s.displayNumber, 0)
-            order by s.seqNumber asc, s.id asc
+            order by (coalesce(s.displayNumber, 0) - coalesce(s.displayTimes, 0)) DESC
             """)
     List<ShiftLink> findEligibleForConsume(String adsOwner, String adsName, String adsType, String status);
     List<ShiftLink> findByPlatformName(String platformName);

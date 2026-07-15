@@ -33,17 +33,19 @@ public class AdsApiConsumeController {
     @GetMapping("/normal/ads")
     public ResponseEntity<Map<String, Object>> consumeNormalAds(
             @RequestParam(value = "campaign_name", required = false) String campaignName,
+            @RequestParam(value = "campain_name", required = false) String campainName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
-        return consume("normal", campaignName, apiKeyParam);
+        return consume("normal", resolveCampaignName(campaignName, campainName), apiKeyParam);
     }
 
     @GetMapping(value = "/matrix/ads", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> consumeMatrixAds(
             @RequestParam(value = "campaign_name", required = false) String campaignName,
+            @RequestParam(value = "campain_name", required = false) String campainName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
-            String result = adsApiConsumeService.consumeMatrixAds(campaignName,apiKey);
+            String result = adsApiConsumeService.consumeMatrixAds(resolveCampaignName(campaignName, campainName), apiKey);
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(result);
@@ -87,6 +89,13 @@ public class AdsApiConsumeController {
             return apiKeyParam.trim();
         }
         throw new IllegalArgumentException("api_key is required");
+    }
+
+    private String resolveCampaignName(String campaignName, String campainName) {
+        if (StringUtils.hasText(campaignName)) {
+            return campaignName;
+        }
+        return campainName;
     }
 
 

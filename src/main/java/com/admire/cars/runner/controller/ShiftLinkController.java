@@ -66,6 +66,8 @@ public class ShiftLinkController {
 
     @GetMapping
     public ResponseEntity<Page<ShiftLink>> searchShiftLinks(
+            @RequestParam(required = false) String adsType,
+            @RequestParam(required = false) String adsName,
             @RequestParam(required = false) String platformName,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String adsOwner,
@@ -76,6 +78,8 @@ public class ShiftLinkController {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
         Page<ShiftLink> links = shiftLinkService.searchShiftLinks(
+                adsType,
+                adsName,
                 platformName,
                 status,
                 adsOwner,
