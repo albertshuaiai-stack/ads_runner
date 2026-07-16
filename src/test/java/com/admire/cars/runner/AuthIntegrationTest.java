@@ -347,6 +347,8 @@ public class AuthIntegrationTest {
         user.setUserPhoneNumber("1111222233");
         user.setUserPassword("pass123");
         user.setUserRole("Admin,Matrix");
+        user.setNormalAdsNumber(2L);
+        user.setMatrixAdsNumber(2L);
         user.setExpireDate(java.time.LocalDateTime.of(2026, 12, 31, 23, 59));
 
         webTestClient.post().uri("/api/users/register").bodyValue(user)
@@ -384,7 +386,7 @@ public class AuthIntegrationTest {
                 .jsonPath("$.userRole").isEqualTo("Admin,Matrix")
                 .jsonPath("$.roles").isEqualTo("Admin,Matrix")
                 .jsonPath("$.normalAdsTotalCount").isEqualTo(2)
-                .jsonPath("$.matrixAdsTotalCount").isEqualTo(1)
+                .jsonPath("$.matrixAdsTotalCount").isEqualTo(2)
                 .jsonPath("$.expireDate").exists();
     }
 
