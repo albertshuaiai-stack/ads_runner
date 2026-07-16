@@ -70,14 +70,16 @@ public class AuthController {
             return failure(HttpStatus.UNAUTHORIZED, "Password is incorrect");
         }
         String token = tokenService.createToken(user.getUserPhoneNumber(), user.getUserPassword());
+        Long normalCount = adsNormalInfoRepository.countByAdsOwner(user.getUserPhoneNumber());
+        Long matrixCount = adsMatrixInfoRepository.countByAdsOwner(user.getUserPhoneNumber());
         return ResponseEntity.ok(new AuthLoginResponse(
                 token,
                 user.getExpireDate(),
                 user.getUserName(),
                 user.getUserRole(),
                 normalizeRoles(user.getUserRole()),
-                user.getNormalAdsNumber(),
-                user.getMatrixAdsNumber()));
+                normalCount,
+                matrixCount));
     }
 
     @PostMapping("/logout")
