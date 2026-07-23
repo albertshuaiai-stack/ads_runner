@@ -29,13 +29,13 @@ public class ShiftLink {
     @Column(name = "ADS_NAME", nullable = false, length = 32)
     private String adsName;
 
-    @Column(name = "LANDING_PAGE_URL", length = 128)
+    @Column(name = "LANDING_PAGE_URL", length = 1024)
     private String landingPageUrl;
 
     @Column(name = "FULL_URL", nullable = false, length = 1024)
     private String fullUrl;
 
-    @Column(name = "URL_SUFFIX", length = 256)
+    @Column(name = "URL_SUFFIX", length = 1024)
     private String urlSuffix;
 
     @Column(name = "DISPLAY_NUMBER")

@@ -539,6 +539,12 @@ public class ShiftLinkService {
         if (shiftLink.getFullUrl().length() > 1024) {
             throw new IllegalArgumentException("fullUrl must be at most 1024 characters");
         }
+        if (shiftLink.getLandingPageUrl() != null && shiftLink.getLandingPageUrl().length() > 1024) {
+            throw new IllegalArgumentException("landingPageUrl must be at most 1024 characters");
+        }
+        if (shiftLink.getUrlSuffix() != null && shiftLink.getUrlSuffix().length() > 1024) {
+            throw new IllegalArgumentException("urlSuffix must be at most 1024 characters");
+        }
         if (shiftLink.getPlatformName().length() > 32) {
             throw new IllegalArgumentException("platformName must be at most 32 characters");
         }

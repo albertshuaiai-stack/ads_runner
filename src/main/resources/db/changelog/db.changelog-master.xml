@@ -62,4 +62,7 @@
     <!-- Increase SHIFT_LINK and SHIFT_LINK_LOG FULL_URL length -->
     <include file="db/changelog/db.changelog-022-shift-link-full-url-length.xml"/>
 
+    <!-- Increase SHIFT_LINK LANDING_PAGE_URL and URL_SUFFIX length -->
+    <include file="db/changelog/db.changelog-023-shift-link-landing-suffix-length.xml"/>
+
 </databaseChangeLog>
