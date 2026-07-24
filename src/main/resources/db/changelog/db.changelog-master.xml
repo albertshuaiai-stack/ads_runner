@@ -47,9 +47,6 @@
     <!-- Create SHIFT_LINK_LOG table -->
     <include file="db/changelog/db.changelog-017-shift-link-log-table.xml"/>
 
-    <!-- Drop SHIFT_LINK_AUD table -->
-    <include file="db/changelog/db.changelog-018-drop-shift-link-aud.xml"/>
-
     <!-- Create TOOL_EMAL table -->
     <include file="db/changelog/db.changelog-019-tool-emal-table.xml"/>
 

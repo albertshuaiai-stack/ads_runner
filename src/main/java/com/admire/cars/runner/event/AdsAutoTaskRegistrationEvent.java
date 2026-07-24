@@ -6,5 +6,8 @@ public record AdsAutoTaskRegistrationEvent(
         String adsOwner,
         String adsType,
         Long intervalTime,
-        String status) {
+        String status,
+        String campainCountry,
+        String platformName,
+        String campainName) {
 }

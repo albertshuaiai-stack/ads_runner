@@ -38,9 +38,11 @@ public class AdsAutoTaskSchedulerService {
     public void upsert(AdsAutoTaskRegistrationEvent event) {
         try {
             String groupName = buildGroupName(event.adsOwner(), event.adsType());
-            JobKey jobKey = JobKey.jobKey(buildJobName(event.adsId()), groupName);
+            String jobName = buildJobName(event);
+            JobKey jobKey = JobKey.jobKey(jobName, groupName);
             TriggerKey triggerKey = TriggerKey.triggerKey(buildTriggerName(event.adsId()), groupName);
             boolean jobExists = scheduler.checkExists(jobKey);
+            boolean legacyJobExists = isNormalAds(event) && scheduler.checkExists(JobKey.jobKey(buildLegacyNormalJobName(event.adsId()), groupName));
             Class<? extends AdsAutoTaskJob> jobClass = resolveJobClass(event.adsType());
 
             if (event.intervalTime() != null && event.intervalTime() > 0) {
@@ -59,6 +61,10 @@ public class AdsAutoTaskSchedulerService {
                                 .repeatForever()
                                 .withMisfireHandlingInstructionFireNow())
                         .build();
+
+                if (legacyJobExists) {
+                    scheduler.deleteJob(JobKey.jobKey(buildLegacyNormalJobName(event.adsId()), groupName));
+                }
 
                 if (jobExists) {
                     scheduler.addJob(jobDetail, true, true);
@@ -102,12 +108,22 @@ public class AdsAutoTaskSchedulerService {
     public void delete(AdsAutoTaskRegistrationEvent event) {
         try {
             String groupName = buildGroupName(event.adsOwner(), event.adsType());
-            JobKey jobKey = JobKey.jobKey(buildJobName(event.adsId()), groupName);
-            if (!scheduler.checkExists(jobKey)) {
-                return;
+            JobKey jobKey = JobKey.jobKey(buildJobName(event), groupName);
+            JobKey legacyJobKey = isNormalAds(event) ? JobKey.jobKey(buildLegacyNormalJobName(event.adsId()), groupName) : null;
+            boolean deleted = false;
+
+            if (scheduler.checkExists(jobKey)) {
+                scheduler.deleteJob(jobKey);
+                deleted = true;
+            }
+            if (legacyJobKey != null && scheduler.checkExists(legacyJobKey)) {
+                scheduler.deleteJob(legacyJobKey);
+                deleted = true;
             }
 
-            scheduler.deleteJob(jobKey);
+            if (!deleted) {
+                return;
+            }
             boolean groupEmpty = scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName)).isEmpty();
             log.info("AUTO_JOB_DELETED jobGroup={} jobId={} groupEmpty={}", groupName, jobKey.getName(), groupEmpty);
         } catch (SchedulerException e) {
@@ -136,6 +152,7 @@ public class AdsAutoTaskSchedulerService {
         jobDataMap.put("adsId", event.adsId());
         jobDataMap.put("adsOwner", event.adsOwner());
         jobDataMap.put("adsType", event.adsType());
+        jobDataMap.put("jobId", buildJobName(event));
         return jobDataMap;
     }
 
@@ -147,8 +164,31 @@ public class AdsAutoTaskSchedulerService {
         return "ads-task-" + adsId;
     }
 
+    private String buildJobName(AdsAutoTaskRegistrationEvent event) {
+        if (isNormalAds(event)) {
+            return event.adsId() + "-" + safeToken(event.adsOwner()) + "-" + safeToken(event.campainCountry()) + "-"
+                    + safeToken(event.platformName()) + "-" + safeToken(event.campainName());
+        }
+        return buildJobName(event.adsId());
+    }
+
+    private String buildLegacyNormalJobName(Long adsId) {
+        return "ads-task-" + adsId;
+    }
+
     private String buildTriggerName(Long adsId) {
         return "ads-trigger-" + adsId;
+    }
+
+    private boolean isNormalAds(AdsAutoTaskRegistrationEvent event) {
+        return "Normal".equalsIgnoreCase(event.adsType());
+    }
+
+    private String safeToken(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().replaceAll("\\s+", "-");
     }
 
     private Class<? extends AdsAutoTaskJob> resolveJobClass(String adsType) {

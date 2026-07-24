@@ -214,7 +214,10 @@ public class AdsNormalInfoService {
                 saved.getAdsOwner(),
                 "Normal",
                 intervalTime,
-                saved.getStatus()));
+                saved.getStatus(),
+                saved.getCampainCountry(),
+                saved.getPlatformName(),
+                saved.getCampainName()));
     }
 
     private void publishAutoTaskDelete(AdsNormalInfo existing) {
@@ -224,7 +227,10 @@ public class AdsNormalInfoService {
                 existing.getAdsOwner(),
                 "Normal",
                 existing.getIntervalTime(),
-                existing.getStatus()));
+                existing.getStatus(),
+                existing.getCampainCountry(),
+                existing.getPlatformName(),
+                existing.getCampainName()));
     }
 
     private String resolveAdsOwner(Long currentUserId) {

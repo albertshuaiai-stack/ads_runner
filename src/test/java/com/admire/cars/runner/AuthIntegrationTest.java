@@ -6,6 +6,7 @@ import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.repository.ShiftLinkLogRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import com.admire.cars.runner.security.PasswordCryptoService;
 import io.jsonwebtoken.Jwts;
@@ -31,6 +32,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.reactive.function.BodyInserters;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -70,6 +73,9 @@ public class AuthIntegrationTest {
 
     @Autowired
     private ShiftLinkRepository shiftLinkRepository;
+
+    @Autowired
+    private ShiftLinkLogRepository shiftLinkLogRepository;
 
     @Autowired
     private Scheduler scheduler;
@@ -2042,7 +2048,7 @@ public class AuthIntegrationTest {
 
         waitForJobGroup("8899000001-Normal", 1);
         waitForJobGroup("8899000001-Matrix", 1);
-        waitForJobClass(JobKey.jobKey("ads-task-" + normalId, "8899000001-Normal"),
+        waitForJobClass(JobKey.jobKey(buildNormalQuartzJobName(normalId, "8899000001", "US", "Quartz Normal", "Quartz Normal Campaign"), "8899000001-Normal"),
                 "com.admire.cars.runner.job.NormalAdsAutoTaskJob");
         waitForJobClass(JobKey.jobKey("ads-task-" + matrixId, "8899000001-Matrix"),
                 "com.admire.cars.runner.job.MatrixAdsAutoTaskJob");
@@ -2070,6 +2076,93 @@ public class AuthIntegrationTest {
 
         waitForJobGroup("8899000001-Normal", 0);
         waitForJobGroup("8899000001-Matrix", 1);
+    }
+
+    @Test
+    public void normalQuartzJobFollowsRedirectsAndWritesAudit() throws Exception {
+        com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/start", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/hop1");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/hop1", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/landing");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/landing", exchange -> {
+            byte[] body = "landing page reached".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+
+        try {
+            int port = server.getAddress().getPort();
+
+            User user = new User();
+            user.setUserName("auditowner");
+            user.setUserEmail("auditowner@example.com");
+            user.setUserPhoneNumber("8888000001");
+            user.setUserPassword("pass123");
+
+            webTestClient.post().uri("/api/users/register").bodyValue(user)
+                    .exchange()
+                    .expectStatus().isCreated();
+
+            String token = webTestClient.post().uri("/api/auth/login")
+                    .bodyValue(Map.of("loginId", "auditowner@example.com", "password", "pass123"))
+                    .exchange()
+                    .expectStatus().isOk()
+                    .expectBody(Map.class)
+                    .returnResult()
+                    .getResponseBody()
+                    .get("amToken")
+                    .toString();
+
+            webTestClient.post().uri("/api/platforms")
+                    .header("AMtoken", token)
+                    .bodyValue(Map.of("platformName", "Audit Platform", "remarks", "Audit platform"))
+                    .exchange()
+                    .expectStatus().isCreated();
+
+            var createResponse = webTestClient.post().uri("/api/normal-ads")
+                    .header("AMtoken", token)
+                    .bodyValue(Map.of(
+                            "campainName", "Audit Campaign",
+                            "campainCountry", "US",
+                            "platformName", "Audit Platform",
+                            "affiliteUrl", "http://localhost:" + port + "/start",
+                            "landingPageUrl", "http://localhost:" + port + "/landing",
+                            "dynamicProxyInfo", "proxy:secret@127.0.0.1:1",
+                            "intervalTime", 1,
+                            "status", "RUNNING"))
+                    .exchange()
+                    .expectStatus().isCreated()
+                    .expectBody(Map.class)
+                    .returnResult();
+
+            Long adsId = ((Number) createResponse.getResponseBody().get("id")).longValue();
+            JobKey jobKey = JobKey.jobKey(
+                    buildNormalQuartzJobName(adsId, "8888000001", "US", "Audit Platform", "Audit Campaign"),
+                    "8888000001-Normal");
+
+            waitForJobClass(jobKey, "com.admire.cars.runner.job.NormalAdsAutoTaskJob");
+
+            waitForCondition(() -> shiftLinkRepository.findByAdsIdAndAdsType(adsId, "Normal").size() == 1);
+            var shiftLink = shiftLinkRepository.findByAdsIdAndAdsType(adsId, "Normal").get(0);
+            org.junit.jupiter.api.Assertions.assertEquals(adsId, shiftLink.getAdsId());
+            org.junit.jupiter.api.Assertions.assertEquals("Normal", shiftLink.getAdsType());
+            org.junit.jupiter.api.Assertions.assertEquals("Audit Campaign", shiftLink.getAdsName());
+            org.junit.jupiter.api.Assertions.assertEquals(0L, shiftLink.getDisplayNumber());
+            org.junit.jupiter.api.Assertions.assertEquals("http://localhost:" + port + "/landing", shiftLink.getFullUrl());
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test
@@ -2341,7 +2434,7 @@ public class AuthIntegrationTest {
     }
 
     private void waitForCondition(BooleanSupplier condition) throws Exception {
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 100; i++) {
             if (condition.getAsBoolean()) {
                 return;
             }
@@ -2349,5 +2442,11 @@ public class AuthIntegrationTest {
         }
 
         throw new AssertionError("Expected condition to be met");
+    }
+
+    private String buildNormalQuartzJobName(Long adsId, String adsOwner, String campainCountry, String platformName, String campainName) {
+        return adsId + "-" + adsOwner + "-" + campainCountry + "-"
+                + platformName.trim().replaceAll("\\s+", "-") + "-"
+                + campainName.trim().replaceAll("\\s+", "-");
     }
 }

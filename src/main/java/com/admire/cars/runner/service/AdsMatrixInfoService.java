@@ -268,7 +268,10 @@ public class AdsMatrixInfoService {
                 saved.getAdsOwner(),
                 "Matrix",
                 intervalTime,
-                saved.getStatus()));
+                saved.getStatus(),
+                saved.getCampainCountry(),
+                null,
+                saved.getCampainName()));
     }
 
     private void publishAutoTaskDelete(AdsMatrixInfo existing) {
@@ -278,7 +281,10 @@ public class AdsMatrixInfoService {
                 existing.getAdsOwner(),
                 "Matrix",
                 existing.getIntervalTime(),
-                existing.getStatus()));
+                existing.getStatus(),
+                existing.getCampainCountry(),
+                null,
+                existing.getCampainName()));
     }
 
     private String resolveAdsOwner(Long currentUserId) {
