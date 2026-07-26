@@ -1,6 +1,5 @@
 package com.admire.cars.runner.controller;
 
-import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.UserService;
 import org.springframework.http.HttpStatus;
@@ -11,12 +10,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriUtils;
-
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
@@ -30,22 +23,19 @@ public class AdsApiConsumeController {
         this.adsApiConsumeService = adsApiConsumeService;
     }
 
-    @GetMapping("/normal/ads")
-    public ResponseEntity<Map<String, Object>> consumeNormalAds(
+    /**
+     * Normal Ads Shift link
+     * @param campaignName
+     * @param apiKeyParam
+     * @return
+     */
+    @GetMapping(value ="/normal/ads", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> consumeNormalAds(
             @RequestParam(value = "campaign_name", required = false) String campaignName,
-            @RequestParam(value = "campain_name", required = false) String campainName,
-            @RequestParam(value = "api_key", required = false) String apiKeyParam) {
-        return consume("normal", resolveCampaignName(campaignName, campainName), apiKeyParam);
-    }
-
-    @GetMapping(value = "/matrix/ads", produces = MediaType.TEXT_PLAIN_VALUE)
-    public ResponseEntity<String> consumeMatrixAds(
-            @RequestParam(value = "campaign_name", required = false) String campaignName,
-            @RequestParam(value = "campain_name", required = false) String campainName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
-            String result = adsApiConsumeService.consumeMatrixAds(resolveCampaignName(campaignName, campainName), apiKey);
+            String result = adsApiConsumeService.consumeNormalAds(campaignName, apiKey);
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(result);
@@ -56,31 +46,26 @@ public class AdsApiConsumeController {
         }
     }
 
-    private ResponseEntity<Map<String, Object>> consume(
-            String adsType,
-            String campainName,
-            String apiKeyParam) {
+    /**
+     * Matrix Ads Shift link
+     * @param campaignName
+     * @param apiKeyParam
+     * @return
+     */
+    @GetMapping(value = "/matrix/ads", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> consumeMatrixAds(
+            @RequestParam(value = "campaign_name", required = false) String campaignName,
+            @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
-            if (!StringUtils.hasText(campainName)) {
-                throw new IllegalArgumentException("campain_name is required");
-            }
-
             String apiKey = resolveApiKey(apiKeyParam);
-            User user = userService.getEnabledUserByApiKey(apiKey);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("adsType", adsType);
-            response.put("campainName", campainName.trim());
-            response.put("adsOwner", user.getUserPhoneNumber());
-            response.put("uniqueUrl", buildUniqueUrl(adsType, campainName));
-            response.put("detail", "");
-            return ResponseEntity.ok(response);
+            String result = adsApiConsumeService.consumeMatrixAds(campaignName, apiKey);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(result);
         } catch (IllegalArgumentException e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(e.getMessage());
         }
     }
 
@@ -91,16 +76,4 @@ public class AdsApiConsumeController {
         throw new IllegalArgumentException("api_key is required");
     }
 
-    private String resolveCampaignName(String campaignName, String campainName) {
-        if (StringUtils.hasText(campaignName)) {
-            return campaignName;
-        }
-        return campainName;
-    }
-
-
-    private String buildUniqueUrl(String adsType, String campainName) {
-        String encodedCampainName = UriUtils.encodePathSegment(campainName.trim(), StandardCharsets.UTF_8);
-        return "https://ads.local/" + adsType + "/" + encodedCampainName + "/" + UUID.randomUUID();
-    }
 }

@@ -14,6 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class AdsApiConsumeService {
 
     private static final String MATRIX_ADS_TYPE = "Matrix";
+    private static final String NORMAL_ADS_TYPE = "Normal";
     private static final String RUNNING_STATUS = "RUNNING";
 
     private final UserService userService;
@@ -46,6 +47,32 @@ public class AdsApiConsumeService {
                 RUNNING_STATUS);
         if (eligibleLinks.isEmpty()) {
             throw new IllegalArgumentException("No available SHIFT_LINK found for matrix ads");
+        }
+        ShiftLink selectedLink = eligibleLinks.get(0);
+        String shiftLink = selectedLink.getFullUrl().replace(selectedLink.getLandingPageUrl(),"{lpurl}");
+        shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
+
+        return shiftLink;
+    }
+
+
+    @Transactional(readOnly = true)
+    public String consumeNormalAds(String campaignName, String apiKey) {
+        if (!StringUtils.hasText(campaignName)) {
+            throw new IllegalArgumentException("campaignName is required");
+        }
+
+        User user = userService.getEnabledUserByApiKey(apiKey);
+        String normalizedCampaignName = campaignName.trim();
+        String adsOwner = user.getUserPhoneNumber();
+
+        List<ShiftLink> eligibleLinks = shiftLinkRepository.findEligibleForNormalConsume(
+                adsOwner,
+                normalizedCampaignName,
+                NORMAL_ADS_TYPE,
+                RUNNING_STATUS);
+        if (eligibleLinks.isEmpty()) {
+            throw new IllegalArgumentException("No available SHIFT_LINK found for normal ads");
         }
         ShiftLink selectedLink = eligibleLinks.get(0);
         String shiftLink = selectedLink.getFullUrl().replace(selectedLink.getLandingPageUrl(),"{lpurl}");
