@@ -1914,17 +1914,31 @@ public class AuthIntegrationTest {
                 .exchange()
                 .expectStatus().isCreated();
 
-        var normalResponse = webTestClient.get()
+        webTestClient.post().uri("/api/shift-links")
+                .header("AMtoken", token)
+                .bodyValue(Map.of(
+                        "adsType", "Normal",
+                        "adsName", "Summer Sale",
+                        "platformName", "Consume Platform",
+                        "fullUrl", "https://example.com/normal-shift-1",
+                        "landingPageUrl", "https://example.com/normal-landing-1",
+                        "displayNumber", 2,
+                        "status", "RUNNING"))
+                .exchange()
+                .expectStatus().isCreated();
+
+        String normalUrl = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/normal/ads")
                         .queryParam("campain_name", "Summer Sale")
                         .queryParam("api_key", apiKey)
                         .build())
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody(Map.class)
-                .returnResult();
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
-        String normalUrl = normalResponse.getResponseBody().get("uniqueUrl").toString();
+        org.junit.jupiter.api.Assertions.assertNotNull(normalUrl);
 
         var matrixResponse = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
