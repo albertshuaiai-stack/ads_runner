@@ -3,9 +3,12 @@ package com.admire.cars.runner.repository;
 import com.admire.cars.runner.entity.ShiftLink;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,4 +41,9 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
 
     List<ShiftLink> findByPlatformName(String platformName);
     Optional<ShiftLink> findByFullUrl(String fullUrl);
+
+    @Modifying
+    @Transactional
+    @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'NORMAL'")
+    int deleteByCreateDateBeforeAndAdsTypeNormal(LocalDateTime cutoff);
 }
