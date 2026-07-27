@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="refer-user-agent-001-create-table" author="copilot">
+        <createTable tableName="REFER_USER_AGENT">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="DEVICE" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_AGENT" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="refer-user-agent-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_REFER_USER_AGENT_DEVICE" tableName="REFER_USER_AGENT">
+            <column name="DEVICE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

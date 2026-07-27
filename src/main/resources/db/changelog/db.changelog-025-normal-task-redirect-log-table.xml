@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="normal-task-redirect-log-001-create-table" author="copilot">
+        <createTable tableName="NORMAL_TASK_REDIRECT_LOG">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NORMAL_INFO_ID" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="FK_NORMAL_TASK_REDIRECT_LOG_NORMAL_INFO_ID"
+                             references="ADS_NORMAL_INFO(ID)"/>
+            </column>
+            <column name="DEVICE" type="VARCHAR(64)"/>
+            <column name="USER_AGENT" type="VARCHAR(512)"/>
+            <column name="IP" type="VARCHAR(64)"/>
+            <column name="COUNTRY_CODE" type="VARCHAR(16)"/>
+            <column name="SEQUENCE" type="BIGINT"/>
+            <column name="REQUEST_URL" type="VARCHAR(1024)"/>
+            <column name="RESPONSE_URL" type="VARCHAR(1024)"/>
+            <column name="STATUS_CODE" type="VARCHAR(16)"/>
+            <column name="DURATION_MILLIS" type="VARCHAR(16)"/>
+            <column name="LOCATION" type="VARCHAR(1024)"/>
+            <column name="SUCCESS" type="BOOLEAN"/>
+            <column name="ERR_MSG" type="VARCHAR(256)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_NORMAL_TASK_REDIRECT_LOG_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="normal-task-redirect-log-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_NTRL_NORMAL_INFO_ID" tableName="NORMAL_TASK_REDIRECT_LOG">
+            <column name="NORMAL_INFO_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_NTRL_ADS_OWNER" tableName="NORMAL_TASK_REDIRECT_LOG">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_NTRL_CREATE_DATE" tableName="NORMAL_TASK_REDIRECT_LOG">
+            <column name="CREATE_DATE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

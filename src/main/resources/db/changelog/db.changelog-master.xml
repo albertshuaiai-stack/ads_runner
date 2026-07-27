@@ -62,4 +62,10 @@
     <!-- Increase SHIFT_LINK LANDING_PAGE_URL and URL_SUFFIX length -->
     <include file="db/changelog/db.changelog-023-shift-link-landing-suffix-length.xml"/>
 
+    <!-- Create REFER_USER_AGENT table -->
+    <include file="db/changelog/db.changelog-024-refer-user-agent-table.xml"/>
+
+    <!-- Create NORMAL_TASK_REDIRECT_LOG table -->
+    <include file="db/changelog/db.changelog-025-normal-task-redirect-log-table.xml"/>
+
 </databaseChangeLog>
