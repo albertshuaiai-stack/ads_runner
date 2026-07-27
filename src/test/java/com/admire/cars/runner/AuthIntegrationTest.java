@@ -39,6 +39,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.concurrent.atomic.AtomicReference;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(properties = {
@@ -2094,6 +2095,8 @@ public class AuthIntegrationTest {
 
     @Test
     public void normalQuartzJobFollowsRedirectsAndWritesAudit() throws Exception {
+        AtomicReference<String> landingUserAgent = new AtomicReference<>();
+        AtomicReference<String> landingDeviceType = new AtomicReference<>();
         com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/start", exchange -> {
             exchange.getResponseHeaders().add("Location", "/hop1");
@@ -2101,11 +2104,13 @@ public class AuthIntegrationTest {
             exchange.close();
         });
         server.createContext("/hop1", exchange -> {
-            exchange.getResponseHeaders().add("Location", "/landing");
+            exchange.getResponseHeaders().add("Location", "/landing?ranMID=41274&utm_source=rakuten");
             exchange.sendResponseHeaders(302, -1);
             exchange.close();
         });
         server.createContext("/landing", exchange -> {
+            landingUserAgent.set(exchange.getRequestHeaders().getFirst("User-Agent"));
+            landingDeviceType.set(exchange.getRequestHeaders().getFirst("X-Device-Type"));
             byte[] body = "landing page reached".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, body.length);
             try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -2173,7 +2178,11 @@ public class AuthIntegrationTest {
             org.junit.jupiter.api.Assertions.assertEquals("Normal", shiftLink.getAdsType());
             org.junit.jupiter.api.Assertions.assertEquals("Audit Campaign", shiftLink.getAdsName());
             org.junit.jupiter.api.Assertions.assertEquals(0L, shiftLink.getDisplayNumber());
-            org.junit.jupiter.api.Assertions.assertEquals("http://localhost:" + port + "/landing", shiftLink.getFullUrl());
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    "http://localhost:" + port + "/landing?ranMID=41274&utm_source=rakuten",
+                    shiftLink.getFullUrl());
+            org.junit.jupiter.api.Assertions.assertTrue(landingUserAgent.get() != null && landingUserAgent.get().contains("Mozilla/5.0"));
+            org.junit.jupiter.api.Assertions.assertEquals("desk", landingDeviceType.get());
         } finally {
             server.stop(0);
         }
