@@ -31,7 +31,7 @@ public class AdsApiConsumeController {
      */
     @GetMapping(value ="/normal/ads", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> consumeNormalAds(
-            @RequestParam(value = "campain_name", required = false) String campaignName,
+            @RequestParam(value = "campaign_name", required = false) String campaignName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
@@ -54,7 +54,7 @@ public class AdsApiConsumeController {
      */
     @GetMapping(value = "/matrix/ads", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> consumeMatrixAds(
-            @RequestParam(value = "campain_name", required = false) String campaignName,
+            @RequestParam(value = "campaign_name", required = false) String campaignName,
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
