@@ -1930,7 +1930,7 @@ public class AuthIntegrationTest {
 
         String normalUrl = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/normal/ads")
-                        .queryParam("campain_name", "Summer Sale")
+                        .queryParam("campaign_name", "Summer Sale")
                         .queryParam("api_key", apiKey)
                         .build())
                 .exchange()
@@ -1943,7 +1943,7 @@ public class AuthIntegrationTest {
 
         var matrixResponse = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
-                        .queryParam("campain_name", "Summer Sale Matrix")
+                        .queryParam("campaign_name", "Summer Sale Matrix")
                         .queryParam("api_key", apiKey)
                         .build())
                 .exchange()
@@ -1965,7 +1965,7 @@ public class AuthIntegrationTest {
 
         var secondMatrixResponse = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
-                        .queryParam("campain_name", "Summer Sale Matrix")
+                        .queryParam("campaign_name", "Summer Sale Matrix")
                         .queryParam("api_key", apiKey)
                         .build())
                 .exchange()
@@ -1992,7 +1992,7 @@ public class AuthIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/normal/ads")
-                        .queryParam("campain_name", "Summer Sale")
+                        .queryParam("campaign_name", "Summer Sale")
                         .build())
                 .header("AMtoken", "legacy-token-not-allowed")
                 .exchange()
