@@ -42,6 +42,14 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
     List<ShiftLink> findByPlatformName(String platformName);
     Optional<ShiftLink> findByFullUrl(String fullUrl);
 
+    // URL 去重 / URL de-duplication
+    List<ShiftLink> findByAdsOwnerAndFullUrl(String adsOwner, String fullUrl);
+
+    // 按 Campaign / Platform 整体删除 / bulk delete by campaign or platform
+    List<ShiftLink> findByAdsName(String adsName);
+    List<ShiftLink> findByAdsOwnerAndAdsName(String adsOwner, String adsName);
+    List<ShiftLink> findByAdsOwnerAndPlatformName(String adsOwner, String platformName);
+
     @Modifying
     @Transactional
     @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'NORMAL'")

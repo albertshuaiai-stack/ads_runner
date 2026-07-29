@@ -130,6 +130,28 @@ public class ShiftLinkController {
         }
     }
 
+    // 按 Campaign Name 或 Platform Name 整体删除 / bulk delete by campaign or platform name
+    @DeleteMapping("/bulk-delete")
+    public ResponseEntity<Map<String, Object>> bulkDelete(
+            @RequestParam(required = false) String campaignName,
+            @RequestParam(required = false) String platformName,
+            HttpServletRequest request) {
+        try {
+            Long userId = getUserId(request);
+            int deletedCount = shiftLinkService.deleteByCampaignOrPlatform(campaignName, platformName, userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "SHIFT_LINK bulk delete completed");
+            response.put("deletedCount", deletedCount);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
     @PostMapping("/{id}/increment-display")
     public ResponseEntity<Map<String, Object>> incrementDisplayTimes(@PathVariable Long id, HttpServletRequest request) {
         try {

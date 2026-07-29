@@ -64,7 +64,54 @@ public class ShiftLinkService {
 
     public ShiftLink createShiftLink(ShiftLink shiftLink, Long currentUserId) {
         prepareForSave(shiftLink, currentUserId);
+        ensureFullUrlNotDuplicated(shiftLink.getAdsOwner(), shiftLink.getFullUrl(), null);
         return shiftLinkRepository.save(shiftLink);
+    }
+
+    // URL 去重：同一 owner 下 fullUrl 不允许重复 / URL de-duplication within the same owner
+    private void ensureFullUrlNotDuplicated(String adsOwner, String fullUrl, Long excludeId) {
+        if (!StringUtils.hasText(adsOwner) || !StringUtils.hasText(fullUrl)) {
+            return;
+        }
+        String normalizedUrl = fullUrl.trim();
+        boolean duplicated = shiftLinkRepository.findByAdsOwnerAndFullUrl(adsOwner, normalizedUrl).stream()
+                .anyMatch(existing -> excludeId == null || !existing.getId().equals(excludeId));
+        if (duplicated) {
+            throw new IllegalArgumentException("Full URL already exists: " + normalizedUrl);
+        }
+    }
+
+    // 按 Campaign Name 或 Platform Name 整体删除 / bulk delete by campaign or platform name
+    public int deleteByCampaignOrPlatform(String campaignName, String platformName, Long currentUserId) {
+        boolean hasCampaign = StringUtils.hasText(campaignName);
+        boolean hasPlatform = StringUtils.hasText(platformName);
+        if (!hasCampaign && !hasPlatform) {
+            throw new IllegalArgumentException("campaignName or platformName is required");
+        }
+
+        User currentUser = getCurrentUser(currentUserId);
+        boolean admin = isAdmin(currentUser);
+        String ownerPhone = currentUser.getUserPhoneNumber();
+
+        java.util.Map<Long, ShiftLink> targets = new java.util.LinkedHashMap<>();
+        if (hasCampaign) {
+            List<ShiftLink> byCampaign = admin
+                    ? shiftLinkRepository.findByAdsName(campaignName.trim())
+                    : shiftLinkRepository.findByAdsOwnerAndAdsName(ownerPhone, campaignName.trim());
+            byCampaign.forEach(link -> targets.put(link.getId(), link));
+        }
+        if (hasPlatform) {
+            List<ShiftLink> byPlatform = admin
+                    ? shiftLinkRepository.findByPlatformName(platformName.trim())
+                    : shiftLinkRepository.findByAdsOwnerAndPlatformName(ownerPhone, platformName.trim());
+            byPlatform.forEach(link -> targets.put(link.getId(), link));
+        }
+
+        if (targets.isEmpty()) {
+            return 0;
+        }
+        shiftLinkRepository.deleteAll(targets.values());
+        return targets.size();
     }
 
     @Transactional(readOnly = true)
@@ -140,6 +187,7 @@ public class ShiftLinkService {
         }
 
         mergeForUpdate(existing, updateData, currentUserId);
+        ensureFullUrlNotDuplicated(existing.getAdsOwner(), existing.getFullUrl(), existing.getId());
         return shiftLinkRepository.save(existing);
     }
 
@@ -182,6 +230,8 @@ public class ShiftLinkService {
 
         Map<String,List<ExcelRowData>> rowsByAdsType = rows.stream().collect(Collectors.groupingBy(ExcelRowData :: adsType, Collectors.toList()));
         AtomicInteger insertedCount = new AtomicInteger(0);
+        // URL 去重：记录本次导入已使用的 fullUrl / track fullUrl used in this import for de-duplication
+        java.util.Set<String> seenUrls = new java.util.HashSet<>();
         rowsByAdsType.keySet().forEach(adsType -> {
             if (!"Normal".equals(adsType) && !"Matrix".equals(adsType)) {
                 throw new IllegalArgumentException("Invalid adsType in Excel: " + adsType);
@@ -197,6 +247,16 @@ public class ShiftLinkService {
                         List<ShiftLink> shiftLinkList = Lists.newArrayList();
                         //Initial shift link for bulk saving
                         groupedRows.stream().forEach(row -> {
+                            // URL 去重：批内重复或已存在记录则跳过 / skip duplicates within batch or existing records
+                            String normalizedUrl = StringUtils.hasText(row.fullUrl()) ? row.fullUrl().trim() : null;
+                            if (normalizedUrl != null) {
+                                if (!seenUrls.add(normalizedUrl)) {
+                                    return;
+                                }
+                                if (!shiftLinkRepository.findByAdsOwnerAndFullUrl(owner.getUserPhoneNumber(), normalizedUrl).isEmpty()) {
+                                    return;
+                                }
+                            }
                             ShiftLink shiftLink = new ShiftLink();
                             shiftLink.setAdsType(row.adsType());
                             shiftLink.setAdsId(adsId);
