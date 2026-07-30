@@ -2,6 +2,7 @@ package com.admire.cars.runner.job;
 
 import com.admire.cars.runner.repository.ShiftLinkLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.repository.NormalTaskRedirectLogRepository;
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
@@ -23,19 +24,26 @@ public class HousekeepingJob implements Job {
     @Autowired
     private ShiftLinkRepository shiftLinkRepository;
 
+    @Autowired
+    private NormalTaskRedirectLogRepository normalTaskRedirectLogRepository;
+
     @Value("${housekeeping.shift-link-log.retention-days:7}")
     private int shiftLinkLogRetentionDays;
 
     @Value("${housekeeping.shift-link.retention-days:1}")
     private int shiftLinkRetentionDays;
 
+    @Value("${housekeeping.normal-task-redirect-log.retention-days:2}")
+    private int normalTaskRedirectLogRetentionDays;
+
     @Override
     public void execute(JobExecutionContext context) {
-        log.info("HOUSEKEEPING_JOB_START shiftLinkLogRetentionDays={} shiftLinkRetentionDays={}",
-                shiftLinkLogRetentionDays, shiftLinkRetentionDays);
+        log.info("HOUSEKEEPING_JOB_START shiftLinkLogRetentionDays={} shiftLinkRetentionDays={} normalTaskRedirectLogRetentionDays={}",
+                shiftLinkLogRetentionDays, shiftLinkRetentionDays, normalTaskRedirectLogRetentionDays);
         try {
             purgeShiftLinkLogs();
             purgeNormalShiftLinks();
+            purgeNormalTaskRedirectLog();
             log.info("HOUSEKEEPING_JOB_END");
         } catch (Exception ex) {
             log.error("HOUSEKEEPING_JOB_FAILED", ex);
@@ -53,5 +61,12 @@ public class HousekeepingJob implements Job {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(shiftLinkRetentionDays);
         int deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeNormal(cutoff);
         log.info("HOUSEKEEPING_SHIFT_LINK_NORMAL_PURGED cutoff={} deletedCount={}", cutoff, deleted);
+    }
+
+
+    private void purgeNormalTaskRedirectLog() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(normalTaskRedirectLogRetentionDays);
+        int deleted = normalTaskRedirectLogRepository.deleteByCreateDateBefore(cutoff);
+        log.info("HOUSEKEEPING_NORMAL_TASK_REDIRECT_LOG_PURGED cutoff={} deletedCount={}", cutoff, deleted);
     }
 }
