@@ -100,7 +100,12 @@
             <artifactId>poi-ooxml</artifactId>
             <version>5.4.1</version>
         </dependency>
-
+        <!-- Jasypt for encrypted properties -->
+        <dependency>
+            <groupId>com.github.ulisesbocchio</groupId>
+            <artifactId>jasypt-spring-boot-starter</artifactId>
+            <version>4.0.4</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -109,7 +114,11 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>dev.haeusler</groupId>
+                <artifactId>jasypt-maven-plugin</artifactId>
+                <version>1.2</version>
+            </plugin>
         </plugins>
     </build>
-
 </project>
