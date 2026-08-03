@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-account-001-create-table" author="copilot">
+        <createTable tableName="ADS_ACCOUNT">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_ACCOUNT" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACCOUNT_TYPE" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="AGENCY_PLATFORM" type="VARCHAR(64)"/>
+            <column name="MCC_ACCOUNT" type="VARCHAR(64)"/>
+            <column name="STATUS" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_ADS_ACCOUNT_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="ads-account-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_ADS_ACCOUNT_ADS_ACCOUNT" tableName="ADS_ACCOUNT">
+            <column name="ADS_ACCOUNT"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_ACCOUNT_MCC_ACCOUNT" tableName="ADS_ACCOUNT">
+            <column name="MCC_ACCOUNT"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_ACCOUNT_AGENCY_PLATFORM" tableName="ADS_ACCOUNT">
+            <column name="AGENCY_PLATFORM"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_ACCOUNT_ACCOUNT_TYPE" tableName="ADS_ACCOUNT">
+            <column name="ACCOUNT_TYPE"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_ACCOUNT_STATUS" tableName="ADS_ACCOUNT">
+            <column name="STATUS"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_ACCOUNT_ADS_OWNER" tableName="ADS_ACCOUNT">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

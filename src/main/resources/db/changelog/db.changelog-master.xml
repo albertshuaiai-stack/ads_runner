@@ -68,4 +68,10 @@
     <!-- Create NORMAL_TASK_REDIRECT_LOG table -->
     <include file="db/changelog/db.changelog-025-normal-task-redirect-log-table.xml"/>
 
+    <!-- Create ADS_ACCOUNT table -->
+    <include file="db/changelog/db.changelog-026-ads-account-table.xml"/>
+
+    <!-- Fix Quartz JOB_DATA column types -->
+    <include file="db/changelog/db.changelog-027-quartz-job-data-longblob-fix.xml"/>
+
 </databaseChangeLog>
