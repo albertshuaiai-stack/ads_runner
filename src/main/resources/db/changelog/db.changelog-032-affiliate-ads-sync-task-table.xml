@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="affiliate-ads-sync-task-001-create-table" author="copilot">
+        <createTable tableName="AFFILIATE_ADS_SYNC_TASK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="AFFILIATE_ADS_SYNC_CONFIG_ID" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="FK_AAST_SYNC_CONFIG_ID"
+                             references="AFFILIATE_ADS_SYNC_CONFIG(ID)"/>
+            </column>
+            <column name="REGION" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SYNC_TYPE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CRON" type="VARCHAR(128)"/>
+            <column name="TOTAL_COUNT" type="BIGINT"/>
+            <column name="SUCCESS_COUNT" type="BIGINT"/>
+            <column name="FAILED_COUNT" type="BIGINT"/>
+            <column name="STATUS" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_AAST_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="affiliate-ads-sync-task-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_AAST_ADS_OWNER" tableName="AFFILIATE_ADS_SYNC_TASK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_AAST_SYNC_CONFIG_ID" tableName="AFFILIATE_ADS_SYNC_TASK">
+            <column name="AFFILIATE_ADS_SYNC_CONFIG_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_AAST_STATUS" tableName="AFFILIATE_ADS_SYNC_TASK">
+            <column name="STATUS"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

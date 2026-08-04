@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="affiliate-ads-test-result-001-create-table" author="copilot">
+        <createTable tableName="AFFILIATE_ADS_TEST_RESULT">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="AFFILIATE_NETWORK" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REGION" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SITE_NAME" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SITE_URL" type="VARCHAR(1024)"/>
+            <column name="TRACKING_URL" type="VARCHAR(1024)"/>
+            <column name="FINAL_URL" type="VARCHAR(2044)"/>
+            <column name="STATUS" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_AATR_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="affiliate-ads-test-result-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_AATR_ADS_OWNER" tableName="AFFILIATE_ADS_TEST_RESULT">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_AATR_AFFILIATE_NETWORK" tableName="AFFILIATE_ADS_TEST_RESULT">
+            <column name="AFFILIATE_NETWORK"/>
+        </createIndex>
+        <createIndex indexName="IDX_AATR_REGION" tableName="AFFILIATE_ADS_TEST_RESULT">
+            <column name="REGION"/>
+        </createIndex>
+        <createIndex indexName="IDX_AATR_STATUS" tableName="AFFILIATE_ADS_TEST_RESULT">
+            <column name="STATUS"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

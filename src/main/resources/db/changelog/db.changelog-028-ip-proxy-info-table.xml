@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ip-proxy-info-001-create-table" author="copilot">
+        <createTable tableName="IP_PROXY_INFO">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="PROXY_TYPE" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PROXY_PROTOCOL" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PROXY_INFO" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="STATUS" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_IP_PROXY_INFO_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="ip-proxy-info-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_IP_PROXY_INFO_PROXY_TYPE" tableName="IP_PROXY_INFO">
+            <column name="PROXY_TYPE"/>
+        </createIndex>
+        <createIndex indexName="IDX_IP_PROXY_INFO_PROXY_PROTOCOL" tableName="IP_PROXY_INFO">
+            <column name="PROXY_PROTOCOL"/>
+        </createIndex>
+        <createIndex indexName="IDX_IP_PROXY_INFO_STATUS" tableName="IP_PROXY_INFO">
+            <column name="STATUS"/>
+        </createIndex>
+        <createIndex indexName="IDX_IP_PROXY_INFO_ADS_OWNER" tableName="IP_PROXY_INFO">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

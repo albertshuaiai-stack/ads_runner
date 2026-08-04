@@ -74,4 +74,28 @@
     <!-- Fix Quartz JOB_DATA column types -->
     <include file="db/changelog/db.changelog-027-quartz-job-data-longblob-fix.xml"/>
 
+    <!-- Create IP_PROXY_INFO table -->
+    <include file="db/changelog/db.changelog-028-ip-proxy-info-table.xml"/>
+
+    <!-- Create AFFILIATE_ADS_SYNC table -->
+    <include file="db/changelog/db.changelog-029-affiliate-ads-sync-table.xml"/>
+
+    <!-- Create AFFILIATE_ADS_SYNC_CONFIG table -->
+    <include file="db/changelog/db.changelog-030-affiliate-ads-sync-config-table.xml"/>
+
+    <!-- Change AFFILIATE_ADS_SYNC_CONFIG RESPONSE_PAYLOAD to CLOB -->
+    <include file="db/changelog/db.changelog-031-affiliate-ads-sync-config-response-payload-clob.xml"/>
+
+    <!-- Create AFFILIATE_ADS_SYNC_TASK table -->
+    <include file="db/changelog/db.changelog-032-affiliate-ads-sync-task-table.xml"/>
+
+    <!-- Add pre sync timing columns to AFFILIATE_ADS_SYNC_TASK -->
+    <include file="db/changelog/db.changelog-033-affiliate-ads-sync-task-pre-timing.xml"/>
+
+    <!-- Create AFFILIATE_ADS_TEST_TASK table -->
+    <include file="db/changelog/db.changelog-034-affiliate-ads-test-task-table.xml"/>
+
+    <!-- Create AFFILIATE_ADS_TEST_RESULT table -->
+    <include file="db/changelog/db.changelog-035-affiliate-ads-test-result-table.xml"/>
+
 </databaseChangeLog>

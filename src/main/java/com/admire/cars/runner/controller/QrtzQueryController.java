@@ -3,6 +3,7 @@ package com.admire.cars.runner.controller;
 import com.admire.cars.runner.entity.QrtzJobDetail;
 import com.admire.cars.runner.entity.QrtzTrigger;
 import com.admire.cars.runner.service.QrtzQueryService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -32,7 +33,8 @@ public class QrtzQueryController {
             @RequestParam(required = false) String triggerState,
             @RequestParam(required = false) String triggerType,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest request) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
         Page<QrtzTrigger> result = qrtzQueryService.searchTriggers(
@@ -43,6 +45,7 @@ public class QrtzQueryController {
                 jobGroup,
                 triggerState,
                 triggerType,
+                getUserId(request),
                 PageRequest.of(
                         safePage,
                         safeSize,
@@ -59,7 +62,8 @@ public class QrtzQueryController {
             @RequestParam(required = false) String jobClassName,
             @RequestParam(required = false) String description,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest request) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
         Page<QrtzJobDetail> result = qrtzQueryService.searchJobs(
@@ -68,11 +72,20 @@ public class QrtzQueryController {
                 jobGroup,
                 jobClassName,
                 description,
+                getUserId(request),
                 PageRequest.of(
                         safePage,
                         safeSize,
                         Sort.by(Sort.Direction.ASC, "jobGroup")
                                 .and(Sort.by(Sort.Direction.ASC, "jobName"))));
         return ResponseEntity.ok(result);
+    }
+
+    private Long getUserId(HttpServletRequest request) {
+        Object uid = request.getAttribute("userId");
+        if (uid == null) {
+            throw new IllegalArgumentException("userId not found in request");
+        }
+        return (Long) uid;
     }
 }

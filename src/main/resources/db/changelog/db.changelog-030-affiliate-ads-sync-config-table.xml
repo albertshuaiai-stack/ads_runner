@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="affiliate-ads-sync-config-001-create-table" author="copilot">
+        <createTable tableName="AFFILIATE_ADS_SYNC_CONFIG">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="AFFILIATE_NETWORK" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SYNC_NAME" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="URL" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="METHOD" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REQUEST_HEADERS" type="VARCHAR(1024)"/>
+            <column name="REQUEST_PAYLOAD" type="VARCHAR(1024)"/>
+            <column name="RESPONSE_PAYLOAD" type="VARCHAR(1024)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_AASC_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="affiliate-ads-sync-config-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_AASC_ADS_OWNER" tableName="AFFILIATE_ADS_SYNC_CONFIG">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_AASC_AFFILIATE_NETWORK" tableName="AFFILIATE_ADS_SYNC_CONFIG">
+            <column name="AFFILIATE_NETWORK"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
