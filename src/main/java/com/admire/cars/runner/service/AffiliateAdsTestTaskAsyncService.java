@@ -283,13 +283,80 @@ public class AffiliateAdsTestTaskAsyncService {
     private IpVerificationDto ipVerification(
             OkHttpClient httpClient,
             String expectedCountryCode) throws IOException {
-        if (!StringUtils.hasText(adsConfig.getIpLookupUrl())){
-            throw new IllegalStateException("IP lookup URL is not configured");
+        
+        // Define multiple IP lookup endpoints
+        class IpEndpoint {
+            String url;
+            String[] ipFields;
+            String[] countryFields;
+            IpEndpoint(String url, String[] ipFields, String[] countryFields) {
+                this.url = url;
+                this.ipFields = ipFields;
+                this.countryFields = countryFields;
+            }
+        }
+        
+        IpEndpoint[] endpoints = {
+                new IpEndpoint("https://api.country.is/", new String[]{"ip"}, new String[]{"country"}),
+                new IpEndpoint("https://ipapi.co/json/", new String[]{"ip"}, new String[]{"country_code"}),
+                new IpEndpoint("https://httpbin.org/ip", new String[]{"origin"}, new String[]{}),
+        };
+        
+        // Also try configured URL if provided
+        String configuredUrl = null;
+        if (StringUtils.hasText(adsConfig.getIpLookupUrl())) {
+            configuredUrl = adsConfig.getIpLookupUrl().trim();
+            validateHttpUrl(configuredUrl, "IP lookup url");
         }
 
-        String url = adsConfig.getIpLookupUrl().trim();
-        validateHttpUrl(url, "IP lookup url");
+        IOException lastException = null;
+        
+        // Try configured URL first if available
+        if (StringUtils.hasText(configuredUrl)) {
+            try {
+                IpVerificationDto result = attemptIpLookup(httpClient, configuredUrl, 
+                    new String[]{"ip", "query"}, new String[]{"country", "countryCode", "country_code"});
+                if (result != null) {
+                    log.info("IP Verification succeeded with configured URL: {}", configuredUrl);
+                    result.setMatched(result.getCountryCode() != null && 
+                                    result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
+                    return result;
+                }
+            } catch (IOException e) {
+                log.warn("Configured IP lookup URL failed: {} - {}", configuredUrl, e.getMessage());
+                lastException = e;
+            }
+        }
+        
+        // Try each predefined endpoint
+        for (IpEndpoint endpoint : endpoints) {
+            try {
+                IpVerificationDto result = attemptIpLookup(httpClient, endpoint.url, 
+                    endpoint.ipFields, endpoint.countryFields);
+                if (result != null) {
+                    log.info("IP Verification succeeded with endpoint: {} (IP: {}, Country: {})", 
+                            endpoint.url, result.getIp(), result.getCountryCode());
+                    result.setMatched(result.getCountryCode() != null && 
+                                    result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
+                    return result;
+                }
+            } catch (IOException e) {
+                log.debug("IP lookup endpoint {} failed: {}", endpoint.url, e.getMessage());
+                lastException = e;
+            }
+        }
+        
+        // All endpoints failed
+        if (lastException != null) {
+            throw new IOException("All IP lookup endpoints failed. Last error: " + lastException.getMessage(), lastException);
+        }
+        throw new IOException("No valid IP lookup endpoint returned data");
+    }
 
+    private IpVerificationDto attemptIpLookup(OkHttpClient httpClient, String url, 
+                                              String[] ipFieldNames, String[] countryFieldNames) throws IOException {
+        validateHttpUrl(url, "IP lookup url");
+        
         Request request = new Request.Builder()
                 .url(url)
                 .header("User-Agent", Constant.DEFAULT_DESKTOP_USER_AGENT)
@@ -299,19 +366,26 @@ public class AffiliateAdsTestTaskAsyncService {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (response.code() < 200 || response.code() >= 300) {
-                throw new IOException("IP lookup request failed with status code: " + response.code());
+                throw new IOException("IP lookup failed with status code: " + response.code() + " from " + url);
             }
 
             String body = response.body() != null ? response.body().string() : "";
+            if (!StringUtils.hasText(body)) {
+                throw new IOException("Empty response from " + url);
+            }
+            
             final JsonNode jsonNode = objectMapper.readTree(body);
-            final String ip = getFirstText(jsonNode,"ip","query");
-            final String countryCode = getFirstText(jsonNode, "country","countryCode", "country_code");
-            final boolean matched = StringUtils.hasText(countryCode) && countryCode.equalsIgnoreCase(expectedCountryCode);
+            final String ip = getFirstText(jsonNode, ipFieldNames);
+            final String countryCode = getFirstText(jsonNode, countryFieldNames);
+            
+            // Consider successful only if we got an IP
+            if (!StringUtils.hasText(ip)) {
+                throw new IOException("No IP field found in response from " + url);
+            }
 
             IpVerificationDto result = new IpVerificationDto();
             result.setIp(ip);
             result.setCountryCode(countryCode);
-            result.setMatched(matched);
             return result;
         }
     }

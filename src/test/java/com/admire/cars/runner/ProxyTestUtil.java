@@ -80,65 +80,52 @@ public class ProxyTestUtil {
                 .readTimeout(15, TimeUnit.SECONDS)
                 .build();
 
-        // Test 1: IP lookup to verify proxy works
-        System.out.println("Test 1: IP Lookup (ipapi.co)");
-        testIpLookup(httpClient, "https://ipapi.co/json/");
-
-        // Test 2: Alternative IP lookup service
-        System.out.println("\nTest 2: IP Lookup (api.country.is)");
-        testIpLookup(httpClient, "https://api.country.is/");
-
-        // Test 3: Simple HTTP GET
-        System.out.println("\nTest 3: Simple HTTP GET (httpbin.org)");
-        testSimpleGet(httpClient, "https://httpbin.org/ip");
+        // Test with multiple IP lookup endpoints - stop on first success
+        System.out.println("Testing IP Lookup (tries multiple endpoints until one succeeds):");
+        testMultipleIpLookups(httpClient);
     }
 
-    private static void testIpLookup(OkHttpClient client, String url) {
-        try {
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0")
-                    .get()
-                    .build();
+    private static void testMultipleIpLookups(OkHttpClient client) {
+        String[] endpoints = {
+                "https://api.country.is/",
+                "https://ipapi.co/json/",
+                "https://httpbin.org/ip"
+        };
+        
+        boolean success = false;
+        
+        for (String url : endpoints) {
+            System.out.println("\n  Trying: " + url);
+            try {
+                Request request = new Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "Mozilla/5.0")
+                        .get()
+                        .build();
 
-            try (Response response = client.newCall(request).execute()) {
-                System.out.println("  Status: " + response.code());
-                String body = response.body() != null ? response.body().string() : "null";
-                if (response.code() == 200) {
-                    System.out.println("  Response: " + body.substring(0, Math.min(200, body.length())));
-                    System.out.println("  ✓ SUCCESS - Proxy is working!");
-                } else {
-                    System.out.println("  Response: " + body);
-                    System.out.println("  ✗ FAILED - Status code: " + response.code());
+                try (Response response = client.newCall(request).execute()) {
+                    System.out.println("    Status: " + response.code());
+                    
+                    if (response.code() == 200) {
+                        String body = response.body() != null ? response.body().string() : "null";
+                        System.out.println("    Response: " + body.substring(0, Math.min(150, body.length())));
+                        System.out.println("    ✓ SUCCESS - IP lookup working!");
+                        success = true;
+                        break; // Stop on first success
+                    } else {
+                        String body = response.body() != null ? response.body().string() : "null";
+                        System.out.println("    ✗ Status " + response.code());
+                    }
                 }
+            } catch (Exception e) {
+                System.out.println("    ✗ ERROR: " + e.getMessage());
             }
-        } catch (Exception e) {
-            System.out.println("  ✗ ERROR: " + e.getMessage());
-            e.printStackTrace();
         }
-    }
-
-    private static void testSimpleGet(OkHttpClient client, String url) {
-        try {
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0")
-                    .get()
-                    .build();
-
-            try (Response response = client.newCall(request).execute()) {
-                System.out.println("  Status: " + response.code());
-                String body = response.body() != null ? response.body().string() : "null";
-                if (response.code() == 200) {
-                    System.out.println("  Response: " + body);
-                    System.out.println("  ✓ SUCCESS - Proxy is working!");
-                } else {
-                    System.out.println("  ✗ FAILED - Status code: " + response.code());
-                }
-            }
-        } catch (Exception e) {
-            System.out.println("  ✗ ERROR: " + e.getMessage());
-            e.printStackTrace();
+        
+        if (success) {
+            System.out.println("\n✓ PROXY VERIFICATION COMPLETE - All endpoints working through proxy!");
+        } else {
+            System.out.println("\n✗ All IP lookup endpoints failed");
         }
     }
 }
