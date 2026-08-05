@@ -1,4 +1,4 @@
-package com.admire.cars.runner.dto;
+package com.admire.cars.runner.dto.bonusarrive;
 
 import lombok.*;
 

@@ -1,8 +1,8 @@
 package com.admire.cars.runner.service;
 
-import com.admire.cars.runner.dto.BonusArriveCampaignDto;
-import com.admire.cars.runner.dto.BonusArriveCampaignItemDto;
-import com.admire.cars.runner.dto.BonusArriveCampaignResponseDto;
+import com.admire.cars.runner.dto.bonusarrive.BonusArriveCampaignDto;
+import com.admire.cars.runner.dto.bonusarrive.BonusArriveCampaignItemDto;
+import com.admire.cars.runner.dto.bonusarrive.BonusArriveCampaignResponseDto;
 import com.admire.cars.runner.entity.AffiliateAdsSync;
 import com.admire.cars.runner.entity.AffiliateAdsSyncConfig;
 import com.admire.cars.runner.entity.AffiliateAdsSyncTask;
@@ -90,7 +90,7 @@ public class AffiliateAdsSyncTaskAsyncService {
                    totalCount += bonusArriveCampaignItemDtos.size();
                    List<AffiliateAdsSync> syncRecords = Lists.newArrayList();
                    for (BonusArriveCampaignItemDto itemDto : bonusArriveCampaignItemDtos) {
-                       if (isMatchingRegion(itemDto.getRegion(), syncRegion)) {
+                       if (isMatchingRegion(itemDto.getRegion(), syncRegion) && null != itemDto.getTracking_url()) {
                            AffiliateAdsSync sync = new AffiliateAdsSync();
                            sync.setSiteName(truncate(itemDto.getSite_name(), 128));
                            sync.setSiteUrl(truncate(itemDto.getSite_url(), 1024));

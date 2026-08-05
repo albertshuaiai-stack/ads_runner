@@ -1,6 +1,6 @@
 package com.admire.cars.runner.job;
 
-import com.admire.cars.runner.config.NormalAdsTaskConfig;
+import com.admire.cars.runner.config.AdsConfig;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.NormalTaskRedirectLog;
 import com.admire.cars.runner.entity.ShiftLink;
@@ -38,7 +38,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     private static final String PROXY_COUNTRY_CHECK_URL = "https://api.country.is/";
     private static final Pattern COUNTRY_JSON_PATTERN = Pattern.compile("\"country\"\\s*:\\s*\"([A-Za-z]{2})\"");
     private static final Pattern PROXY_USERNAME_COUNTRY_PATTERN = Pattern.compile("(?i)(?:^|[-_])(country|cc)[-_]?([a-z]{2})(?:$|[-_])");
-    private static final String DEVICE_TYPE_DESK = "desk";
+    private static final String DEVICE_TYPE_DESK = "Desktop";
     private static final String DEVICE_TYPE_PHONE = "phone";
     private static final String DEVICE_TYPE_PAD = "pad";
     private static final String DEFAULT_DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
@@ -61,7 +61,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     private NormalTaskRedirectLogRepository normalTaskRedirectLogRepository;
 
     @Autowired
-    private NormalAdsTaskConfig normalAdsTaskConfig;
+    private AdsConfig normalAdsTaskConfig;
 
     @Autowired
     private ObjectMapper objectMapper;
