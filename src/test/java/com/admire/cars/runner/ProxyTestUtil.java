@@ -13,11 +13,11 @@ import java.util.concurrent.TimeUnit;
 
 public class ProxyTestUtil {
 
-    public static void main(String[] args) throws IOException {
-        // Use the proxy from the actual error message in production
-        String proxyInfo = "6037786-c02e85aa:552fa91d-US-68699529-5m@gate.kookeey.info:1000";
-        testProxy(proxyInfo);
-    }
+//    public static void main(String[] args) throws IOException {
+//        // Use the proxy from the actual error message in production
+//        String proxyInfo = "6037786-c02e85aa:552fa91d-US-68699529-5m@gate.kookeey.info:1000";
+//        testProxy(proxyInfo);
+//    }
 
     public static void testProxy(String proxyInfo) throws IOException {
         // Parse proxy: user:password@host:port

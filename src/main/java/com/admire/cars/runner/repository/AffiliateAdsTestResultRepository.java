@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AffiliateAdsTestResultRepository extends JpaRepository<AffiliateAdsTestResult, Long>, JpaSpecificationExecutor<AffiliateAdsTestResult> {
+
+    long deleteByAffiliateNetworkAndAdsOwnerAndRegion(String affiliateNetwork, String adsOwner, String region);
 }

@@ -33,5 +33,7 @@ public class BonusArriveCampaignItemDto {
 
     private String adv_catagory;
 
+    private String has_product;
+
 
 }

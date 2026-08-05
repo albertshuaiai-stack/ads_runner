@@ -41,63 +41,65 @@ public class AffiliateAdsService {
                                                        IpProxyInfo ipProxyInfo) {
         final String landingPageUrl = requireText(affiliateAdsSync.getSiteUrl(), "landingPageUrl is required");
         String affiliateUrl = requireText(affiliateAdsSync.getTrackingUrl(), "tracking id is required");
-        try {
-            String currentUrl = affiliateUrl;
-            for (int sequence = 1; sequence <= adsConfig.getMaxRedirects(); sequence++) {
-                Request request = new Request.Builder()
-                        .url(currentUrl)
-                        .header("Accept", "text/html, application/json, text/plain, */*")
-                        .header("Accept-Language", "en-US,en;q=0.9")
-                        .header("Cache-Control", "no-cache")
-                        .header("Pragma", "no-cache")
-                        .header("X-Device-Type", Constant.DEVICE_TYPE_DESK)
-                        .header("User-Agent", Constant.DEFAULT_DESKTOP_USER_AGENT)
-                        .get()
-                        .build();
+        String currentUrl = affiliateUrl;
+        String lastError = null;
+        int lastStatusCode = -1;
+        final int maxRequests = 10;
 
-                Response response;
-                try {
-                    response = httpClient.newCall(request).execute();
-                } catch (IOException proxyIoException) {
-                    String message = proxyIoException.getMessage();
-                    log.error("Affiliate Ads Test Exception. proxy protocol={} proxy info={} Invoke URL={} message={}",
-                            ipProxyInfo.getProxyProtocol(), ipProxyInfo.getProxyInfo(), currentUrl, message);
-                    return new AffiliateAdsTestResponseDto(
-                            "500", "", message);
-                }
+        for (int requestCount = 1; requestCount <= maxRequests; requestCount++) {
+            Request request = new Request.Builder()
+                    .url(currentUrl)
+                    .header("Accept", "text/html, application/json, text/plain, */*")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .header("Cache-Control", "no-cache")
+                    .header("Pragma", "no-cache")
+                    .header("X-Device-Type", Constant.DEVICE_TYPE_DESK)
+                    .header("User-Agent", Constant.DEFAULT_DESKTOP_USER_AGENT)
+                    .get()
+                    .build();
 
-                int statusCode = response.code();
+            try (Response response = httpClient.newCall(request).execute()) {
+                lastStatusCode = response.code();
                 String locationHeader = response.header("Location");
-                response.close();
-
-                if (statusCode < 300 || statusCode >= 400) {
-                    if (isLandingPage(currentUrl, landingPageUrl) && statusCode >= 200 && statusCode < 300) {
-                        return new AffiliateAdsTestResponseDto("200", currentUrl, "");
-                    }
-                    return new AffiliateAdsTestResponseDto(
-                            "400", "", "Non-redirect status code received: " + statusCode);
-                }
-
-                if (!StringUtils.hasText(locationHeader)) {
-                    return new AffiliateAdsTestResponseDto(
-                            "400", "", "Redirect status code received but no Location header found");
-                }
-
-                // Resolve relative URLs
-                currentUrl = resolveUrl(currentUrl, locationHeader);
 
                 if (isLandingPage(currentUrl, landingPageUrl)) {
-                    return new AffiliateAdsTestResponseDto(
-                            "200", currentUrl, "");
+                    return new AffiliateAdsTestResponseDto("200", currentUrl, "");
                 }
+
+                if (lastStatusCode >= 300 && lastStatusCode < 400) {
+                    if (!StringUtils.hasText(locationHeader)) {
+                        lastError = "Redirect status code received but no Location header found";
+                        continue;
+                    }
+                    try {
+                        currentUrl = resolveUrl(currentUrl, locationHeader);
+                    } catch (IOException resolveException) {
+                        lastError = resolveException.getMessage();
+                        continue;
+                    }
+
+                    if (isLandingPage(currentUrl, landingPageUrl)) {
+                        return new AffiliateAdsTestResponseDto("200", currentUrl, "");
+                    }
+                } else {
+                    lastError = "Non-redirect status code received: " + lastStatusCode;
+                }
+            } catch (IOException proxyIoException) {
+                lastError = proxyIoException.getMessage();
+                log.warn("Affiliate Ads Test request failed (attempt {}/{}). proxy protocol={} proxy info={} Invoke URL={} message={}",
+                        requestCount, maxRequests,
+                        ipProxyInfo.getProxyProtocol(), ipProxyInfo.getProxyInfo(), currentUrl, lastError);
             }
-            return new AffiliateAdsTestResponseDto(
-                    "400", "", "Maximum redirects reached without reaching the landing page");
-        } catch (IOException e) {
-            log.error("Affiliate Ads Test failed. proxy protocol={} proxy info={} message={}",
-                    ipProxyInfo.getProxyProtocol(), ipProxyInfo.getProxyInfo(), e.getMessage());
-            return new AffiliateAdsTestResponseDto("500", "", e.getMessage());
         }
+
+        String error = "Maximum request limit reached (" + maxRequests + ") without reaching landing page prefix";
+        if (lastStatusCode > 0) {
+            error = error + ". Last status=" + lastStatusCode;
+        }
+        if (StringUtils.hasText(lastError)) {
+            error = error + ". Last error=" + lastError;
+        }
+        return new AffiliateAdsTestResponseDto("400", "", error);
     }
 
     private String resolveUrl(String baseUrl, String relativeUrl) throws IOException {

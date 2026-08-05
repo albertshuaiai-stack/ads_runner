@@ -1,6 +1,7 @@
 package com.admire.cars.runner.controller;
 
 import com.admire.cars.runner.entity.AffiliateAdsSync;
+import com.admire.cars.runner.service.AffiliateAdsTestTaskAsyncService;
 import com.admire.cars.runner.service.AffiliateAdsSyncService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -26,9 +27,13 @@ import java.util.Map;
 public class AffiliateAdsSyncController {
 
     private final AffiliateAdsSyncService affiliateAdsSyncService;
+    private final AffiliateAdsTestTaskAsyncService affiliateAdsTestTaskAsyncService;
 
-    public AffiliateAdsSyncController(AffiliateAdsSyncService affiliateAdsSyncService) {
+    public AffiliateAdsSyncController(
+            AffiliateAdsSyncService affiliateAdsSyncService,
+            AffiliateAdsTestTaskAsyncService affiliateAdsTestTaskAsyncService) {
         this.affiliateAdsSyncService = affiliateAdsSyncService;
+        this.affiliateAdsTestTaskAsyncService = affiliateAdsTestTaskAsyncService;
     }
 
     @PostMapping
@@ -109,6 +114,26 @@ public class AffiliateAdsSyncController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "AFFILIATE_ADS_SYNC deleted successfully");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    @PostMapping("/{id}/testAd")
+    public ResponseEntity<Map<String, Object>> testAd(@PathVariable Long id, HttpServletRequest request) {
+        try {
+            final Long userId = getUserId(request);
+            final AffiliateAdsSync affiliateAdsSync = affiliateAdsSyncService.getById(id, userId);
+            final Map<String, Object> testResult = affiliateAdsTestTaskAsyncService.testSingleAd(affiliateAdsSync, userId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "AFFILIATE_ADS_SYNC testAd completed");
+            response.put("data", testResult);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             Map<String, Object> response = new HashMap<>();

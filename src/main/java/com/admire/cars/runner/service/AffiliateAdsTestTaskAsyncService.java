@@ -6,10 +6,8 @@ import com.admire.cars.runner.dto.AffiliateAdsTestResponseDto;
 import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.dto.ProxyConfigurationDto;
 import com.admire.cars.runner.entity.*;
-import com.admire.cars.runner.repository.AffiliateAdsSyncConfigRepository;
-import com.admire.cars.runner.repository.AffiliateAdsSyncRepository;
-import com.admire.cars.runner.repository.AffiliateAdsTestTaskRepository;
-import com.admire.cars.runner.repository.IpProxyInfoRepository;
+import com.admire.cars.runner.repository.*;
+import jakarta.persistence.criteria.Predicate;
 import org.apache.commons.compress.utils.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +20,16 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.net.Authenticator;
 import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
 import java.net.Proxy;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +48,7 @@ public class AffiliateAdsTestTaskAsyncService {
     private final AffiliateAdsTestResultService affiliateAdsTestResultService;
     private final AffiliateAdsService affiliateAdsService;
     private final IpProxyInfoRepository ipProxyInfoRepository;
+    private final AffiliateAdsTestResultRepository affiliateAdsTestResultRepository;
 
     @Autowired
     private AdsConfig adsConfig;
@@ -57,13 +62,15 @@ public class AffiliateAdsTestTaskAsyncService {
             AffiliateAdsSyncRepository affiliateAdsSyncRepository,
             AffiliateAdsTestResultService affiliateAdsTestResultService,
             AffiliateAdsService affiliateAdsService,
-            IpProxyInfoRepository ipProxyInfoRepository) {
+            IpProxyInfoRepository ipProxyInfoRepository,
+            AffiliateAdsTestResultRepository affiliateAdsTestResultRepository) {
         this.affiliateAdsTestTaskRepository = affiliateAdsTestTaskRepository;
         this.affiliateAdsSyncConfigRepository = affiliateAdsSyncConfigRepository;
         this.affiliateAdsSyncRepository = affiliateAdsSyncRepository;
         this.affiliateAdsTestResultService = affiliateAdsTestResultService;
         this.affiliateAdsService = affiliateAdsService;
         this.ipProxyInfoRepository = ipProxyInfoRepository;
+        this.affiliateAdsTestResultRepository = affiliateAdsTestResultRepository;
     }
 
     @Async("adsAsyncExecutor")
@@ -77,10 +84,11 @@ public class AffiliateAdsTestTaskAsyncService {
                 .orElseThrow(() -> new IllegalArgumentException("IP_PROXY_INFO not found: " + task.getIpProxyInfoId()));
         final OkHttpClient httpClient = buildHttpClient(ipProxyInfo);
         final OkHttpClient directHttpClient = buildHttpClient(null);
+        IpVerificationDto ipVerification = null;
         try {
             if (adsConfig.isIpVerification()) {
                 try {
-                    final IpVerificationDto ipVerification = ipVerification(httpClient, task.getRegion());
+                    ipVerification = ipVerification(httpClient, task.getRegion());
                     if (!ipVerification.isMatched()) {
                         log.warn("IP proxy didn't match the expected region. Expected: {}, Actually:{}.  proxy protocol={} proxy info={} Ip Lookup URL={}",
                                 task.getRegion(), ipVerification.getCountryCode(), ipProxyInfo.getProxyProtocol(), ipProxyInfo.getProxyInfo(), adsConfig.getIpLookupUrl());
@@ -135,20 +143,30 @@ public class AffiliateAdsTestTaskAsyncService {
             }
 
             List<AffiliateAdsSync> syncs = affiliateAdsSyncRepository.findAll((root, query, cb) -> {
-                List<jakarta.persistence.criteria.Predicate> predicates = Lists.newArrayList();
+                List<Predicate> predicates = Lists.newArrayList();
                 predicates.add(cb.equal(root.get("affiliateNetwork"), config.getAffiliateNetwork()));
                 predicates.add(cb.equal(root.get("adsOwner"), task.getAdsOwner()));
                 predicates.add(cb.equal(cb.lower(root.get("status")), "enabled"));
                 if (StringUtils.hasText(task.getRegion())) {
                     predicates.add(cb.equal(cb.lower(root.get("region")), task.getRegion().trim().toLowerCase()));
                 }
-                return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+                return cb.and(predicates.toArray(new Predicate[0]));
             });
+
+            String syncRegion = task.getRegion() == null ? null : task.getRegion().trim();
+            long deleted = affiliateAdsTestResultRepository.deleteByAffiliateNetworkAndAdsOwnerAndRegion(
+                    config.getAffiliateNetwork(),
+                    task.getAdsOwner(),
+                    syncRegion);
+            log.info("AFFILIATE_TEST_TASK_CLEANUP taskId={} deleted={} affiliateNetwork={} adsOwner={} region={}",
+                    taskId, deleted, config.getAffiliateNetwork(), task.getAdsOwner(), syncRegion);
+
 
             long successCount = 0L;
             long failedCount = 0L;
             long totalCount = 0L;
-
+            String ip = (null != ipVerification) ?ipVerification.getIp():null;
+            log.info("Affiliate Ads testing ip: {}", ip);
             for (AffiliateAdsSync sync : syncs) {
                 totalCount++;
                 if (!StringUtils.hasText(sync.getTrackingUrl()) || !StringUtils.hasText(sync.getSiteUrl())) {
@@ -201,12 +219,82 @@ public class AffiliateAdsTestTaskAsyncService {
         }
     }
 
+    public Map<String, Object> testSingleAd(AffiliateAdsSync affiliateAdsSync, Long currentUserId) {
+        if (affiliateAdsSync == null || affiliateAdsSync.getId() == null) {
+            throw new IllegalArgumentException("AFFILIATE_ADS_SYNC is required");
+        }
+
+        if (!StringUtils.hasText(affiliateAdsSync.getAdsOwner())) {
+            throw new IllegalArgumentException("AFFILIATE_ADS_SYNC adsOwner is required");
+        }
+
+        List<IpProxyInfo> proxies = ipProxyInfoRepository.findByAdsOwnerAndStatusIgnoreCaseOrderByIdDesc(
+                affiliateAdsSync.getAdsOwner(),
+                "ENABLED");
+
+        if (proxies.isEmpty()) {
+            throw new IllegalArgumentException("No ENABLED IP_PROXY_INFO found for adsOwner: " + affiliateAdsSync.getAdsOwner());
+        }
+
+        final String expectedCountryCode = StringUtils.hasText(affiliateAdsSync.getRegion())
+                ? affiliateAdsSync.getRegion().trim()
+                : null;
+
+        final List<String> proxyFailures = new ArrayList<>();
+        OkHttpClient httpClient = null;
+        IpVerificationDto ipVerification = null;
+        IpProxyInfo ipProxyInfo = null;
+        for (IpProxyInfo proxy : proxies) {
+            httpClient = buildHttpClient(proxy);
+            try {
+                ipVerification = ipVerification(httpClient, expectedCountryCode);
+                ipProxyInfo = proxy;
+                if (!StringUtils.hasText(expectedCountryCode)) {
+                    ipVerification.setMatched(true);
+                    break;
+                } else if (!ipVerification.isMatched()) {
+                    proxyFailures.add("proxyId=" + ipProxyInfo.getId()
+                            + " region mismatch expected=" + expectedCountryCode
+                            + " actual=" + ipVerification.getCountryCode());
+                }
+            } catch (IOException e) {
+                proxyFailures.add("proxyId=" + ipProxyInfo.getId() + " verification failed: " + e.getMessage());
+            }
+        }
+
+        if (null != ipVerification && ipVerification.isMatched() &&
+                null != httpClient) {
+            final AffiliateAdsTestResponseDto testResponse =
+                    affiliateAdsService.getAffiliateAds(httpClient, affiliateAdsSync, ipProxyInfo);
+            if (null != testResponse && "200".equalsIgnoreCase(testResponse.getStatus())) {
+                AffiliateAdsTestResult result = new AffiliateAdsTestResult();
+                result.setAffiliateNetwork(affiliateAdsSync.getAffiliateNetwork());
+                result.setRegion(affiliateAdsSync.getRegion());
+                result.setSiteName(affiliateAdsSync.getSiteName());
+                result.setSiteUrl(affiliateAdsSync.getSiteUrl());
+                result.setTrackingUrl(affiliateAdsSync.getTrackingUrl());
+                result.setFinalUrl(testResponse.getUrl());
+                result.setStatus("SUCCESS");
+                result.setAdsOwner(affiliateAdsSync.getAdsOwner());
+                affiliateAdsTestResultService.create(result, currentUserId);
+            }
+            final Map<String, Object> result = new HashMap<>();
+            result.put("status", testResponse.getStatus());
+            result.put("finalUrl", testResponse.getUrl());
+            result.put("error", testResponse.getError());
+            return result;
+        }
+        throw new IllegalArgumentException("No verified proxy available for AFFILIATE_ADS_SYNC "
+                + affiliateAdsSync.getId()
+                + (proxyFailures.isEmpty() ? "" : " (" + String.join("; ", proxyFailures) + ")"));
+    }
+
 
     private Long calculateDurationSeconds(LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null) {
             return null;
         }
-        return java.time.Duration.between(start, end).getSeconds();
+        return Duration.between(start, end).getSeconds();
     }
 
 
@@ -228,16 +316,16 @@ public class AffiliateAdsTestTaskAsyncService {
                 p.get().getHost(), p.get().getPort(), dynamicProxyInfo.getProxyProtocol());
 
         // For SOCKS5, use Java Authenticator (RFC 1929) instead of HTTP Basic Auth
-        java.net.Authenticator.setDefault(new java.net.Authenticator() {
+        Authenticator.setDefault(new Authenticator() {
             @Override
-            protected java.net.PasswordAuthentication getPasswordAuthentication() {
+            protected PasswordAuthentication getPasswordAuthentication() {
                 log.debug("Authenticator called for {}:{} (type: {})",
                         getRequestingHost(), getRequestingPort(), getRequestorType());
                 if (getRequestorType() == RequestorType.PROXY || 
                     getRequestorType() == RequestorType.SERVER) {
                     log.debug("Providing SOCKS5 credentials for {}:{}",
                             getRequestingHost(), getRequestingPort());
-                    return new java.net.PasswordAuthentication(
+                    return new PasswordAuthentication(
                             p.get().getUsername(),
                             p.get().getPassword().toCharArray()
                     );

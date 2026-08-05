@@ -2157,7 +2157,7 @@ public class AuthIntegrationTest {
                             "platformName", "Audit Platform",
                             "affiliteUrl", "http://localhost:" + port + "/start",
                             "landingPageUrl", "http://localhost:" + port + "/landing",
-                            "dynamicProxyInfo", "proxy:secret@127.0.0.1:1",
+                            "dynamicProxyInfo", "",
                             "intervalTime", 1,
                             "status", "RUNNING"))
                     .exchange()
@@ -2182,7 +2182,7 @@ public class AuthIntegrationTest {
                     "http://localhost:" + port + "/landing?ranMID=41274&utm_source=rakuten",
                     shiftLink.getFullUrl());
             org.junit.jupiter.api.Assertions.assertTrue(landingUserAgent.get() != null && landingUserAgent.get().contains("Mozilla/5.0"));
-            org.junit.jupiter.api.Assertions.assertEquals("desk", landingDeviceType.get());
+            org.junit.jupiter.api.Assertions.assertEquals("Desktop", landingDeviceType.get());
         } finally {
             server.stop(0);
         }

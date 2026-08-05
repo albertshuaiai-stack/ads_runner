@@ -1,13 +1,20 @@
 package com.admire.cars.runner.job;
 
 import com.admire.cars.runner.config.AdsConfig;
+import com.admire.cars.runner.constant.Constant;
+import com.admire.cars.runner.dto.IpVerificationDto;
+import com.admire.cars.runner.dto.ProxyConfigurationDto;
 import com.admire.cars.runner.entity.AdsNormalInfo;
+import com.admire.cars.runner.entity.IpProxyInfo;
 import com.admire.cars.runner.entity.NormalTaskRedirectLog;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.NormalTaskRedirectLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.service.ReferUserAgentService;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.commons.compress.utils.Lists;
 import org.apache.commons.lang3.RandomUtils;
 import org.quartz.JobDataMap;
@@ -20,16 +27,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.net.Authenticator;
-import java.net.InetSocketAddress;
-import java.net.PasswordAuthentication;
-import java.net.ProxySelector;
-import java.net.URI;
+import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
@@ -46,7 +50,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     private static final String DEFAULT_PAD_USER_AGENT = "Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
     private static final Pattern URL_PATTERN = Pattern.compile("https?://[^\\s\"'<>]+");
 
-    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(301, 302, 303, 307, 308,200);
+    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(301, 302, 303, 307, 308);
 
     @Autowired
     private AdsNormalInfoRepository adsNormalInfoRepository;
@@ -70,14 +74,131 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     protected void executeTask(JobExecutionContext context) {
 
         List<NormalTaskRedirectLog> normalTaskRedirectLogList = Lists.newArrayList();
-        NormalTaskRedirectLog normalTaskRedirectLog;
         JobDataMap jobDataMap = context.getMergedJobDataMap();
         String jobId = resolveJobId(context, jobDataMap);
         Long adsId = resolveAdsId(jobId, jobDataMap);
+        int lastStatusCode = -1;
 
         AdsNormalInfo adsNormalInfo = adsNormalInfoRepository.findById(adsId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_INFO not found: " + adsId));
 
+        String userAgent = getUserAgent();
+        String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
+        final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
+        final OkHttpClient httpClient = buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
+        IpVerificationDto ipVerificationDto = null;
+        NormalTaskRedirectLog normalTaskRedirectLog = new NormalTaskRedirectLog();
+        //Verify Http client IP region
+        if (normalAdsTaskConfig.isIpVerification()) {
+            try {
+                ipVerificationDto = ipVerification(httpClient, adsNormalInfo.getCampainCountry());
+                buildNormalTaskRedirectLog(normalTaskRedirectLog, adsNormalInfo,
+                        ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
+                        0L, userAgent, null);
+                normalTaskRedirectLog.setSuccess(true);
+                if (!ipVerificationDto.isMatched()) {
+                    normalTaskRedirectLog.setErrMsg("IP verification failed");
+                }
+            } catch (IOException e) {
+                normalTaskRedirectLog.setErrMsg(e.getMessage());
+            }
+        } else {
+            // If IP verification is disabled, still initialize the log with basic info
+            buildNormalTaskRedirectLog(normalTaskRedirectLog, adsNormalInfo,
+                    null, null, 0L, userAgent, null);
+            normalTaskRedirectLog.setSuccess(true);
+        }
+
+        if (StringUtils.hasText(normalTaskRedirectLog.getErrMsg())) {
+            log.warn("NORMAL_AUTO_TASK_IP_LOOKUP_PROXY_AUTH_REQUIRED adsId={} Job Id:{} url={} message={}",
+                    adsNormalInfo.getId(), normalAdsTaskConfig.getIpLookupUrl(), jobId, normalTaskRedirectLog.getErrMsg());
+            return;
+        }
+        normalTaskRedirectLogList.add(normalTaskRedirectLog);
+        
+        // Proceed with redirect following regardless of IP verification status
+        URI currentUrl = URI.create(affiliateUrl);
+        for (int sequence = 1; sequence <= normalAdsTaskConfig.getMaxRedirects(); sequence++) {
+            normalTaskRedirectLog = new NormalTaskRedirectLog();
+            buildNormalTaskRedirectLog(normalTaskRedirectLog, adsNormalInfo, 
+                    (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
+                    (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null, 
+                    (long) sequence, userAgent, currentUrl.toString());
+            final long startTime = System.currentTimeMillis();
+            final Request httpRequest = buildBaseRequest(currentUrl.toString(), userAgent, DEVICE_TYPE_DESK);
+            URI responseUrl = null;
+            try (Response response = httpClient.newCall(httpRequest).execute()){
+                lastStatusCode = response.code();
+                if (null != response.networkResponse()
+                        && null != response.networkResponse().request()
+                        && null != response.networkResponse().request().url()) {
+                    responseUrl = URI.create(response.networkResponse().request().url().toString());
+                    normalTaskRedirectLog.setLocation(responseUrl.toString());
+                    normalTaskRedirectLog.setResponseUrl(responseUrl.toString());
+
+                }
+                final long durationMillis = System.currentTimeMillis() - startTime;
+                normalTaskRedirectLog.setDurationMillis(String.valueOf(durationMillis));
+                normalTaskRedirectLog.setStatusCode(String.valueOf(lastStatusCode));
+                if (!REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
+                    if (isLandingPage(currentUrl, landingPageUrl)
+                            && lastStatusCode >= 200
+                            && lastStatusCode < 300) {
+                        normalTaskRedirectLog.setSuccess(true);
+                        normalTaskRedirectLogList.add(normalTaskRedirectLog);
+                        break;
+                    }
+                    normalTaskRedirectLog.setSuccess(false);
+                    normalTaskRedirectLog.setErrMsg("Non-redirect status code received: " + lastStatusCode);
+                    normalTaskRedirectLogList.add(normalTaskRedirectLog);
+                    currentUrl = responseUrl;
+                    continue;
+                }
+                normalTaskRedirectLog.setSuccess(false);
+                normalTaskRedirectLog.setErrMsg("Redirect status code received: " + lastStatusCode);
+                normalTaskRedirectLogList.add(normalTaskRedirectLog);
+                currentUrl = responseUrl;
+            } catch (IOException proxyIoException) {
+                log.warn("NORMAL_AUTO_TASK_PROXY_REQUEST_FAILED adsId={} jobId={} requestUrl={} message={}",
+                        adsNormalInfo.getId(),
+                        jobId,
+                        currentUrl,
+                        proxyIoException.getMessage());
+                normalTaskRedirectLog.setErrMsg(proxyIoException.getMessage());
+            }
+        }
+        normalTaskRedirectLogRepository.saveAll(normalTaskRedirectLogList);
+        NormalTaskRedirectLog successTask = normalTaskRedirectLogList.stream().filter(log ->
+                null != log.getResponseUrl() && log.getSuccess()).findFirst().orElse(null);
+        if (null != successTask) {
+            ShiftLink shiftLink = new ShiftLink();
+            shiftLink.setAdsId(adsNormalInfo.getId());
+            shiftLink.setAdsName(adsNormalInfo.getCampainName());
+            shiftLink.setAdsType("Normal");
+            shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
+            shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
+            shiftLink.setFullUrl(successTask.getResponseUrl());
+            shiftLink.setDisplayNumber(0L);
+            shiftLink.setStatus(adsNormalInfo.getStatus());
+            shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
+            shiftLinkRepository.save(shiftLink);
+        }
+    }
+
+
+    private void buildNormalTaskRedirectLog(NormalTaskRedirectLog normalTaskRedirectLog, AdsNormalInfo adsNormalInfo,
+                                            String ip, String countryCode, Long sequence,String userAgent, String requestUrl) {
+        normalTaskRedirectLog.setAdsOwner(adsNormalInfo.getAdsOwner());
+        normalTaskRedirectLog.setIp(ip);
+        normalTaskRedirectLog.setCountryCode(countryCode);
+        normalTaskRedirectLog.setNormalInfoId(adsNormalInfo.getId());
+        normalTaskRedirectLog.setDevice(DEVICE_TYPE_DESK);
+        normalTaskRedirectLog.setUserAgent(userAgent);
+        normalTaskRedirectLog.setSequence((long) sequence);
+        normalTaskRedirectLog.setRequestUrl(requestUrl);
+    }
+
+    private String getUserAgent() {
         List<String> userAgentList = referUserAgentService.getUserAgentListByDevice(DEVICE_TYPE_DESK);
         if (userAgentList.isEmpty()) {
             userAgentList = List.of(DEFAULT_DESKTOP_USER_AGENT);
@@ -86,148 +207,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         if (!StringUtils.hasText(userAgent) || !userAgent.contains("Mozilla/5.0")) {
             userAgent = DEFAULT_DESKTOP_USER_AGENT;
         }
-
-        String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
-        final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
-        final HttpClient httpClient = buildHttpClient(adsNormalInfo.getDynamicProxyInfo());
-        final HttpClient directHttpClient = buildHttpClient(null);
-        IpVerification ipVerification = IpVerification.unverified();
-        try {
-            //Verify Http client IP region
-            if (normalAdsTaskConfig.isIpVerification()) {
-                try {
-                    ipVerification = ipVerification(httpClient, adsNormalInfo.getCampainCountry());
-                    if (!ipVerification.matched) {
-                        normalTaskRedirectLog = new NormalTaskRedirectLog();
-                        normalTaskRedirectLog.setErrMsg("IP verification failed");
-                        normalTaskRedirectLog.setAdsOwner(adsNormalInfo.getAdsOwner());
-                        normalTaskRedirectLog.setNormalInfoId(adsNormalInfo.getId());
-                        normalTaskRedirectLog.setSequence(1L);
-                        normalTaskRedirectLogList.add(normalTaskRedirectLog);
-                        return;
-                    }
-                } catch (IOException e) {
-                    String message = e.getMessage();
-                    if (StringUtils.hasText(message) && message.contains("407")) {
-                        log.warn("NORMAL_AUTO_TASK_IP_LOOKUP_PROXY_AUTH_REQUIRED adsId={} jobId={} url={} message={}",
-                                adsNormalInfo.getId(), jobId, normalAdsTaskConfig.getIpLookupUrl(), message);
-                    } else {
-                        log.warn("NORMAL_AUTO_TASK_IP_LOOKUP_SKIPPED adsId={} jobId={} url={} message={}",
-                                adsNormalInfo.getId(), jobId, normalAdsTaskConfig.getIpLookupUrl(), message);
-                    }
-                    try {
-                        ipVerification = ipVerification(directHttpClient, adsNormalInfo.getCampainCountry());
-                    } catch (IOException secondLookupException) {
-                        log.warn("NORMAL_AUTO_TASK_IP_LOOKUP_DIRECT_FAILED adsId={} jobId={} url={} message={}",
-                                adsNormalInfo.getId(),
-                                jobId,
-                                normalAdsTaskConfig.getIpLookupUrl(),
-                                secondLookupException.getMessage());
-                        ipVerification = IpVerification.unverified();
-                    }
-                }
-            }
-            URI currentUrl = URI.create(affiliateUrl);
-            for (int sequence = 1; sequence <= normalAdsTaskConfig.getMaxRedirects(); sequence++) {
-                normalTaskRedirectLog = new NormalTaskRedirectLog();
-                normalTaskRedirectLog.setAdsOwner(adsNormalInfo.getAdsOwner());
-                normalTaskRedirectLog.setIp(ipVerification.ip);
-                normalTaskRedirectLog.setCountryCode(ipVerification.countryCode);
-                normalTaskRedirectLog.setNormalInfoId(adsNormalInfo.getId());
-                normalTaskRedirectLog.setDevice(DEVICE_TYPE_DESK);
-                normalTaskRedirectLog.setUserAgent(userAgent);
-                normalTaskRedirectLog.setSequence((long) sequence);
-                normalTaskRedirectLog.setRequestUrl(currentUrl.toString());
-
-                final long startTime = System.currentTimeMillis();
-                final HttpRequest httpRequest = buildBaseRequest(currentUrl, userAgent, DEVICE_TYPE_DESK).build();
-                HttpResponse<Void> response;
-                try {
-                    response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.discarding());
-                    if (response.statusCode() == 407) {
-                        log.warn("NORMAL_AUTO_TASK_PROXY_AUTH_REQUIRED adsId={} jobId={} requestUrl={}", adsNormalInfo.getId(), jobId, currentUrl);
-                        response = directHttpClient.send(httpRequest, HttpResponse.BodyHandlers.discarding());
-                    }
-                } catch (IOException proxyIoException) {
-                    log.warn("NORMAL_AUTO_TASK_PROXY_REQUEST_FAILED adsId={} jobId={} requestUrl={} message={}",
-                            adsNormalInfo.getId(),
-                            jobId,
-                            currentUrl,
-                            proxyIoException.getMessage());
-                    response = directHttpClient.send(httpRequest, HttpResponse.BodyHandlers.discarding());
-                }
-                final long durationMillis = System.currentTimeMillis() - startTime;
-                final Optional<String> locationHeader = response.headers().firstValue("Location");
-                normalTaskRedirectLog.setDurationMillis(String.valueOf(durationMillis));
-                normalTaskRedirectLog.setStatusCode(String.valueOf(response.statusCode()));
-                normalTaskRedirectLog.setLocation(locationHeader.orElse(null));
-                if (!REDIRECT_STATUS_CODES.contains(response.statusCode())) {
-                    if (isLandingPage(currentUrl, landingPageUrl)
-                            && response.statusCode() >= 200
-                            && response.statusCode() < 300) {
-                        normalTaskRedirectLog.setSuccess(true);
-                        normalTaskRedirectLog.setResponseUrl(currentUrl.toString());
-                        normalTaskRedirectLogList.add(normalTaskRedirectLog);
-                        break;
-                    }
-                    normalTaskRedirectLog.setSuccess(false);
-                    normalTaskRedirectLog.setErrMsg("Non-redirect status code received: " + response.statusCode());
-                    normalTaskRedirectLogList.add(normalTaskRedirectLog);
-                    break;
-                }
-                if (locationHeader.isEmpty()) {
-                    normalTaskRedirectLog.setSuccess(false);
-                    normalTaskRedirectLog.setErrMsg("Redirect status code received but no Location header found");
-                    normalTaskRedirectLogList.add(normalTaskRedirectLog);
-                    break;
-                }
-                final URI responseUrl = currentUrl.resolve(locationHeader.get());
-                if (isLandingPage(responseUrl, landingPageUrl)) {
-                    normalTaskRedirectLog.setSuccess(true);
-                    normalTaskRedirectLog.setResponseUrl(responseUrl.toString());
-                    normalTaskRedirectLogList.add(normalTaskRedirectLog);
-                    try {
-                        final HttpRequest landingRequest = buildBaseRequest(responseUrl, userAgent, DEVICE_TYPE_DESK).build();
-                        directHttpClient.send(landingRequest, HttpResponse.BodyHandlers.discarding());
-                    } catch (IOException | InterruptedException landingProbeException) {
-                        if (landingProbeException instanceof InterruptedException) {
-                            Thread.currentThread().interrupt();
-                        }
-                        log.warn("NORMAL_AUTO_TASK_LANDING_PROBE_FAILED adsId={} jobId={} responseUrl={} message={}",
-                                adsNormalInfo.getId(),
-                                jobId,
-                                responseUrl,
-                                landingProbeException.getMessage());
-                    }
-                    break;
-
-                }
-                normalTaskRedirectLog.setSuccess(false);
-                normalTaskRedirectLog.setResponseUrl(responseUrl.toString());
-                normalTaskRedirectLogList.add(normalTaskRedirectLog);
-                currentUrl = responseUrl;
-            }
-            normalTaskRedirectLogRepository.saveAll(normalTaskRedirectLogList);
-            NormalTaskRedirectLog successTask = normalTaskRedirectLogList.stream().filter(log -> log.getSuccess()).findFirst().orElse(null);
-            if (null != successTask) {
-                ShiftLink shiftLink = new ShiftLink();
-                shiftLink.setAdsId(adsNormalInfo.getId());
-                shiftLink.setAdsName(adsNormalInfo.getCampainName());
-                shiftLink.setAdsType("Normal");
-                shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
-                shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
-                shiftLink.setFullUrl(successTask.getResponseUrl());
-                shiftLink.setDisplayNumber(0L);
-                shiftLink.setStatus(adsNormalInfo.getStatus());
-                shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
-                shiftLinkRepository.save(shiftLink);
-            }
-        } catch (IOException | InterruptedException e) {
-            log.warn("NORMAL_AUTO_TASK_PROXY_IP_VERIFICATION_FAILED adsId={} jobId={} message={}", adsNormalInfo.getId(), jobId, e.getMessage());
-        }
-
-
-
+        return userAgent;
     }
 
     private boolean isLandingPage(final URI uri, final String landingPage) {
@@ -350,6 +330,21 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         return builder;
     }
 
+
+    private Request buildBaseRequest(final String uri, String userAgent, String deviceType) {
+        Request request = new Request.Builder()
+                .url(uri)
+                .header("Accept", "text/html, application/json, text/plain, */*")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
+                .header("X-Device-Type", deviceType)
+                .header("User-Agent", Optional.ofNullable(userAgent).orElse(DEFAULT_DESKTOP_USER_AGENT))
+                .get()
+                .build();
+        return request;
+    }
+
     private record ProxyConfiguration(String username, String password, String host, int port) {
     }
 
@@ -377,4 +372,154 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         return builder.build();
     }
 
+    private OkHttpClient buildOkHttpClient(String dynamicProxyInfo) {
+        OkHttpClient.Builder builder = new OkHttpClient.Builder()
+                .connectTimeout(normalAdsTaskConfig.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS)
+                .readTimeout(normalAdsTaskConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS);
+
+        if (!StringUtils.hasText(dynamicProxyInfo)) {
+            return builder.build();
+        }
+        parseProxyConfiguration(dynamicProxyInfo).ifPresent(proxyConfiguration -> {
+            // For SOCKS5, use Java Authenticator (RFC 1929) instead of HTTP Basic Auth
+            Authenticator.setDefault(new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    log.debug("Authenticator called for {}:{} (type: {})",
+                            getRequestingHost(), getRequestingPort(), getRequestorType());
+                    if (getRequestorType() == RequestorType.PROXY ||
+                            getRequestorType() == RequestorType.SERVER) {
+                        log.debug("Providing SOCKS5 credentials for {}:{}",
+                                getRequestingHost(), getRequestingPort());
+                        return new PasswordAuthentication(
+                                proxyConfiguration.username(),
+                                proxyConfiguration.password().toCharArray());
+                    }
+                    return null;
+                }
+            });
+            // Use SOCKS5 proxy with OkHttp (supports SOCKS5 natively)
+            builder.proxy(new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyConfiguration.host(), proxyConfiguration.port())));
+        });
+        return builder.build();
+    }
+
+    private IpVerificationDto ipVerification(
+            OkHttpClient httpClient,
+            String expectedCountryCode) throws IOException {
+
+        // Define multiple IP lookup endpoints
+        class IpEndpoint {
+            String url;
+            String[] ipFields;
+            String[] countryFields;
+            IpEndpoint(String url, String[] ipFields, String[] countryFields) {
+                this.url = url;
+                this.ipFields = ipFields;
+                this.countryFields = countryFields;
+            }
+        }
+
+        IpEndpoint[] endpoints = {
+                new IpEndpoint("https://api.country.is/", new String[]{"ip"}, new String[]{"country"}),
+                new IpEndpoint("https://ipapi.co/json/", new String[]{"ip"}, new String[]{"country_code"}),
+                new IpEndpoint("https://httpbin.org/ip", new String[]{"origin"}, new String[]{}),
+        };
+
+        // Also try configured URL if provided
+        String configuredUrl = null;
+        if (StringUtils.hasText(normalAdsTaskConfig.getIpLookupUrl())) {
+            configuredUrl = normalAdsTaskConfig.getIpLookupUrl().trim();
+            validateHttpUrl(configuredUrl, "IP lookup url");
+        }
+
+        IOException lastException = null;
+
+        // Try configured URL first if available
+        if (StringUtils.hasText(configuredUrl)) {
+            try {
+                IpVerificationDto result = attemptIpLookup(httpClient, configuredUrl,
+                        new String[]{"ip", "query"}, new String[]{"country", "countryCode", "country_code"});
+                if (result != null) {
+                    log.info("IP Verification succeeded with configured URL: {}", configuredUrl);
+                    result.setMatched(result.getCountryCode() != null &&
+                            result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
+                    return result;
+                }
+            } catch (IOException e) {
+                log.warn("Configured IP lookup URL failed: {} - {}", configuredUrl, e.getMessage());
+                lastException = e;
+            }
+        }
+
+        // Try each predefined endpoint
+        for (IpEndpoint endpoint : endpoints) {
+            try {
+                IpVerificationDto result = attemptIpLookup(httpClient, endpoint.url,
+                        endpoint.ipFields, endpoint.countryFields);
+                if (result != null) {
+                    log.info("IP Verification succeeded with endpoint: {} (IP: {}, Country: {})",
+                            endpoint.url, result.getIp(), result.getCountryCode());
+                    result.setMatched(result.getCountryCode() != null &&
+                            result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
+                    return result;
+                }
+            } catch (IOException e) {
+                log.debug("IP lookup endpoint {} failed: {}", endpoint.url, e.getMessage());
+                lastException = e;
+            }
+        }
+
+        // All endpoints failed
+        if (lastException != null) {
+            throw new IOException("All IP lookup endpoints failed. Last error: " + lastException.getMessage(), lastException);
+        }
+        throw new IOException("No valid IP lookup endpoint returned data");
+    }
+
+    private void validateHttpUrl(final String url, final String fieldName) {
+        if (!StringUtils.hasText(url)) {
+            throw new IllegalArgumentException(fieldName + " URL is required");
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            throw new IllegalArgumentException(fieldName + " URL must use http or https scheme");
+        }
+    }
+
+    private IpVerificationDto attemptIpLookup(OkHttpClient httpClient, String url,
+                                              String[] ipFieldNames, String[] countryFieldNames) throws IOException {
+        validateHttpUrl(url, "IP lookup url");
+
+        Request request = new Request.Builder()
+                .url(url)
+                .header("User-Agent", Constant.DEFAULT_DESKTOP_USER_AGENT)
+                .header("X-Device-Type", Constant.DEVICE_TYPE_DESK)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (response.code() < 200 || response.code() >= 300) {
+                throw new IOException("IP lookup failed with status code: " + response.code() + " from " + url);
+            }
+
+            String body = response.body() != null ? response.body().string() : "";
+            if (!StringUtils.hasText(body)) {
+                throw new IOException("Empty response from " + url);
+            }
+
+            final JsonNode jsonNode = objectMapper.readTree(body);
+            final String ip = getFirstText(jsonNode, ipFieldNames);
+            final String countryCode = getFirstText(jsonNode, countryFieldNames);
+
+            // Consider successful only if we got an IP
+            if (!StringUtils.hasText(ip)) {
+                throw new IOException("No IP field found in response from " + url);
+            }
+
+            IpVerificationDto result = new IpVerificationDto();
+            result.setIp(ip);
+            result.setCountryCode(countryCode);
+            return result;
+        }
+    }
 }

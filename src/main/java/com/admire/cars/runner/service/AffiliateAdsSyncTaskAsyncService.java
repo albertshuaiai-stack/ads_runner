@@ -90,7 +90,8 @@ public class AffiliateAdsSyncTaskAsyncService {
                    totalCount += bonusArriveCampaignItemDtos.size();
                    List<AffiliateAdsSync> syncRecords = Lists.newArrayList();
                    for (BonusArriveCampaignItemDto itemDto : bonusArriveCampaignItemDtos) {
-                       if (isMatchingRegion(itemDto.getRegion(), syncRegion) && null != itemDto.getTracking_url()) {
+                       if (isMatchingRegion(itemDto.getRegion(), syncRegion) && null != itemDto.getTracking_url()
+                               && "active".equalsIgnoreCase(itemDto.getMerchant_status())) {
                            AffiliateAdsSync sync = new AffiliateAdsSync();
                            sync.setSiteName(truncate(itemDto.getSite_name(), 128));
                            sync.setSiteUrl(truncate(itemDto.getSite_url(), 1024));
