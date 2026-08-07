@@ -35,13 +35,13 @@ public class AdsMatrixInfo {
     @Column(name = "ID")
     private Long id;
 
-    @Column(name = "CAMPAIN_NAME", nullable = false, length = 32)
+    @Column(name = "CAMPAIN_NAME", nullable = false, length = 64)
     private String campainName;
 
     @Column(name = "CAMPAIN_COUNTRY", nullable = false, length = 8)
     private String campainCountry;
 
-    @Column(name = "LANDING_PAGE_URL", length = 128)
+    @Column(name = "LANDING_PAGE_URL", length = 1024)
     private String landingPageUrl;
 
     @Column(name = "DYNAMIC_PROXY_INFO", length = 256)

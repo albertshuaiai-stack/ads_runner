@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="normal-ads-003-drop-platform-foreign-key" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <foreignKeyConstraintExists foreignKeyName="FK_ADS_NORMAL_INFO_PLATFORM_NAME"/>
+        </preConditions>
+        <dropForeignKeyConstraint baseTableName="ADS_NORMAL_INFO"
+                                  constraintName="FK_ADS_NORMAL_INFO_PLATFORM_NAME"/>
+    </changeSet>
+
+</databaseChangeLog>

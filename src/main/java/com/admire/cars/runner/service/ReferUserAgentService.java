@@ -1,5 +1,6 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.entity.ReferUserAgent;
 import com.admire.cars.runner.repository.ReferUserAgentRepository;
 import jakarta.annotation.PostConstruct;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 public class ReferUserAgentService {
 
     private final ReferUserAgentRepository referUserAgentRepository;
+
     private final Map<String, List<ReferUserAgent>> userAgentsByDeviceCache = new ConcurrentHashMap<>();
 
     public ReferUserAgentService(ReferUserAgentRepository referUserAgentRepository) {
@@ -81,7 +83,7 @@ public class ReferUserAgentService {
 
     @Transactional(readOnly = true)
     public List<String> getUserAgentListByDevice(String device) {
-        String normalizedDevice = normalizeRequired(device, "device", 16);
+        String normalizedDevice = normalizeRequired(device, Constant.DEVICE, 16);
         List<ReferUserAgent> cachedList = userAgentsByDeviceCache.get(normalizedDevice);
         if (cachedList == null) {
             cacheDevice(normalizedDevice);
@@ -92,7 +94,7 @@ public class ReferUserAgentService {
 
     @Transactional(readOnly = true)
     public List<ReferUserAgent> getByDevice(String device) {
-        String normalizedDevice = normalizeRequired(device, "device", 16);
+        String normalizedDevice = normalizeRequired(device, Constant.DEVICE, 16);
         List<ReferUserAgent> cachedList = userAgentsByDeviceCache.get(normalizedDevice);
         if (cachedList == null) {
             cacheDevice(normalizedDevice);
@@ -103,14 +105,15 @@ public class ReferUserAgentService {
 
     private void reloadCache() {
         Map<String, List<ReferUserAgent>> grouped = referUserAgentRepository.findAll().stream()
-                .collect(Collectors.groupingBy(item -> normalizeRequired(item.getDevice(), "device", 16), ConcurrentHashMap::new, Collectors.toList()));
+                .collect(Collectors.groupingBy(item -> normalizeRequired(item.getDevice(),
+                        Constant.DEVICE, 16), ConcurrentHashMap::new, Collectors.toList()));
         userAgentsByDeviceCache.clear();
         grouped.forEach((device, list) -> userAgentsByDeviceCache.put(device, List.copyOf(list)));
     }
 
     @Transactional(readOnly = true)
     protected void cacheDevice(String device) {
-        String normalizedDevice = normalizeRequired(device, "device", 16);
+        String normalizedDevice = normalizeRequired(device, Constant.DEVICE, 16);
         List<ReferUserAgent> latest = referUserAgentRepository.findByDeviceIgnoreCaseOrderByIdAsc(normalizedDevice);
         userAgentsByDeviceCache.put(normalizedDevice, List.copyOf(latest));
     }
@@ -119,8 +122,8 @@ public class ReferUserAgentService {
         if (referUserAgent == null) {
             throw new IllegalArgumentException("REFER_USER_AGENT is required");
         }
-        referUserAgent.setDevice(normalizeRequired(referUserAgent.getDevice(), "device", 16));
-        referUserAgent.setUserAgent(normalizeRequired(referUserAgent.getUserAgent(), "userAgent", 512));
+        referUserAgent.setDevice(normalizeRequired(referUserAgent.getDevice(), Constant.DEVICE, 16));
+        referUserAgent.setUserAgent(normalizeRequired(referUserAgent.getUserAgent(), Constant.USER_AGENT, 512));
     }
 
     private String normalizeRequired(String value, String fieldName, int maxLength) {

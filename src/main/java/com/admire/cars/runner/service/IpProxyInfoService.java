@@ -128,7 +128,7 @@ public class IpProxyInfoService {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + ipProxyInfo.getAdsOwner()));
         ipProxyInfo.setAdsOwner(owner.getUserPhoneNumber());
 
-        ipProxyInfo.setProxyType(normalizeEnumLike(ipProxyInfo.getProxyType(), "DYNIMIC"));
+        ipProxyInfo.setProxyType(normalizeEnumLike(ipProxyInfo.getProxyType(), "DYNAMIC"));
         ipProxyInfo.setProxyProtocol(normalizeEnumLike(ipProxyInfo.getProxyProtocol(), "HTTPS"));
         ipProxyInfo.setStatus(normalizeEnumLike(ipProxyInfo.getStatus(), "ENABLED"));
         ipProxyInfo.setProxyInfo(trimToNull(ipProxyInfo.getProxyInfo()));
@@ -137,7 +137,7 @@ public class IpProxyInfoService {
             throw new IllegalArgumentException("proxyInfo is required");
         }
 
-        validateAllowed(ipProxyInfo.getProxyType(), "proxyType", "DYNIMIC", "STATIC");
+        validateAllowed(ipProxyInfo.getProxyType(), "proxyType", "DYNAMIC", "STATIC");
         validateAllowed(ipProxyInfo.getProxyProtocol(), "proxyProtocol", "HTTPS", "SOCKETS5");
         validateAllowed(ipProxyInfo.getStatus(), "status", "ENABLED", "DISABLED");
 

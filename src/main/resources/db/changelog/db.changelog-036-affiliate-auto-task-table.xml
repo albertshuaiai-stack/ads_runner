@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="affiliate-auto-task-001-create-table" author="copilot">
+        <createTable tableName="AFFILIATE_AUTO_TASK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="AFFILIATE_NETWORK" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="AUTO_TASK_TYPE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REGION" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="TOTAL_COUNT" type="BIGINT"/>
+            <column name="SUCCESS_COUNT" type="BIGINT"/>
+            <column name="FAILED_COUNT" type="BIGINT"/>
+            <column name="START_DATE" type="TIMESTAMP"/>
+            <column name="END_DATE" type="TIMESTAMP"/>
+            <column name="DURATION" type="BIGINT"/>
+            <column name="STATUS" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"
+                             foreignKeyName="FK_AAT_ADS_OWNER"
+                             references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="affiliate-auto-task-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_AAT_ADS_OWNER" tableName="AFFILIATE_AUTO_TASK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_AAT_AFFILIATE_NETWORK" tableName="AFFILIATE_AUTO_TASK">
+            <column name="AFFILIATE_NETWORK"/>
+        </createIndex>
+        <createIndex indexName="IDX_AAT_REGION" tableName="AFFILIATE_AUTO_TASK">
+            <column name="REGION"/>
+        </createIndex>
+        <createIndex indexName="IDX_AAT_STATUS" tableName="AFFILIATE_AUTO_TASK">
+            <column name="STATUS"/>
+        </createIndex>
+        <createIndex indexName="IDX_AAT_CREATE_DATE" tableName="AFFILIATE_AUTO_TASK">
+            <column name="CREATE_DATE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

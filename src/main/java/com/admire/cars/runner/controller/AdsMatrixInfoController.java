@@ -2,7 +2,7 @@ package com.admire.cars.runner.controller;
 
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.service.AdsMatrixInfoService;
-import com.admire.cars.runner.service.AdsAutoTaskSchedulerService;
+import com.admire.cars.runner.event.AdsAutoTaskSchedulerService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

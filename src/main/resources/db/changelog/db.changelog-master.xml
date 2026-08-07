@@ -80,22 +80,19 @@
     <!-- Create AFFILIATE_ADS_SYNC table -->
     <include file="db/changelog/db.changelog-029-affiliate-ads-sync-table.xml"/>
 
-    <!-- Create AFFILIATE_ADS_SYNC_CONFIG table -->
-    <include file="db/changelog/db.changelog-030-affiliate-ads-sync-config-table.xml"/>
+    <!-- Create AFFILIATE_AUTO_TASK table -->
+    <include file="db/changelog/db.changelog-036-affiliate-auto-task-table.xml"/>
 
-    <!-- Change AFFILIATE_ADS_SYNC_CONFIG RESPONSE_PAYLOAD to CLOB -->
-    <include file="db/changelog/db.changelog-031-affiliate-ads-sync-config-response-payload-clob.xml"/>
+    <!-- Increase matrix campaign and URL field lengths -->
+    <include file="db/changelog/db.changelog-037-matrix-field-length.xml"/>
 
-    <!-- Create AFFILIATE_ADS_SYNC_TASK table -->
-    <include file="db/changelog/db.changelog-032-affiliate-ads-sync-task-table.xml"/>
+    <!-- Remove platform foreign key from ADS_NORMAL_INFO -->
+    <include file="db/changelog/db.changelog-038-normal-ads-drop-platform-fk.xml"/>
 
-    <!-- Add pre sync timing columns to AFFILIATE_ADS_SYNC_TASK -->
-    <include file="db/changelog/db.changelog-033-affiliate-ads-sync-task-pre-timing.xml"/>
+    <!-- Rename AFFILIATE_ADS_SYNC table and normalize test statuses -->
+    <include file="db/changelog/db.changelog-039-affiliate-ads-rename-and-status.xml"/>
 
-    <!-- Create AFFILIATE_ADS_TEST_TASK table -->
-    <include file="db/changelog/db.changelog-034-affiliate-ads-test-task-table.xml"/>
-
-    <!-- Create AFFILIATE_ADS_TEST_RESULT table -->
-    <include file="db/changelog/db.changelog-035-affiliate-ads-test-result-table.xml"/>
+    <!-- Rename AFFILIATE_ADS_TEST_RESULT table to AFFILIATE_TEST -->
+    <include file="db/changelog/db.changelog-040-affiliate-test-rename.xml"/>
 
 </databaseChangeLog>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="matrix-ads-004-expand-field-lengths" author="copilot">
+        <modifyDataType tableName="ADS_MATRIX_INFO" columnName="CAMPAIN_NAME" newDataType="VARCHAR(64)"/>
+        <modifyDataType tableName="ADS_MATRIX_INFO" columnName="LANDING_PAGE_URL" newDataType="VARCHAR(1024)"/>
+        <modifyDataType tableName="ADS_MATRIX_AFFILIATE_INFO" columnName="AFFILITE_URL" newDataType="VARCHAR(2056)"/>
+    </changeSet>
+
+</databaseChangeLog>

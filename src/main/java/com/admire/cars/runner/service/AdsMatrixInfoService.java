@@ -1,5 +1,6 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.entity.AdsMatrixAffiliateInfo;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.AdsPlatform;
@@ -164,14 +165,14 @@ public class AdsMatrixInfoService {
         adsMatrixInfo.setCampainCountry(adsMatrixInfo.getCampainCountry().trim());
         adsMatrixInfo.setStatus(normalizeStatus(adsMatrixInfo.getStatus()));
 
-        if (adsMatrixInfo.getCampainName().length() > 32) {
-            throw new IllegalArgumentException("campainName must be at most 32 characters");
+        if (adsMatrixInfo.getCampainName().length() > 64) {
+            throw new IllegalArgumentException("campainName must be at most 64 characters");
         }
         if (adsMatrixInfo.getCampainCountry().length() > 8) {
             throw new IllegalArgumentException("campainCountry must be at most 8 characters");
         }
-        if (adsMatrixInfo.getLandingPageUrl() != null && adsMatrixInfo.getLandingPageUrl().length() > 128) {
-            throw new IllegalArgumentException("landingPageUrl must be at most 128 characters");
+        if (adsMatrixInfo.getLandingPageUrl() != null && adsMatrixInfo.getLandingPageUrl().length() > 1024) {
+            throw new IllegalArgumentException("landingPageUrl must be at most 1024 characters");
         }
         if (adsMatrixInfo.getDynamicProxyInfo() != null && adsMatrixInfo.getDynamicProxyInfo().length() > 256) {
             throw new IllegalArgumentException("dynamicProxyInfo must be at most 256 characters");
@@ -194,8 +195,8 @@ public class AdsMatrixInfoService {
                 if (affiliateInfo.getPlatformName().length() > 32) {
                     throw new IllegalArgumentException("affiliate platformName must be at most 32 characters");
                 }
-                if (affiliateInfo.getAffiliteUrl() != null && affiliateInfo.getAffiliteUrl().length() > 128) {
-                    throw new IllegalArgumentException("affiliteUrl must be at most 128 characters");
+                if (affiliateInfo.getAffiliteUrl() != null && affiliateInfo.getAffiliteUrl().length() > 2056) {
+                    throw new IllegalArgumentException("affiliteUrl must be at most 2056 characters");
                 }
                 if (affiliateInfo.getRemarks() != null && affiliateInfo.getRemarks().length() > 64) {
                     throw new IllegalArgumentException("remarks must be at most 64 characters");
@@ -266,7 +267,7 @@ public class AdsMatrixInfoService {
                 AdsAutoTaskAction.UPSERT,
                 saved.getId(),
                 saved.getAdsOwner(),
-                "Matrix",
+                Constant.ADS_TYPE_MATRIX,
                 intervalTime,
                 saved.getStatus(),
                 saved.getCampainCountry(),
@@ -279,7 +280,7 @@ public class AdsMatrixInfoService {
                 AdsAutoTaskAction.DELETE,
                 existing.getId(),
                 existing.getAdsOwner(),
-                "Matrix",
+                Constant.ADS_TYPE_MATRIX,
                 existing.getIntervalTime(),
                 existing.getStatus(),
                 existing.getCampainCountry(),

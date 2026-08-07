@@ -1,12 +1,11 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.entity.AdsNormalInfo;
-import com.admire.cars.runner.entity.AdsPlatform;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.event.AdsAutoTaskAction;
 import com.admire.cars.runner.event.AdsAutoTaskRegistrationEvent;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
-import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,17 +25,14 @@ import java.util.List;
 public class AdsNormalInfoService {
 
     private final AdsNormalInfoRepository adsNormalInfoRepository;
-    private final AdsPlatformRepository adsPlatformRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public AdsNormalInfoService(
             AdsNormalInfoRepository adsNormalInfoRepository,
-            AdsPlatformRepository adsPlatformRepository,
             UserRepository userRepository,
             ApplicationEventPublisher eventPublisher) {
         this.adsNormalInfoRepository = adsNormalInfoRepository;
-        this.adsPlatformRepository = adsPlatformRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
     }
@@ -154,12 +150,10 @@ public class AdsNormalInfoService {
             throw new IllegalArgumentException("adsOwner is required");
         }
 
-        AdsPlatform platform = adsPlatformRepository.findByPlatformNameIgnoreCase(adsNormalInfo.getPlatformName().trim())
-                .orElseThrow(() -> new IllegalArgumentException("ADS_PLATFORM not found: " + adsNormalInfo.getPlatformName()));
         User owner = userRepository.findByUserPhoneNumber(adsNormalInfo.getAdsOwner().trim())
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + adsNormalInfo.getAdsOwner()));
 
-        adsNormalInfo.setPlatformName(platform.getPlatformName());
+        adsNormalInfo.setPlatformName(adsNormalInfo.getPlatformName().trim());
         adsNormalInfo.setAdsOwner(owner.getUserPhoneNumber());
         adsNormalInfo.setCampainName(adsNormalInfo.getCampainName().trim());
         adsNormalInfo.setCampainCountry(adsNormalInfo.getCampainCountry().trim());
@@ -212,7 +206,7 @@ public class AdsNormalInfoService {
                 AdsAutoTaskAction.UPSERT,
                 saved.getId(),
                 saved.getAdsOwner(),
-                "Normal",
+                Constant.ADS_TYPE_NORMAL,
                 intervalTime,
                 saved.getStatus(),
                 saved.getCampainCountry(),
@@ -225,7 +219,7 @@ public class AdsNormalInfoService {
                 AdsAutoTaskAction.DELETE,
                 existing.getId(),
                 existing.getAdsOwner(),
-                "Normal",
+                Constant.ADS_TYPE_NORMAL,
                 existing.getIntervalTime(),
                 existing.getStatus(),
                 existing.getCampainCountry(),

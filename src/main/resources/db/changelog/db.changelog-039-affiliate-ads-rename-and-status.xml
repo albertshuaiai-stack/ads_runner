@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="affiliate-ads-039-rename-table" author="copilot">
+        <renameTable oldTableName="AFFILIATE_ADS_SYNC" newTableName="AFFILIATE_ADS"/>
+    </changeSet>
+
+    <changeSet id="affiliate-ads-040-normalize-status" author="copilot">
+        <update tableName="AFFILIATE_ADS">
+            <column name="STATUS" value="TO_BE_TEST"/>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

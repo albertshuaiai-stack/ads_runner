@@ -9,5 +9,6 @@ import java.util.List;
 
 @Repository
 public interface IpProxyInfoRepository extends JpaRepository<IpProxyInfo, Long>, JpaSpecificationExecutor<IpProxyInfo> {
-    List<IpProxyInfo> findByAdsOwnerAndStatusIgnoreCaseOrderByIdDesc(String adsOwner, String status);
+
+    List<IpProxyInfo> findByAdsOwnerAndStatusIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(String adsOwner, String status, String proxyType, String proxyProtocol);
 }
