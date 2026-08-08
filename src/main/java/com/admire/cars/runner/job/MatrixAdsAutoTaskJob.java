@@ -5,7 +5,7 @@ import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
-import com.admire.cars.runner.repository.NormalTaskRedirectLogRepository;
+import com.admire.cars.runner.repository.AdsTaskLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
@@ -41,7 +41,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     private ShiftLinkRepository shiftLinkRepository;
 
     @Autowired
-    private NormalTaskRedirectLogRepository normalTaskRedirectLogRepository;
+    private AdsTaskLogRepository adsTaskLogRepository;
 
     @Autowired
     private IpProxyService ipProxyService;
@@ -55,7 +55,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     @Override
     protected void executeTask(JobExecutionContext context) {
 
-        List<NormalTaskRedirectLog> normalTaskRedirectLogList = Lists.newArrayList();
+        List<AdsTaskLog> adsTaskLogList = Lists.newArrayList();
         JobDataMap jobDataMap = context.getMergedJobDataMap();
         String jobId = resolveJobId(context, jobDataMap);
         Long adsId = resolveAdsId(jobId, jobDataMap);
@@ -66,26 +66,26 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
         String userAgent = userAgentService.getUserAgent();
         final HttpClient httpClient = ipProxyService.buildHttpClient(adsMatrixInfo.getDynamicProxyInfo());
         IpVerificationDto ipVerificationDto = null;
-        NormalTaskRedirectLog normalTaskRedirectLog = new NormalTaskRedirectLog();
+        AdsTaskLog adsTaskLog = new AdsTaskLog();
         //Verify Http client IP region
         try {
             ipVerificationDto = ipProxyService.ipVerification4HttpClient(httpClient, adsMatrixInfo.getCampainCountry());
-            buildNormalTaskRedirectLog(normalTaskRedirectLog, adsMatrixInfo,
+            buildAdsTaskLog(adsTaskLog, adsMatrixInfo, null,
                     ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
                     0L, userAgent, null);
-            normalTaskRedirectLog.setSuccess(true);
+            adsTaskLog.setSuccess(true);
             if (!ipVerificationDto.isMatched()) {
-                normalTaskRedirectLog.setErrMsg("IP verification failed");
+                adsTaskLog.setErrMsg("IP verification failed");
             }
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            normalTaskRedirectLog.setErrMsg(e.getMessage());
+            adsTaskLog.setErrMsg(e.getMessage());
         }
-        if (StringUtils.hasText(normalTaskRedirectLog.getErrMsg())) {
+        if (StringUtils.hasText(adsTaskLog.getErrMsg())) {
             log.warn("MATRIX_AUTO_TASK_IP_LOOKUP_PROXY_AUTH_REQUIRED adsId={} Job Id:{}  message={}",
-                    adsMatrixInfo.getId(), jobId, normalTaskRedirectLog.getErrMsg());
+                    adsMatrixInfo.getId(), jobId, adsTaskLog.getErrMsg());
             return;
         }
         List<AdsMatrixAffiliateInfo> adsMatrixAffiliateInfoList = adsMatrixInfo.getAffiliateInfos();
@@ -95,9 +95,9 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             return;
 
         }
-        normalTaskRedirectLogList.add(normalTaskRedirectLog);
+        adsTaskLogList.add(adsTaskLog);
         for (AdsMatrixAffiliateInfo adsMatrixAffiliateInfo : adsMatrixAffiliateInfoList) {
-            List<NormalTaskRedirectLog> affiliateRedirectLogList = Lists.newArrayList();
+            List<AdsTaskLog> affiliateRedirectLogList = Lists.newArrayList();
             boolean affiliateSucceeded = false;
             try {
                 int lastStatusCode = -1;
@@ -105,8 +105,8 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                 // Proceed with redirect following regardless of IP verification status
                 URI currentUrl = toRequestUri(affiliateUrl, "affiliteUrl");
                 for (int sequence = 1; sequence <= autoTaskConfig.getMaxRedirects(); sequence++) {
-                    NormalTaskRedirectLog redirectLog = new NormalTaskRedirectLog();
-                    buildNormalTaskRedirectLog(redirectLog, adsMatrixInfo,
+                    AdsTaskLog redirectLog = new AdsTaskLog();
+                    buildAdsTaskLog(redirectLog, adsMatrixInfo, adsMatrixAffiliateInfo.getPlatformName(),
                             (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
                             (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
                             (long) sequence, userAgent, currentUrl.toString());
@@ -166,8 +166,8 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                     }
                 }
             } catch (IllegalArgumentException invalidAffiliateException) {
-                NormalTaskRedirectLog invalidAffiliateLog = new NormalTaskRedirectLog();
-                buildNormalTaskRedirectLog(invalidAffiliateLog, adsMatrixInfo,
+                    AdsTaskLog invalidAffiliateLog = new AdsTaskLog();
+                    buildAdsTaskLog(invalidAffiliateLog, adsMatrixInfo, adsMatrixAffiliateInfo.getPlatformName(),
                         (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
                         (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
                         0L, userAgent, adsMatrixAffiliateInfo.getAffiliteUrl());
@@ -183,8 +183,8 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                         adsMatrixAffiliateInfo.getPlatformName(),
                         "Max redirects reached or request failed; continuing next affiliate");
             }
-            normalTaskRedirectLogList.addAll(affiliateRedirectLogList);
-            NormalTaskRedirectLog successTask = affiliateRedirectLogList.stream().filter(log ->
+            adsTaskLogList.addAll(affiliateRedirectLogList);
+            AdsTaskLog successTask = affiliateRedirectLogList.stream().filter(log ->
                     null != log.getResponseUrl() && log.getSuccess()).findFirst().orElse(null);
             if (null != successTask) {
                 ShiftLink shiftLink = new ShiftLink();
@@ -201,7 +201,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             }
 
         }
-        normalTaskRedirectLogRepository.saveAll(normalTaskRedirectLogList);
+        adsTaskLogRepository.saveAll(adsTaskLogList);
     }
 
 
@@ -262,15 +262,17 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
         }
     }
 
-    private void buildNormalTaskRedirectLog(NormalTaskRedirectLog normalTaskRedirectLog, AdsMatrixInfo adsMatrixInfo,
-                                            String ip, String countryCode, Long sequence,String userAgent, String requestUrl) {
-        normalTaskRedirectLog.setAdsOwner(adsMatrixInfo.getAdsOwner());
-        normalTaskRedirectLog.setIp(ip);
-        normalTaskRedirectLog.setCountryCode(countryCode);
-        normalTaskRedirectLog.setNormalInfoId(adsMatrixInfo.getId());
-        normalTaskRedirectLog.setDevice(Constant.DEVICE_TYPE_DESK);
-        normalTaskRedirectLog.setUserAgent(userAgent);
-        normalTaskRedirectLog.setSequence((long) sequence);
-        normalTaskRedirectLog.setRequestUrl(requestUrl);
+    private void buildAdsTaskLog(AdsTaskLog adsTaskLog, AdsMatrixInfo adsMatrixInfo, String platformName,
+                                            String ip, String countryCode, Long sequence, String userAgent, String requestUrl) {
+        adsTaskLog.setAdsOwner(adsMatrixInfo.getAdsOwner());
+        adsTaskLog.setAdsName(adsMatrixInfo.getCampainName());
+        adsTaskLog.setAdsType(Constant.ADS_TYPE_MATRIX);
+        adsTaskLog.setPlatformName(platformName);
+        adsTaskLog.setIp(ip);
+        adsTaskLog.setCountryCode(countryCode);
+        adsTaskLog.setDevice(Constant.DEVICE_TYPE_DESK);
+        adsTaskLog.setUserAgent(userAgent);
+        adsTaskLog.setSequence((long) sequence);
+        adsTaskLog.setRequestUrl(requestUrl);
     }
 }

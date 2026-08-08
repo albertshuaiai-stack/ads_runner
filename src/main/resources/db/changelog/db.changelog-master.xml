@@ -95,4 +95,7 @@
     <!-- Rename AFFILIATE_ADS_TEST_RESULT table to AFFILIATE_TEST -->
     <include file="db/changelog/db.changelog-040-affiliate-test-rename.xml"/>
 
+    <!-- Migrate NORMAL_TASK_REDIRECT_LOG to ADS_TASK_LOG -->
+    <include file="db/changelog/db.changelog-041-ads-task-log-table.xml"/>
+
 </databaseChangeLog>

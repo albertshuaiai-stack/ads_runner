@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-task-log-041-migrate-table" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="NORMAL_TASK_REDIRECT_LOG"/>
+        </preConditions>
+
+        <renameTable oldTableName="NORMAL_TASK_REDIRECT_LOG" newTableName="ADS_TASK_LOG"/>
+
+        <addColumn tableName="ADS_TASK_LOG">
+            <column name="ADS_NAME" type="VARCHAR(128)"/>
+            <column name="ADS_TYPE" type="VARCHAR(32)"/>
+            <column name="PLATFORM_NAME" type="VARCHAR(64)"/>
+        </addColumn>
+
+        <sql>
+            UPDATE ADS_TASK_LOG atl
+            SET ADS_NAME = COALESCE(
+                    (SELECT ani.CAMPAIN_NAME FROM ADS_NORMAL_INFO ani WHERE ani.ID = atl.NORMAL_INFO_ID),
+                    ADS_NAME),
+                ADS_TYPE = CASE
+                    WHEN EXISTS (SELECT 1 FROM ADS_NORMAL_INFO ani WHERE ani.ID = atl.NORMAL_INFO_ID) THEN 'Normal'
+                    ELSE 'Matrix'
+                END,
+                PLATFORM_NAME = (SELECT ani.PLATFORM_NAME FROM ADS_NORMAL_INFO ani WHERE ani.ID = atl.NORMAL_INFO_ID)
+            WHERE atl.NORMAL_INFO_ID IS NOT NULL;
+        </sql>
+
+        <dropForeignKeyConstraint baseTableName="ADS_TASK_LOG"
+                                  constraintName="FK_NORMAL_TASK_REDIRECT_LOG_NORMAL_INFO_ID"/>
+        <dropForeignKeyConstraint baseTableName="ADS_TASK_LOG"
+                                  constraintName="FK_NORMAL_TASK_REDIRECT_LOG_ADS_OWNER"/>
+
+        <dropNotNullConstraint tableName="ADS_TASK_LOG"
+                               columnName="ADS_OWNER"
+                               columnDataType="VARCHAR(32)"/>
+        <dropNotNullConstraint tableName="ADS_TASK_LOG"
+                               columnName="CREATE_DATE"
+                               columnDataType="TIMESTAMP"/>
+
+        <dropColumn tableName="ADS_TASK_LOG" columnName="NORMAL_INFO_ID"/>
+    </changeSet>
+
+</databaseChangeLog>

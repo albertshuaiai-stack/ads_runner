@@ -1,6 +1,6 @@
 package com.admire.cars.runner.repository;
 
-import com.admire.cars.runner.entity.NormalTaskRedirectLog;
+import com.admire.cars.runner.entity.AdsTaskLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -11,12 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 @Repository
-public interface NormalTaskRedirectLogRepository extends JpaRepository<NormalTaskRedirectLog, Long>, JpaSpecificationExecutor<NormalTaskRedirectLog> {
+public interface AdsTaskLogRepository extends JpaRepository<AdsTaskLog, Long>, JpaSpecificationExecutor<AdsTaskLog> {
 
 
     @Modifying
     @Transactional
-    @Query("delete from NormalTaskRedirectLog n where n.createDate < :cutoff")
+    @Query("delete from AdsTaskLog n where n.createDate < :cutoff")
     int deleteByCreateDateBefore(LocalDateTime cutoff);
 
 }

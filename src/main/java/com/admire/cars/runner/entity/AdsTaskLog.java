@@ -15,20 +15,26 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "NORMAL_TASK_REDIRECT_LOG")
+@Table(name = "ADS_TASK_LOG")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class NormalTaskRedirectLog {
+public class AdsTaskLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ID")
     private Long id;
 
-    @Column(name = "NORMAL_INFO_ID", nullable = false)
-    private Long normalInfoId;
+    @Column(name = "ADS_NAME", length = 128)
+    private String adsName;
+
+    @Column(name = "ADS_TYPE", length = 32)
+    private String adsType;
+
+    @Column(name = "PLATFORM_NAME", length = 64)
+    private String platformName;
 
     @Column(name = "DEVICE", length = 64)
     private String device;
@@ -66,10 +72,10 @@ public class NormalTaskRedirectLog {
     @Column(name = "ERR_MSG", length = 256)
     private String errMsg;
 
-    @Column(name = "ADS_OWNER", nullable = false, length = 32)
+    @Column(name = "ADS_OWNER", length = 32)
     private String adsOwner;
 
-    @Column(name = "CREATE_DATE", nullable = false)
+    @Column(name = "CREATE_DATE")
     private LocalDateTime createDate;
 
     @PrePersist
