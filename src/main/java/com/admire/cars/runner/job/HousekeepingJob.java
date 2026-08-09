@@ -30,19 +30,25 @@ public class HousekeepingJob implements Job {
     @Value("${housekeeping.shift-link-log.retention-days:7}")
     private int shiftLinkLogRetentionDays;
 
-    @Value("${housekeeping.shift-link.retention-days:1}")
-    private int shiftLinkRetentionDays;
+    @Value("${housekeeping.normal.shift-link.retention-days:1}")
+    private int normalShiftLinkRetentionDays;
 
-    @Value("${housekeeping.normal-task-redirect-log.retention-days:2}")
+    @Value("${housekeeping.matrix.shift-link.retention-days:5}")
+    private int matrixShiftLinkRetentionDays;
+
+    @Value("${housekeeping.ads-task-log.retention-days:2}")
     private int adsTaskLogRetentionDays;
 
     @Override
     public void execute(JobExecutionContext context) {
-        log.info("HOUSEKEEPING_JOB_START shiftLinkLogRetentionDays={} shiftLinkRetentionDays={} adsTaskLogRetentionDays={}",
-                shiftLinkLogRetentionDays, shiftLinkRetentionDays, adsTaskLogRetentionDays);
+        log.info("HOUSEKEEPING_JOB_START shiftLinkLogRetentionDays={} normalShiftLinkRetentionDays={} " +
+                        "matrixShiftLinkRetentionDays={} adsTaskLogRetentionDays={}",
+                shiftLinkLogRetentionDays, normalShiftLinkRetentionDays, matrixShiftLinkRetentionDays, adsTaskLogRetentionDays);
         try {
+            validateRetentionDays();
             purgeShiftLinkLogs();
             purgeNormalShiftLinks();
+            purgeMatrixShiftLinks();
             purgeAdsTaskLog();
             log.info("HOUSEKEEPING_JOB_END");
         } catch (Exception ex) {
@@ -58,15 +64,31 @@ public class HousekeepingJob implements Job {
     }
 
     private void purgeNormalShiftLinks() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(shiftLinkRetentionDays);
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(normalShiftLinkRetentionDays);
         int deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeNormal(cutoff);
         log.info("HOUSEKEEPING_SHIFT_LINK_NORMAL_PURGED cutoff={} deletedCount={}", cutoff, deleted);
     }
 
+    private void purgeMatrixShiftLinks() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(matrixShiftLinkRetentionDays);
+        int deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(cutoff);
+        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_PURGED cutoff={} deletedCount={}", cutoff, deleted);
+    }
 
     private void purgeAdsTaskLog() {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(adsTaskLogRetentionDays);
         int deleted = adsTaskLogRepository.deleteByCreateDateBefore(cutoff);
         log.info("HOUSEKEEPING_ADS_TASK_LOG_PURGED cutoff={} deletedCount={}", cutoff, deleted);
+    }
+
+    private void validateRetentionDays() {
+        if (shiftLinkLogRetentionDays < 0 || normalShiftLinkRetentionDays < 0
+                || matrixShiftLinkRetentionDays < 0 || adsTaskLogRetentionDays < 0) {
+            throw new IllegalArgumentException(
+                    "Retention days must be >= 0: shiftLinkLogRetentionDays=" + shiftLinkLogRetentionDays
+                            + ", normalShiftLinkRetentionDays=" + normalShiftLinkRetentionDays
+                            + ", matrixShiftLinkRetentionDays=" + matrixShiftLinkRetentionDays
+                            + ", adsTaskLogRetentionDays=" + adsTaskLogRetentionDays);
+        }
     }
 }

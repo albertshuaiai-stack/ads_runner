@@ -61,4 +61,10 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
     @Transactional
     @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'NORMAL'")
     int deleteByCreateDateBeforeAndAdsTypeNormal(LocalDateTime cutoff);
+
+    @Modifying
+    @Transactional
+    @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
+    int deleteByCreateDateBeforeAndAdsTypeMatrix(LocalDateTime cutoff);
+
 }

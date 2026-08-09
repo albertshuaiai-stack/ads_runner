@@ -104,4 +104,7 @@
     <!-- Add normal task outcome counters -->
     <include file="db/changelog/db.changelog-043-normal-success-failed-counts.xml"/>
 
+    <!-- Create EXCHANGE_RATE table with seed CNY→USD rate -->
+    <include file="db/changelog/db.changelog-044-exchange-rate-table.xml"/>
+
 </databaseChangeLog>

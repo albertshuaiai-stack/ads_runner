@@ -230,6 +230,17 @@ public class ToolAccountService {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));
     }
 
+    @Transactional(readOnly = true)
+    public List<ToolAccount> findAllForUser(Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        if (isAdmin(currentUser)) {
+            return toolAccountRepository.findAll();
+        }
+        Specification<ToolAccount> spec = (root, query, cb) ->
+                cb.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber());
+        return toolAccountRepository.findAll(spec);
+    }
+
     private boolean isAdmin(User user) {
         return user.getUserRole() != null
                 && Arrays.stream(user.getUserRole().split(","))

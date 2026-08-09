@@ -29,7 +29,7 @@ public class HousekeepingSchedulerConfig {
     public JobDetail housekeepingJobDetail() {
         return JobBuilder.newJob(HousekeepingJob.class)
                 .withIdentity(JOB_NAME, JOB_GROUP)
-                .withDescription("Daily housekeeping: purge expired shift_link_log and normal shift_link records")
+                .withDescription("Daily housekeeping: purge shift_link_log, shift_link(normal/matrix), and ads_task_log")
                 .storeDurably()
                 .build();
     }

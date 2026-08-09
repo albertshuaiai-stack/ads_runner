@@ -214,6 +214,17 @@ public class ToolOutcomeService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public List<ToolOutcome> findAllForUser(Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        if (isAdmin(currentUser)) {
+            return toolOutcomeRepository.findAll();
+        }
+        Specification<ToolOutcome> spec = (root, query, cb) ->
+                cb.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber());
+        return toolOutcomeRepository.findAll(spec);
+    }
+
     private User getCurrentUser(Long currentUserId) {
         return userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));

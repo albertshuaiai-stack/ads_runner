@@ -245,6 +245,17 @@ public class ToolIncomeService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public List<ToolIncome> findAllForUser(Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        if (isAdmin(currentUser)) {
+            return toolIncomeRepository.findAll();
+        }
+        Specification<ToolIncome> spec = (root, query, cb) ->
+                cb.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber());
+        return toolIncomeRepository.findAll(spec);
+    }
+
     private User getCurrentUser(Long currentUserId) {
         return userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));

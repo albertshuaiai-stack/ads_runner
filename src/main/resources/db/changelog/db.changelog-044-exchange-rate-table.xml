@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="exchange-rate-001-create-table" author="copilot">
+        <createTable tableName="EXCHANGE_RATE">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="FROM_CURRENCY" type="VARCHAR(8)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="TO_CURRENCY" type="VARCHAR(8)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RATE" type="DECIMAL(19,8)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EFFECTIVE_DATE" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMARKS" type="VARCHAR(128)"/>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="exchange-rate-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_EXCHANGE_RATE_PAIR" tableName="EXCHANGE_RATE">
+            <column name="FROM_CURRENCY"/>
+            <column name="TO_CURRENCY"/>
+            <column name="EFFECTIVE_DATE"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="exchange-rate-003-seed-cny-usd" author="copilot">
+        <insert tableName="EXCHANGE_RATE">
+            <column name="FROM_CURRENCY" value="CNY"/>
+            <column name="TO_CURRENCY" value="USD"/>
+            <column name="RATE" valueNumeric="0.13800000"/>
+            <column name="EFFECTIVE_DATE" valueDate="2026-01-01"/>
+            <column name="REMARKS" value="Initial seed rate CNY→USD"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
