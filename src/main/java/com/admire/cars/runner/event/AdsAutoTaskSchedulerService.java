@@ -170,6 +170,9 @@ public class AdsAutoTaskSchedulerService {
             return event.adsId() + "-" + safeToken(event.adsOwner()) + "-" + safeToken(event.campainCountry()) + "-"
                     + safeToken(event.platformName()) + "-" + safeToken(event.campainName());
         }
+        if (Constant.ADS_TYPE_MATRIX.equalsIgnoreCase(event.adsType())) {
+            return "matrix-ads-task-" + event.adsId();
+        }
         return buildJobName(event.adsId());
     }
 

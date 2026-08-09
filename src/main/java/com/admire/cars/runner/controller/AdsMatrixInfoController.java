@@ -1,5 +1,6 @@
 package com.admire.cars.runner.controller;
 
+import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.service.AdsMatrixInfoService;
 import com.admire.cars.runner.event.AdsAutoTaskSchedulerService;
@@ -126,7 +127,7 @@ public class AdsMatrixInfoController {
 
     private AdsMatrixInfo enrichExecuteTimes(AdsMatrixInfo adsMatrixInfo) {
         AdsAutoTaskSchedulerService.ExecuteTimeInfo executeTimeInfo =
-                adsAutoTaskSchedulerService.getExecuteTimeInfo(adsMatrixInfo.getId(), adsMatrixInfo.getAdsOwner(), "Matrix");
+                adsAutoTaskSchedulerService.getExecuteTimeInfo(adsMatrixInfo.getId(), adsMatrixInfo.getAdsOwner(), Constant.ADS_TYPE_MATRIX);
         adsMatrixInfo.setLastExecuteTime(executeTimeInfo.lastExecuteTime());
         adsMatrixInfo.setNextExecuteTime(executeTimeInfo.nextExecuteTime());
         return adsMatrixInfo;

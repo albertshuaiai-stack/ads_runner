@@ -59,6 +59,15 @@ public class AdsMatrixInfo {
     @Column(name = "ADS_OWNER", nullable = false, length = 32)
     private String adsOwner;
 
+    @Column(name = "SUCCESS_COUNT")
+    private Long successCount;
+
+    @Column(name = "FAILED_COUNT")
+    private Long failedCount;
+
+    @Column(name = "LAST_SUCCESS_DATE")
+    private LocalDateTime lastSuccessDate;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 
@@ -74,6 +83,20 @@ public class AdsMatrixInfo {
     @OneToMany(mappedBy = "matrixInfo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonManagedReference
     private List<AdsMatrixAffiliateInfo> affiliateInfos = new ArrayList<>();
+
+    public Long getSuccessCount() {
+        if (successCount == null) {
+            successCount = 0L;
+        }
+        return successCount;
+    }
+
+    public Long getFailedCount() {
+        if (failedCount == null) {
+            failedCount = 0L;
+        }
+        return failedCount;
+    }
 
     @PrePersist
     protected void onCreate() {

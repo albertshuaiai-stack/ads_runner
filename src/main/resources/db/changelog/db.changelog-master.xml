@@ -98,4 +98,10 @@
     <!-- Migrate NORMAL_TASK_REDIRECT_LOG to ADS_TASK_LOG -->
     <include file="db/changelog/db.changelog-041-ads-task-log-table.xml"/>
 
+    <!-- Add matrix task outcome counters -->
+    <include file="db/changelog/db.changelog-042-matrix-success-failed-counts.xml"/>
+
+    <!-- Add normal task outcome counters -->
+    <include file="db/changelog/db.changelog-043-normal-success-failed-counts.xml"/>
+
 </databaseChangeLog>

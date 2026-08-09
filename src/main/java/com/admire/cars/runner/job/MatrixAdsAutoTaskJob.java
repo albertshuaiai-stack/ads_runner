@@ -9,6 +9,9 @@ import com.admire.cars.runner.repository.AdsTaskLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.commons.compress.utils.Lists;
 import org.quartz.JobDataMap;
 import org.quartz.JobExecutionContext;
@@ -20,9 +23,6 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.List;
 
 public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
@@ -64,12 +64,12 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_MATRIX_INFO not found: " + adsId));
         final String landingPageUrl = requireText(adsMatrixInfo.getLandingPageUrl(), "landingPageUrl is required");
         String userAgent = userAgentService.getUserAgent();
-        final HttpClient httpClient = ipProxyService.buildHttpClient(adsMatrixInfo.getDynamicProxyInfo());
+        final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsMatrixInfo.getDynamicProxyInfo());
         IpVerificationDto ipVerificationDto = null;
         AdsTaskLog adsTaskLog = new AdsTaskLog();
         //Verify Http client IP region
         try {
-            ipVerificationDto = ipProxyService.ipVerification4HttpClient(httpClient, adsMatrixInfo.getCampainCountry());
+            ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsMatrixInfo.getCampainCountry());
             buildAdsTaskLog(adsTaskLog, adsMatrixInfo, null,
                     ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
                     0L, userAgent, null);
@@ -77,10 +77,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             if (!ipVerificationDto.isMatched()) {
                 adsTaskLog.setErrMsg("IP verification failed");
             }
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+        } catch (IOException e) {
             adsTaskLog.setErrMsg(e.getMessage());
         }
         if (StringUtils.hasText(adsTaskLog.getErrMsg())) {
@@ -96,7 +93,8 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
 
         }
         adsTaskLogList.add(adsTaskLog);
-        for (AdsMatrixAffiliateInfo adsMatrixAffiliateInfo : adsMatrixAffiliateInfoList) {
+        for (int affiliateIndex = 0; affiliateIndex < adsMatrixAffiliateInfoList.size(); affiliateIndex++) {
+            AdsMatrixAffiliateInfo adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(affiliateIndex);
             List<AdsTaskLog> affiliateRedirectLogList = Lists.newArrayList();
             boolean affiliateSucceeded = false;
             try {
@@ -111,15 +109,14 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                             (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
                             (long) sequence, userAgent, currentUrl.toString());
                     final long startTime = System.currentTimeMillis();
-                    final HttpRequest httpRequest = ipProxyService.buildBaseRequest(currentUrl, userAgent, Constant.DEVICE_TYPE_DESK)
-                            .GET()
-                            .build();
+                    final Request httpRequest = ipProxyService.buildOkHttpClientBaseRequest(
+                            currentUrl.toString(), userAgent, Constant.DEVICE_TYPE_DESK);
                     URI responseUrl = null;
-                    try {
-                        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-                        lastStatusCode = response.statusCode();
-                        if (null != response.uri()) {
-                            responseUrl = response.uri();
+                    try (Response response = okHttpClient.newCall(httpRequest).execute()) {
+                        lastStatusCode = response.code();
+                        if (null != response.request()
+                                && null != response.request().url()) {
+                            responseUrl = URI.create(response.request().url().toString());
                             redirectLog.setLocation(responseUrl.toString());
                             redirectLog.setResponseUrl(responseUrl.toString());
                         }
@@ -128,7 +125,9 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                         redirectLog.setStatusCode(String.valueOf(lastStatusCode));
                         URI effectiveUrl = responseUrl != null ? responseUrl : currentUrl;
                         if (!REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
-                            if (isLandingPage(effectiveUrl, landingPageUrl)) {
+                            if (isLandingPage(effectiveUrl, landingPageUrl)
+                                    && lastStatusCode >= 200
+                                    && lastStatusCode < 300) {
                                 redirectLog.setSuccess(true);
                                 affiliateSucceeded = true;
                                 affiliateRedirectLogList.add(redirectLog);
@@ -150,10 +149,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                             break;
                         }
                         currentUrl = responseUrl;
-                    } catch (IOException | InterruptedException proxyIoException) {
-                        if (proxyIoException instanceof InterruptedException) {
-                            Thread.currentThread().interrupt();
-                        }
+                    } catch (IOException proxyIoException) {
                         log.warn("MATRIX_AUTO_TASK_PROXY_REQUEST_FAILED adsId={} jobId={} requestUrl={} message={}",
                                 adsMatrixInfo.getId(),
                                 jobId,
@@ -182,6 +178,11 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                         jobId,
                         adsMatrixAffiliateInfo.getPlatformName(),
                         "Max redirects reached or request failed; continuing next affiliate");
+                adsMatrixInfo.setFailedCount(adsMatrixInfo.getFailedCount() + 1);
+
+            } else {
+                adsMatrixInfo.setSuccessCount(adsMatrixInfo.getSuccessCount() + 1);
+                adsMatrixInfo.setLastSuccessDate(java.time.LocalDateTime.now());
             }
             adsTaskLogList.addAll(affiliateRedirectLogList);
             AdsTaskLog successTask = affiliateRedirectLogList.stream().filter(log ->
@@ -194,14 +195,16 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
                 shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
                 shiftLink.setFullUrl(successTask.getResponseUrl());
-                shiftLink.setDisplayNumber(0L);
+                shiftLink.setDisplayNumber(1L);
+                shiftLink.setSeqNumber((long) affiliateIndex);
+                shiftLink.setDisplayTimes(0L);
                 shiftLink.setStatus(adsMatrixInfo.getStatus());
                 shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
                 shiftLinkRepository.save(shiftLink);
             }
-
         }
         adsTaskLogRepository.saveAll(adsTaskLogList);
+        adsMatrixInfoRepository.save(adsMatrixInfo);
     }
 
 
@@ -216,6 +219,12 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     private Long resolveAdsId(String jobId, JobDataMap jobDataMap) {
         String source = StringUtils.hasText(jobId) ? jobId : jobDataMap.getString("jobId");
         if (StringUtils.hasText(source)) {
+            if (source.startsWith("matrix-ads-task-")) {
+                return parseAdsIdToken(source.substring("matrix-ads-task-".length()));
+            }
+            if (source.startsWith("ads-task-")) {
+                return parseAdsIdToken(source.substring("ads-task-".length()));
+            }
             int separatorIndex = source.indexOf('-');
             String prefix = separatorIndex > 0 ? source.substring(0, separatorIndex) : source;
             if (StringUtils.hasText(prefix)) {
@@ -232,6 +241,17 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             throw new IllegalArgumentException("adsId is required for matrix ads job execution");
         }
         return jobDataAdsId;
+    }
+
+    private Long parseAdsIdToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalArgumentException("adsId is required for matrix ads job execution");
+        }
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("adsId is invalid for matrix ads job execution: " + value, ex);
+        }
     }
 
 

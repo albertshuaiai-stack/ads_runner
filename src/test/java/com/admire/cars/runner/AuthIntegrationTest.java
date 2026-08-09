@@ -2065,7 +2065,7 @@ public class AuthIntegrationTest {
         waitForJobGroup("8899000001-Matrix", 1);
         waitForJobClass(JobKey.jobKey(buildNormalQuartzJobName(normalId, "8899000001", "US", "Quartz Normal", "Quartz Normal Campaign"), "8899000001-Normal"),
                 "com.admire.cars.runner.job.NormalAdsAutoTaskJob");
-        waitForJobClass(JobKey.jobKey("ads-task-" + matrixId, "8899000001-Matrix"),
+        waitForJobClass(JobKey.jobKey("matrix-ads-task-" + matrixId, "8899000001-Matrix"),
                 "com.admire.cars.runner.job.MatrixAdsAutoTaskJob");
 
         webTestClient.put().uri("/api/normal-ads/" + normalId)

@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.*;
+import java.time.LocalDateTime;
 import java.util.*;
 
 public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
@@ -156,6 +157,12 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
             shiftLink.setStatus(adsNormalInfo.getStatus());
             shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
             shiftLinkRepository.save(shiftLink);
+            adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
+            adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
+            adsNormalInfoRepository.save(adsNormalInfo);
+        } else {
+            adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
+            adsNormalInfoRepository.save(adsNormalInfo);
         }
     }
 

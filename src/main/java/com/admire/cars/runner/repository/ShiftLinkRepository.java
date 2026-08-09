@@ -14,9 +14,13 @@ import java.util.Optional;
 
 @Repository
 public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, JpaSpecificationExecutor<ShiftLink> {
+
     List<ShiftLink> findByAdsIdAndAdsType(Long adsId, String adsType);
+
     List<ShiftLink> findByAdsOwner(String adsOwner);
+
     List<ShiftLink> findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(String adsOwner, String adsName, String adsType);
+
     Optional<ShiftLink> findTopByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberDesc(String adsOwner, String adsName, String adsType);
     @Query("""
             select s from ShiftLink s
@@ -25,7 +29,6 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
               and s.adsType = :adsType
               and upper(s.status) = upper(:status)
               and coalesce(s.displayTimes, 0) < coalesce(s.displayNumber, 0)
-            order by (coalesce(s.displayNumber, 0) - coalesce(s.displayTimes, 0)) DESC
             """)
     List<ShiftLink> findEligibleForConsume(String adsOwner, String adsName, String adsType, String status);
 
@@ -41,6 +44,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
     List<ShiftLink> findEligibleForNormalConsume(String adsOwner, String adsName, String adsType, String status);
 
     List<ShiftLink> findByPlatformName(String platformName);
+
     Optional<ShiftLink> findByFullUrl(String fullUrl);
 
     // URL 去重 / URL de-duplication
@@ -48,7 +52,9 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
 
     // 按 Campaign / Platform 整体删除 / bulk delete by campaign or platform
     List<ShiftLink> findByAdsName(String adsName);
+
     List<ShiftLink> findByAdsOwnerAndAdsName(String adsOwner, String adsName);
+
     List<ShiftLink> findByAdsOwnerAndPlatformName(String adsOwner, String platformName);
 
     @Modifying
