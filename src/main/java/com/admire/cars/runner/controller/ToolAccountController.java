@@ -62,6 +62,7 @@ public class ToolAccountController {
     public ResponseEntity<Page<ToolAccount>> search(
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String platformName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -70,6 +71,7 @@ public class ToolAccountController {
         Page<ToolAccount> toolAccounts = toolAccountService.search(
                 userName,
                 status,
+                platformName,
                 getUserId(request),
                 PageRequest.of(
                         safePage,

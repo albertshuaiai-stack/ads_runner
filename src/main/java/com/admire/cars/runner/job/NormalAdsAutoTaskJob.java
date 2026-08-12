@@ -33,7 +33,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
 
     private static final Logger log = LoggerFactory.getLogger(NormalAdsAutoTaskJob.class);
 
-    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(301, 302, 303, 307, 308);
+    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(200,301, 302, 303, 307, 308);
 
     @Autowired
     private AdsNormalInfoRepository adsNormalInfoRepository;
@@ -115,7 +115,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
                 final long durationMillis = System.currentTimeMillis() - startTime;
                 adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
                 adsTaskLog.setStatusCode(String.valueOf(lastStatusCode));
-                if (!REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
+                if (REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
                     if (isLandingPage(currentUrl, landingPageUrl)
                             && lastStatusCode >= 200
                             && lastStatusCode < 300) {

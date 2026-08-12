@@ -26,7 +26,7 @@ public class AutoTaskConfig {
     @Value("${ip.verification.switch:true}")
     private boolean ipVerification = true;
 
-    @Value("${ip.lookup.url:https://ipapi.co/json/}")
+    @Value("${ip.lookup.url:https://api.country.is/}")
     private String ipLookupUrl;
 
 }

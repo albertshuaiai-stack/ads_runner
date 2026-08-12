@@ -25,6 +25,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -38,6 +39,8 @@ import okhttp3.Response;
 public class BonusArriveAutoTestService {
 
     private static final Logger log = LoggerFactory.getLogger(BonusArriveAutoTestService.class);
+
+    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(200,301, 302, 303, 307, 308);
 
     private final AffiliateAutoTaskRepository affiliateAutoTaskRepository;
 
@@ -148,7 +151,7 @@ public class BonusArriveAutoTestService {
                             failedCount++;
                             sync.setStatus(StatusConstant.TEST_FAILED);
                         } else {
-                            AffiliateAdsTestResponseDto affiliateAdsTestResponseDto = this.testSingleAd(sync, httpClient, ipProxyInfo);
+                            AffiliateAdsTestResponseDto affiliateAdsTestResponseDto = this.applyTestAffiliateAd(httpClient, sync, ipProxyInfo);
                             if (null == affiliateAdsTestResponseDto) {
                                 failedCount++;
                                 sync.setStatus(StatusConstant.TEST_FAILED);
@@ -209,23 +212,6 @@ public class BonusArriveAutoTestService {
         }
     }
 
-    public AffiliateAdsTestResponseDto testSingleAd(AffiliateAds affiliateAdsSync,
-                                                    OkHttpClient httpClient, IpProxyInfo ipProxyInfo) {
-        if (affiliateAdsSync == null || affiliateAdsSync.getId() == null) {
-            throw new IllegalArgumentException("AFFILIATE_ADS is required");
-        }
-
-        if (!StringUtils.hasText(affiliateAdsSync.getAdsOwner())) {
-            throw new IllegalArgumentException("AFFILIATE_ADS adsOwner is required");
-        }
-        if (null != httpClient) {
-            final AffiliateAdsTestResponseDto testResponse =
-                    this.applyTestAffiliateAd(httpClient, affiliateAdsSync, ipProxyInfo);
-            return testResponse;
-        }
-        return null;
-    }
-
 
     private Long calculateDurationSeconds(LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null) {
@@ -241,13 +227,14 @@ public class BonusArriveAutoTestService {
                                                        IpProxyInfo ipProxyInfo) {
         final String landingPageUrl = requireText(affiliateAdsSync.getSiteUrl(), "landingPageUrl is required");
         String affiliateUrl = requireText(affiliateAdsSync.getTrackingUrl(), "tracking id is required");
-        String currentUrl = affiliateUrl;
+        URI currentUrl = toRequestUri(affiliateUrl, "affiliteUrl");
         String lastError = null;
         int lastStatusCode = -1;
-        final int maxRequests = 10;
+        URI responseUrl = null;
+        final int maxRequests = 3;
         for (int requestCount = 1; requestCount <= maxRequests; requestCount++) {
             Request request = new Request.Builder()
-                    .url(currentUrl)
+                    .url(currentUrl.toString())
                     .header("Accept", "text/html, application/json, text/plain, */*")
                     .header("Accept-Language", "en-US,en;q=0.9")
                     .header("Cache-Control", "no-cache")
@@ -259,29 +246,21 @@ public class BonusArriveAutoTestService {
 
             try (Response response = httpClient.newCall(request).execute()) {
                 lastStatusCode = response.code();
-                String locationHeader = response.header("Location");
-
-                if (isLandingPage(currentUrl, landingPageUrl)) {
-                    return new AffiliateAdsTestResponseDto(StatusConstant.SUCCESS, currentUrl, "");
+                if (null != response.request()
+                        && null != response.request().url()) {
+                    responseUrl = URI.create(response.request().url().toString());
                 }
-
-                if (lastStatusCode >= 300 && lastStatusCode < 400) {
-                    if (!StringUtils.hasText(locationHeader)) {
-                        lastError = "Redirect status code received but no Location header found";
-                        continue;
+                URI effectiveUrl = responseUrl != null ? responseUrl : currentUrl;
+                log.warn("Affiliate Ads request attempt={}/{}. proxy protocol={} proxy info={} Request URL={} Response={}",
+                        requestCount, maxRequests,
+                        ipProxyInfo.getProxyProtocol(), ipProxyInfo.getProxyInfo(), currentUrl, responseUrl);
+                if (REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
+                    if (isLandingPage(effectiveUrl, landingPageUrl)
+                            && lastStatusCode >= 200
+                            && lastStatusCode < 300) {
+                        return new AffiliateAdsTestResponseDto(StatusConstant.SUCCESS, effectiveUrl.toString(), "");
                     }
-                    try {
-                        currentUrl = resolveUrl(currentUrl, locationHeader);
-                    } catch (IOException resolveException) {
-                        lastError = resolveException.getMessage();
-                        continue;
-                    }
-
-                    if (isLandingPage(currentUrl, landingPageUrl)) {
-                        return new AffiliateAdsTestResponseDto(StatusConstant.SUCCESS, currentUrl, "");
-                    }
-                } else {
-                    lastError = "Non-redirect status code received: " + lastStatusCode;
+                    currentUrl = effectiveUrl;
                 }
             } catch (IOException proxyIoException) {
                 lastError = proxyIoException.getMessage();
@@ -290,7 +269,6 @@ public class BonusArriveAutoTestService {
                         ipProxyInfo.getProxyProtocol(), ipProxyInfo.getProxyInfo(), currentUrl, lastError);
             }
         }
-
         String error = "Maximum request limit reached (" + maxRequests + ") without reaching landing page prefix";
         if (lastStatusCode > 0) {
             error = error + ". Last status=" + lastStatusCode;
@@ -298,7 +276,21 @@ public class BonusArriveAutoTestService {
         if (StringUtils.hasText(lastError)) {
             error = error + ". Last error=" + lastError;
         }
-        return new AffiliateAdsTestResponseDto(StatusConstant.FAILED, "", error);
+        return new AffiliateAdsTestResponseDto(StatusConstant.FAILED, responseUrl != null ? responseUrl.toString() : "", error);
+    }
+
+    private URI toRequestUri(String value, String fieldName) {
+        String normalized = requireText(value, fieldName + " is required");
+        try {
+            return URI.create(normalized);
+        } catch (IllegalArgumentException ex) {
+            String sanitized = normalized.replace(" ", "%20").replace("|", "%7C");
+            try {
+                return URI.create(sanitized);
+            } catch (IllegalArgumentException nested) {
+                throw new IllegalArgumentException(fieldName + " is invalid URL: " + normalized, nested);
+            }
+        }
     }
 
     private String resolveUrl(String baseUrl, String relativeUrl) throws IOException {
@@ -314,9 +306,10 @@ public class BonusArriveAutoTestService {
         }
     }
 
-    private boolean isLandingPage(final String url, final String landingPage) {
-        return url.startsWith(landingPage);
+    private boolean isLandingPage(final URI uri, final String landingPage) {
+        return uri.toString().startsWith(landingPage);
     }
+
 
     private String requireText(String value, String message) {
         if (!StringUtils.hasText(value)) {

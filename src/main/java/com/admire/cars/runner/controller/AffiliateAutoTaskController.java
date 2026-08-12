@@ -160,7 +160,7 @@ public class AffiliateAutoTaskController {
             affiliateAutoTaskService.testAdsAsync(id);
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("message", "AFFILIATE_AUTO_TASK test started");
+            response.put("message", "Affiliate auto test started");
             response.put("status", "IN_PROGRESS");
             response.put("data", inProgress);
             return ResponseEntity.ok(response);
@@ -173,14 +173,18 @@ public class AffiliateAutoTaskController {
     }
 
 
-
+    /**
+     * Test affiliate ad
+     * @param id
+     * @return
+     */
     @PostMapping("/{id}/testAd")
-    public ResponseEntity<Map<String, Object>> testAd(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> testAd(@PathVariable Long id) {
         try {
             affiliateAutoTaskService.testAd(id);
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("message", "AFFILIATE_AUTO_TASK test started");
+            response.put("message", "Affiliate test started");
             response.put("status", StatusConstant.IN_PROGRESS);
             return ResponseEntity.accepted().body(response);
         } catch (IllegalArgumentException e) {

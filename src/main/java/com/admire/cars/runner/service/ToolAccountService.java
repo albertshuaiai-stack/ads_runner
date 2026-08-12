@@ -61,7 +61,12 @@ public class ToolAccountService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ToolAccount> search(String userName, String status, Long currentUserId, Pageable pageable) {
+    public Page<ToolAccount> search(
+            String userName,
+            String status,
+            String platformName,
+            Long currentUserId,
+            Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
         boolean admin = isAdmin(currentUser);
         Specification<ToolAccount> specification = (root, query, criteriaBuilder) -> {
@@ -79,6 +84,11 @@ public class ToolAccountService {
                 predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("status")),
                         status.trim().toLowerCase(Locale.ROOT)));
+            }
+            if (StringUtils.hasText(platformName)) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("platformName")),
+                        "%" + platformName.trim().toLowerCase(Locale.ROOT) + "%"));
             }
 
             return predicates.isEmpty()

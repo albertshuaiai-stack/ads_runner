@@ -31,7 +31,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     private static final Logger log = LoggerFactory.getLogger(MatrixAdsAutoTaskJob.class);
 
 
-    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(301, 302, 303, 307, 308);
+    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(200,301, 302, 303, 307, 308);
 
     @Autowired
     private AdsMatrixInfoRepository adsMatrixInfoRepository;
@@ -124,7 +124,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                         redirectLog.setDurationMillis(String.valueOf(durationMillis));
                         redirectLog.setStatusCode(String.valueOf(lastStatusCode));
                         URI effectiveUrl = responseUrl != null ? responseUrl : currentUrl;
-                        if (!REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
+                        if (REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
                             if (isLandingPage(effectiveUrl, landingPageUrl)
                                     && lastStatusCode >= 200
                                     && lastStatusCode < 300) {
@@ -136,9 +136,6 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                             redirectLog.setSuccess(false);
                             redirectLog.setErrMsg("Non-redirect status code received: " + lastStatusCode);
                             affiliateRedirectLogList.add(redirectLog);
-                            if (responseUrl == null || effectiveUrl.equals(currentUrl)) {
-                                break;
-                            }
                             currentUrl = effectiveUrl;
                             continue;
                         }

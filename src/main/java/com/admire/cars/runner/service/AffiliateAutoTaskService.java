@@ -9,10 +9,7 @@ import com.admire.cars.runner.entity.AffiliateAutoTask;
 import com.admire.cars.runner.entity.AffiliateTest;
 import com.admire.cars.runner.entity.IpProxyInfo;
 import com.admire.cars.runner.entity.User;
-import com.admire.cars.runner.repository.AffiliateAdsRepository;
-import com.admire.cars.runner.repository.AffiliateAutoTaskRepository;
-import com.admire.cars.runner.repository.IpProxyInfoRepository;
-import com.admire.cars.runner.repository.UserRepository;
+import com.admire.cars.runner.repository.*;
 import com.admire.cars.runner.service.autotask.BonusArriveAutoSyncService;
 import com.admire.cars.runner.service.autotask.BonusArriveAutoTestService;
 import com.admire.cars.runner.service.proxy.IpProxyService;
@@ -56,6 +53,8 @@ public class AffiliateAutoTaskService {
 
     private final UserRepository userRepository;
 
+    private final AffiliateTestRepository affiliateTestRepository;
+
     public AffiliateAutoTaskService(
             AffiliateAutoTaskRepository affiliateAutoTaskRepository,
             UserRepository userRepository,
@@ -63,7 +62,8 @@ public class AffiliateAutoTaskService {
             BonusArriveAutoTestService bonusArriveAutoTestService,
             AffiliateAdsRepository affiliateAdsSyncRepository,
             IpProxyInfoRepository ipProxyInfoRepository,
-            IpProxyService ipProxyService) {
+            IpProxyService ipProxyService,
+            AffiliateTestRepository affiliateTestRepository) {
         this.affiliateAutoTaskRepository = affiliateAutoTaskRepository;
         this.userRepository = userRepository;
         this.bonusArriveAutoSyncService = bonusArriveAutoSyncService;
@@ -71,6 +71,7 @@ public class AffiliateAutoTaskService {
         this.affiliateAdsSyncRepository = affiliateAdsSyncRepository;
         this.ipProxyInfoRepository = ipProxyInfoRepository;
         this.ipProxyService = ipProxyService;
+        this.affiliateTestRepository = affiliateTestRepository;
     }
 
     public AffiliateAutoTask create(AffiliateAutoTask task, Long currentUserId) {
@@ -368,10 +369,9 @@ public class AffiliateAutoTaskService {
             try {
                 ipVerification = ipProxyService.ipVerification4OkHttpClient(httpClient, sync.getRegion());
                 ipProxyInfo = proxy;
-                if (!StringUtils.hasText(sync.getRegion())) {
-                    ipVerification.setMatched(true);
+                if (ipVerification.isMatched()) {
                     break;
-                } else if (!ipVerification.isMatched()) {
+                } else {
                     proxyFailures.add("proxyId=" + ipProxyInfo.getId()
                             + " region mismatch expected=" + sync.getRegion()
                             + " actual=" + ipVerification.getCountryCode());
@@ -387,7 +387,7 @@ public class AffiliateAutoTaskService {
                 sync.setStatus(StatusConstant.TESTING);
                 affiliateAdsSyncRepository.save(sync);
                 AffiliateAdsTestResponseDto affiliateAdsTestResponseDto =
-                        bonusArriveAutoTestService.testSingleAd(sync, httpClient, ipProxyInfo);
+                        bonusArriveAutoTestService.applyTestAffiliateAd(httpClient, sync, ipProxyInfo);
                 AffiliateTest result = new AffiliateTest();
                 result.setAffiliateNetwork(sync.getAffiliateNetwork());
                 result.setRegion(sync.getRegion());
@@ -397,6 +397,7 @@ public class AffiliateAutoTaskService {
                 result.setFinalUrl(affiliateAdsTestResponseDto.getUrl());
                 result.setStatus(affiliateAdsTestResponseDto.getStatus());
                 result.setAdsOwner(sync.getAdsOwner());
+                affiliateTestRepository.save(result);
                 if (StatusConstant.SUCCESS.equalsIgnoreCase(affiliateAdsTestResponseDto.getStatus())) {
                     sync.setStatus(StatusConstant.TEST_SUCCESS);
                 } else {
