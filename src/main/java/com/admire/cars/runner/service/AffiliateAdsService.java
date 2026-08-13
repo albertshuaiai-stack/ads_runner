@@ -21,13 +21,13 @@ import java.util.Locale;
 @Transactional
 public class AffiliateAdsService {
 
-    private final AffiliateAdsRepository affiliateAdsSyncRepository;
+    private final AffiliateAdsRepository affiliateAdsRepository;
     private final UserRepository userRepository;
 
     public AffiliateAdsService(
-            AffiliateAdsRepository affiliateAdsSyncRepository,
+            AffiliateAdsRepository affiliateAdsRepository,
             UserRepository userRepository) {
-        this.affiliateAdsSyncRepository = affiliateAdsSyncRepository;
+        this.affiliateAdsRepository = affiliateAdsRepository;
         this.userRepository = userRepository;
     }
 
@@ -69,7 +69,7 @@ public class AffiliateAdsService {
                     ? criteriaBuilder.conjunction()
                     : criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
-        return affiliateAdsSyncRepository.findAll(specification, pageable);
+        return affiliateAdsRepository.findAll(specification, pageable);
     }
 
     private String trimToNull(String value) {

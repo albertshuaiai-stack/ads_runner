@@ -1,7 +1,7 @@
 package com.admire.cars.runner.job;
 
-import com.admire.cars.runner.config.AutoTaskConfig;
 import com.admire.cars.runner.constant.Constant;
+import com.admire.cars.runner.constant.StatusConstant;
 import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsTaskLog;
@@ -11,9 +11,10 @@ import com.admire.cars.runner.repository.AdsTaskLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
+import com.admire.cars.runner.util.AdsHttpClientTool;
+import com.admire.cars.runner.util.AdsHttpRequestDto;
+import com.admire.cars.runner.util.AdsHttpResponseDto;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import org.apache.commons.compress.utils.Lists;
 import org.quartz.JobDataMap;
 import org.quartz.JobExecutionContext;
@@ -21,10 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-
-import java.io.IOException;
 import java.net.*;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -33,7 +30,6 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
 
     private static final Logger log = LoggerFactory.getLogger(NormalAdsAutoTaskJob.class);
 
-    private static final List<Integer> REDIRECT_STATUS_CODES = List.of(200,301, 302, 303, 307, 308);
 
     @Autowired
     private AdsNormalInfoRepository adsNormalInfoRepository;
@@ -51,7 +47,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     private UserAgentService userAgentService;
 
     @Autowired
-    private AutoTaskConfig autoTaskConfig;
+    private AdsHttpClientTool adsHttpClientTool;
 
     @Override
     protected void executeTask(JobExecutionContext context) {
@@ -60,7 +56,6 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         JobDataMap jobDataMap = context.getMergedJobDataMap();
         String jobId = resolveJobId(context, jobDataMap);
         Long adsId = resolveAdsId(jobId, jobDataMap);
-        int lastStatusCode = -1;
 
         AdsNormalInfo adsNormalInfo = adsNormalInfoRepository.findById(adsId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_INFO not found: " + adsId));
@@ -68,102 +63,59 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         String userAgent = userAgentService.getUserAgent();
         String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
         final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
-        final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
-        IpVerificationDto ipVerificationDto = null;
         AdsTaskLog adsTaskLog = new AdsTaskLog();
-        //Verify Http client IP region
-        try {
-            ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsNormalInfo.getCampainCountry());
-            buildAdsTaskLog(adsTaskLog, adsNormalInfo,
-                    ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
-                    0L, userAgent, null);
-            adsTaskLog.setSuccess(true);
-            if (!ipVerificationDto.isMatched()) {
-                adsTaskLog.setErrMsg("IP verification failed");
-            }
-        } catch (IOException e) {
-            adsTaskLog.setErrMsg(e.getMessage());
-        }
-        if (StringUtils.hasText(adsTaskLog.getErrMsg())) {
-            log.warn("NORMAL_AUTO_TASK_IP_LOOKUP_PROXY_AUTH_REQUIRED adsId={} Job Id:{}  message={}",
-                    adsNormalInfo.getId(), jobId, adsTaskLog.getErrMsg());
-            return;
-        }
         adsTaskLogList.add(adsTaskLog);
-        
-        // Proceed with redirect following regardless of IP verification status
-        URI currentUrl = URI.create(affiliateUrl);
-        for (int sequence = 1; sequence <= autoTaskConfig.getMaxRedirects(); sequence++) {
+        final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
+        //Verify Http client IP region
+        IpVerificationDto ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsNormalInfo.getCampainCountry());
+        buildAdsTaskLog(adsTaskLog, adsNormalInfo,
+                ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
+                0L, userAgent, null);
+        if (ipVerificationDto.isMatched()) {
+            adsTaskLog.setSuccess(true);
+            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(affiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
+            final long startTime = System.currentTimeMillis();
             adsTaskLog = new AdsTaskLog();
+            adsTaskLogList.add(adsTaskLog);
             buildAdsTaskLog(adsTaskLog, adsNormalInfo,
                     (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
-                    (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null, 
-                    (long) sequence, userAgent, currentUrl.toString());
-            final long startTime = System.currentTimeMillis();
-            final Request httpRequest = ipProxyService.buildOkHttpClientBaseRequest(currentUrl.toString(), userAgent, Constant.DEVICE_TYPE_DESK);
-            URI responseUrl = null;
-            try (Response response = okHttpClient.newCall(httpRequest).execute()){
-                lastStatusCode = response.code();
-                if (null != response.networkResponse()
-                        && null != response.networkResponse().request()
-                        && null != response.networkResponse().request().url()) {
-                    responseUrl = URI.create(response.networkResponse().request().url().toString());
-                    adsTaskLog.setLocation(responseUrl.toString());
-                    adsTaskLog.setResponseUrl(responseUrl.toString());
+                    (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
+                    1L, userAgent, affiliateUrl);
+            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(okHttpClient, adsHttpRequestDto);
 
-                }
-                final long durationMillis = System.currentTimeMillis() - startTime;
-                adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
-                adsTaskLog.setStatusCode(String.valueOf(lastStatusCode));
-                if (REDIRECT_STATUS_CODES.contains(lastStatusCode)) {
-                    if (isLandingPage(currentUrl, landingPageUrl)
-                            && lastStatusCode >= 200
-                            && lastStatusCode < 300) {
-                        adsTaskLog.setSuccess(true);
-                        adsTaskLogList.add(adsTaskLog);
-                        break;
-                    }
-                    adsTaskLog.setSuccess(false);
-                    adsTaskLog.setErrMsg("Non-redirect status code received: " + lastStatusCode);
-                    adsTaskLogList.add(adsTaskLog);
-                    currentUrl = responseUrl;
-                    continue;
-                }
+            final long durationMillis = System.currentTimeMillis() - startTime;
+            adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
+            adsTaskLog.setStatusCode(String.valueOf(adsHttpResponseDto.getCode()));
+            adsTaskLog.setResponseUrl(adsHttpResponseDto.getUrl());
+            adsTaskLog.setErrMsg(adsHttpResponseDto.getError());
+            if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                ShiftLink shiftLink = new ShiftLink();
+                shiftLink.setAdsId(adsNormalInfo.getId());
+                shiftLink.setAdsName(adsNormalInfo.getCampainName());
+                shiftLink.setAdsType(Constant.ADS_TYPE_NORMAL);
+                shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
+                shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
+                shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
+                shiftLink.setDisplayNumber(5L);
+                shiftLink.setStatus(adsNormalInfo.getStatus());
+                shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
+                shiftLinkRepository.save(shiftLink);
+                adsTaskLog.setSuccess(true);
+
+                adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
+                adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
+            } else {
                 adsTaskLog.setSuccess(false);
-                adsTaskLog.setErrMsg("Redirect status code received: " + lastStatusCode);
-                adsTaskLogList.add(adsTaskLog);
-                currentUrl = responseUrl;
-            } catch (IOException proxyIoException) {
-                log.warn("NORMAL_AUTO_TASK_PROXY_REQUEST_FAILED adsId={} jobId={} requestUrl={} message={}",
-                        adsNormalInfo.getId(),
-                        jobId,
-                        currentUrl,
-                        proxyIoException.getMessage());
-                adsTaskLog.setErrMsg(proxyIoException.getMessage());
+                adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
             }
-        }
-        adsTaskLogRepository.saveAll(adsTaskLogList);
-        AdsTaskLog successTask = adsTaskLogList.stream().filter(log ->
-                null != log.getResponseUrl() && log.getSuccess()).findFirst().orElse(null);
-        if (null != successTask) {
-            ShiftLink shiftLink = new ShiftLink();
-            shiftLink.setAdsId(adsNormalInfo.getId());
-            shiftLink.setAdsName(adsNormalInfo.getCampainName());
-            shiftLink.setAdsType(Constant.ADS_TYPE_NORMAL);
-            shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
-            shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
-            shiftLink.setFullUrl(successTask.getResponseUrl());
-            shiftLink.setDisplayNumber(1L);
-            shiftLink.setStatus(adsNormalInfo.getStatus());
-            shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
-            shiftLinkRepository.save(shiftLink);
-            adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
-            adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
-            adsNormalInfoRepository.save(adsNormalInfo);
+
         } else {
-            adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
-            adsNormalInfoRepository.save(adsNormalInfo);
+            adsTaskLog.setSuccess(false);
+            adsTaskLog.setErrMsg("IP verification failed: expected country " + adsNormalInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
         }
+
+        adsNormalInfoRepository.save(adsNormalInfo);
+        adsTaskLogRepository.saveAll(adsTaskLogList);
     }
 
 
@@ -177,15 +129,10 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         adsTaskLog.setCountryCode(countryCode);
         adsTaskLog.setDevice(Constant.DEVICE_TYPE_DESK);
         adsTaskLog.setUserAgent(userAgent);
-        adsTaskLog.setSequence((long) sequence);
+        adsTaskLog.setSequence(sequence);
         adsTaskLog.setRequestUrl(requestUrl);
     }
 
-
-
-    private boolean isLandingPage(final URI uri, final String landingPage) {
-        return uri.toString().startsWith(landingPage);
-    }
 
     private String resolveJobId(JobExecutionContext context, JobDataMap jobDataMap) {
         String jobId = jobDataMap.getString("jobId");

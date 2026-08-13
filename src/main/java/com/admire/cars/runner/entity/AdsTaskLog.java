@@ -1,5 +1,6 @@
 package com.admire.cars.runner.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -76,6 +77,7 @@ public class AdsTaskLog {
     private String adsOwner;
 
     @Column(name = "CREATE_DATE")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createDate;
 
     @PrePersist

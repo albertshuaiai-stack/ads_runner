@@ -1,4 +1,4 @@
-package com.admire.cars.runner.dto;
+package com.admire.cars.runner.util;
 
 
 import lombok.*;
@@ -8,12 +8,14 @@ import lombok.*;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class AffiliateAdsTestResponseDto {
+public class AdsHttpResponseDto {
+
 
     private String status;
+
+    private int code;
 
     private String url;
 
     private String error;
-
 }

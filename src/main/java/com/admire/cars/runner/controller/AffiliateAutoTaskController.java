@@ -2,6 +2,7 @@ package com.admire.cars.runner.controller;
 
 import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
+import com.admire.cars.runner.entity.AffiliateAds;
 import com.admire.cars.runner.entity.AffiliateAutoTask;
 import com.admire.cars.runner.service.AffiliateAutoTaskService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -181,11 +182,13 @@ public class AffiliateAutoTaskController {
     @PostMapping("/{id}/testAd")
     public ResponseEntity<Map<String, Object>> testAd(@PathVariable Long id) {
         try {
+            AffiliateAds affiliateAds = affiliateAutoTaskService.markAffiliateAdsInProgress(id);
             affiliateAutoTaskService.testAd(id);
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Affiliate test started");
             response.put("status", StatusConstant.IN_PROGRESS);
+            response.put("data", affiliateAds);
             return ResponseEntity.accepted().body(response);
         } catch (IllegalArgumentException e) {
             Map<String, Object> response = new HashMap<>();

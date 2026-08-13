@@ -44,11 +44,8 @@ public class IpProxyService {
      * @param httpClient
      * @param expectedCountryCode
      * @return
-     * @throws IOException
      */
-    public IpVerificationDto ipVerification4OkHttpClient(
-            OkHttpClient httpClient,
-            String expectedCountryCode) throws IOException {
+    public IpVerificationDto ipVerification4OkHttpClient(OkHttpClient httpClient, String expectedCountryCode) {
         if (!autoTaskConfig.isIpVerification()) {
             return new IpVerificationDto("",expectedCountryCode,true);
         }
@@ -74,7 +71,6 @@ public class IpProxyService {
                 }
             } catch (IOException e) {
                 log.warn("Configured IP lookup URL failed: {} - {}", configuredUrl, e.getMessage());
-                lastException = e;
             }
         } else {
             IpEndpoint[] endpoints = {
@@ -97,17 +93,10 @@ public class IpProxyService {
                     }
                 } catch (IOException e) {
                     log.debug("IP lookup endpoint {} failed: {}", endpoint.url, e.getMessage());
-                    lastException = e;
                 }
             }
         }
-
-
-        // All endpoints failed
-        if (lastException != null) {
-            throw new IOException("All IP lookup endpoints failed. Last error: " + lastException.getMessage(), lastException);
-        }
-        throw new IOException("No valid IP lookup endpoint returned data");
+        return new IpVerificationDto("",expectedCountryCode,false);
     }
 
     /**
@@ -115,12 +104,8 @@ public class IpProxyService {
      * @param httpClient
      * @param expectedCountryCode
      * @return
-     * @throws IOException
-     * @throws InterruptedException
      */
-    public IpVerificationDto  ipVerification4HttpClient(
-            HttpClient httpClient,
-            String expectedCountryCode) throws IOException, InterruptedException {
+    public IpVerificationDto  ipVerification4HttpClient(HttpClient httpClient, String expectedCountryCode) {
         if (!autoTaskConfig.isIpVerification()) {
             return new IpVerificationDto("",expectedCountryCode,true);
         }
@@ -146,39 +131,33 @@ public class IpProxyService {
                             result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
                     return result;
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 log.warn("Configured IP lookup URL failed: {} - {}", configuredUrl, e.getMessage());
-                lastException = e;
             }
-        }
-        IpEndpoint[] endpoints = {
-                new IpEndpoint("https://api.country.is/", new String[]{"ip"}, new String[]{"country"}),
-                new IpEndpoint("https://ipapi.co/json/", new String[]{"ip"}, new String[]{"country_code"}),
-                new IpEndpoint("https://httpbin.org/ip", new String[]{"origin"}, new String[]{}),
-        };
-        // Try each predefined endpoint
-        for (IpEndpoint endpoint : endpoints) {
-            try {
-                IpVerificationDto result = attemptIpLookup4HttpClient(httpClient, endpoint.url,
-                        endpoint.ipFields, endpoint.countryFields);
-                if (result != null) {
-                    log.info("IP Verification succeeded with endpoint: {} (IP: {}, Country: {})",
-                            endpoint.url, result.getIp(), result.getCountryCode());
-                    result.setMatched(result.getCountryCode() != null &&
-                            result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
-                    return result;
+        } else {
+            IpEndpoint[] endpoints = {
+                    new IpEndpoint("https://api.country.is/", new String[]{"ip"}, new String[]{"country"}),
+                    new IpEndpoint("https://ipapi.co/json/", new String[]{"ip"}, new String[]{"country_code"}),
+                    new IpEndpoint("https://httpbin.org/ip", new String[]{"origin"}, new String[]{}),
+            };
+            // Try each predefined endpoint
+            for (IpEndpoint endpoint : endpoints) {
+                try {
+                    IpVerificationDto result = attemptIpLookup4HttpClient(httpClient, endpoint.url,
+                            endpoint.ipFields, endpoint.countryFields);
+                    if (result != null) {
+                        log.info("IP Verification succeeded with endpoint: {} (IP: {}, Country: {})",
+                                endpoint.url, result.getIp(), result.getCountryCode());
+                        result.setMatched(result.getCountryCode() != null &&
+                                result.getCountryCode().equalsIgnoreCase(expectedCountryCode));
+                        return result;
+                    }
+                } catch (Exception e) {
+                    log.debug("IP lookup endpoint {} failed: {}", endpoint.url, e.getMessage());
                 }
-            } catch (IOException e) {
-                log.debug("IP lookup endpoint {} failed: {}", endpoint.url, e.getMessage());
-                lastException = e;
             }
         }
-
-        // All endpoints failed
-        if (lastException != null) {
-            throw new IOException("All IP lookup endpoints failed. Last error: " + lastException.getMessage(), lastException);
-        }
-        throw new IOException("No valid IP lookup endpoint returned data");
+        return new IpVerificationDto("",expectedCountryCode,false);
     }
 
     /**
