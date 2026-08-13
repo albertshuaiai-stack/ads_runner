@@ -41,8 +41,6 @@ public class AdsAutoTaskSchedulerService {
             String jobName = buildJobName(event);
             JobKey jobKey = JobKey.jobKey(jobName, groupName);
             TriggerKey triggerKey = TriggerKey.triggerKey(buildTriggerName(event.adsId()), groupName);
-            boolean jobExists = scheduler.checkExists(jobKey);
-            boolean legacyJobExists = isNormalAds(event) && scheduler.checkExists(JobKey.jobKey(buildLegacyNormalJobName(event.adsId()), groupName));
             Class<? extends AdsAutoTaskJob> jobClass = resolveJobClass(event.adsType());
 
             if (event.intervalTime() != null && event.intervalTime() > 0) {
@@ -62,20 +60,10 @@ public class AdsAutoTaskSchedulerService {
                                 .withMisfireHandlingInstructionFireNow())
                         .build();
 
-                if (legacyJobExists) {
-                    scheduler.deleteJob(JobKey.jobKey(buildLegacyNormalJobName(event.adsId()), groupName));
-                }
-
-                if (jobExists) {
-                    scheduler.addJob(jobDetail, true, true);
-                    if (scheduler.checkExists(triggerKey)) {
-                        scheduler.rescheduleJob(triggerKey, trigger);
-                    } else {
-                        scheduler.scheduleJob(trigger);
-                    }
-                } else {
-                    scheduler.scheduleJob(jobDetail, trigger);
-                }
+                // Always replace all existing schedules for this adsId on update,
+                // then create a fresh job+trigger from the latest config.
+                replaceScheduleForAdsId(event, groupName, triggerKey);
+                scheduler.scheduleJob(jobDetail, trigger);
                 
                 // Debug: log trigger state
                 TriggerKey tk = TriggerKey.triggerKey(buildTriggerName(event.adsId()), buildGroupName(event.adsOwner(), event.adsType()));
@@ -86,10 +74,14 @@ public class AdsAutoTaskSchedulerService {
                         savedTrigger != null ? savedTrigger.getFinalFireTime() : "NULL");
             }
 
-            if ("PAUSED".equalsIgnoreCase(event.status()) && jobExists) {
+            boolean currentJobExists = scheduler.checkExists(jobKey);
+            if ("PAUSED".equalsIgnoreCase(event.status()) && currentJobExists) {
                 scheduler.pauseJob(jobKey);
+                if (scheduler.checkExists(triggerKey)) {
+                    scheduler.pauseTrigger(triggerKey);
+                }
                 log.info("AUTO_JOB_PAUSED jobGroup={} jobId={}", groupName, jobKey.getName());
-            } else if ("RUNNING".equalsIgnoreCase(event.status()) && jobExists) {
+            } else if ("RUNNING".equalsIgnoreCase(event.status()) && currentJobExists) {
                 TriggerState triggerState = scheduler.getTriggerState(triggerKey);
                 if (triggerState == TriggerState.PAUSED) {
                     scheduler.resumeJob(jobKey);
@@ -186,6 +178,27 @@ public class AdsAutoTaskSchedulerService {
 
     private boolean isNormalAds(AdsAutoTaskRegistrationEvent event) {
         return Constant.ADS_TYPE_NORMAL.equalsIgnoreCase(event.adsType());
+    }
+
+    private void replaceScheduleForAdsId(AdsAutoTaskRegistrationEvent event, String groupName, TriggerKey triggerKey)
+            throws SchedulerException {
+        if (scheduler.checkExists(triggerKey)) {
+            scheduler.unscheduleJob(triggerKey);
+        }
+
+        for (JobKey existingJobKey : scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName))) {
+            if (isJobForAdsId(existingJobKey.getName(), event.adsId(), event.adsType())) {
+                scheduler.deleteJob(existingJobKey);
+            }
+        }
+    }
+
+    private boolean isJobForAdsId(String jobName, Long adsId, String adsType) {
+        String idToken = String.valueOf(adsId);
+        if (Constant.ADS_TYPE_MATRIX.equalsIgnoreCase(adsType)) {
+            return ("matrix-ads-task-" + idToken).equals(jobName) || ("ads-task-" + idToken).equals(jobName);
+        }
+        return jobName.startsWith(idToken + "-") || ("ads-task-" + idToken).equals(jobName);
     }
 
     private String safeToken(String value) {
