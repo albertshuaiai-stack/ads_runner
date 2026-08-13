@@ -54,6 +54,7 @@ public class IpProxyInfoService {
             String proxyType,
             String proxyProtocol,
             String status,
+            String targetCountry,
             Long currentUserId,
             Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
@@ -79,6 +80,11 @@ public class IpProxyInfoService {
                 predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("status")),
                         status.trim().toLowerCase(Locale.ROOT)));
+            }
+            if (StringUtils.hasText(targetCountry)) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("targetCountry")),
+                        targetCountry.trim().toLowerCase(Locale.ROOT)));
             }
             return predicates.isEmpty()
                     ? criteriaBuilder.conjunction()
@@ -107,6 +113,9 @@ public class IpProxyInfoService {
         if (updateData.getStatus() != null) {
             existing.setStatus(updateData.getStatus());
         }
+        if (updateData.getTargetCountry() != null) {
+            existing.setTargetCountry(updateData.getTargetCountry());
+        }
 
         validateAndNormalize(existing);
         existing.setUpdateDate(LocalDateTime.now());
@@ -132,6 +141,7 @@ public class IpProxyInfoService {
         ipProxyInfo.setProxyProtocol(normalizeEnumLike(ipProxyInfo.getProxyProtocol(), "HTTPS"));
         ipProxyInfo.setStatus(normalizeEnumLike(ipProxyInfo.getStatus(), "ENABLED"));
         ipProxyInfo.setProxyInfo(trimToNull(ipProxyInfo.getProxyInfo()));
+        ipProxyInfo.setTargetCountry(trimToNull(ipProxyInfo.getTargetCountry()));
 
         if (!StringUtils.hasText(ipProxyInfo.getProxyInfo())) {
             throw new IllegalArgumentException("proxyInfo is required");
@@ -145,6 +155,7 @@ public class IpProxyInfoService {
         validateLength(ipProxyInfo.getProxyProtocol(), "proxyProtocol", 32);
         validateLength(ipProxyInfo.getProxyInfo(), "proxyInfo", 512);
         validateLength(ipProxyInfo.getStatus(), "status", 32);
+        validateLength(ipProxyInfo.getTargetCountry(), "targetCountry", 32);
     }
 
     private String normalizeEnumLike(String value, String defaultValue) {

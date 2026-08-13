@@ -11,4 +11,10 @@ import java.util.List;
 public interface IpProxyInfoRepository extends JpaRepository<IpProxyInfo, Long>, JpaSpecificationExecutor<IpProxyInfo> {
 
     List<IpProxyInfo> findByAdsOwnerAndStatusIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(String adsOwner, String status, String proxyType, String proxyProtocol);
+
+    List<IpProxyInfo> findByAdsOwnerAndStatusIgnoreCaseAndTargetCountryIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(String adsOwner, String status, String targetCountry, String proxyType, String proxyProtocol);
+
+    List<IpProxyInfo> findByTargetCountryIgnoreCaseAndStatusIgnoreCase(String targetCountry, String status);
+
+    List<IpProxyInfo> findByTargetCountryIgnoreCaseAndStatusIgnoreCaseAndAdsOwnerOrderByIdDesc(String targetCountry, String status, String adsOwner);
 }

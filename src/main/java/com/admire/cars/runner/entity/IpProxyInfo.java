@@ -43,6 +43,9 @@ public class IpProxyInfo {
     @Column(name = "ADS_OWNER", nullable = false, length = 32)
     private String adsOwner;
 
+    @Column(name = "TARGET_COUNTRY", length = 32)
+    private String targetCountry;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 

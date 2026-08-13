@@ -63,6 +63,7 @@ public class IpProxyInfoController {
             @RequestParam(required = false) String proxyType,
             @RequestParam(required = false) String proxyProtocol,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String targetCountry,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -72,6 +73,7 @@ public class IpProxyInfoController {
                 proxyType,
                 proxyProtocol,
                 status,
+                targetCountry,
                 getUserId(request),
                 PageRequest.of(
                         safePage,

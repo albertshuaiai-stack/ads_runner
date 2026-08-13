@@ -363,12 +363,15 @@ public class AffiliateAutoTaskService {
         result.setAdsOwner(affiliateAds.getAdsOwner());
         String region = affiliateAds.getRegion() == null ? null : affiliateAds.getRegion().trim();
 
-        List<IpProxyInfo> proxies = ipProxyInfoRepository.findByAdsOwnerAndStatusIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(
+        List<IpProxyInfo> proxies = ipProxyInfoRepository
+                .findByAdsOwnerAndStatusIgnoreCaseAndTargetCountryIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(
                 affiliateAds.getAdsOwner(),
                 StatusConstant.ENABLED,
+                region,
                 Constant.PROXY_TYPE_DYNAMIC,
                 Constant.PROXY_PROTOCOL_SOCKETS5);
         if (proxies.isEmpty()) {
+            log.warn("No ENABLED IP_PROXY_INFO found for adsOwner: {} with targetCountry: {}", affiliateAds.getAdsOwner(), region);
             log.error("No ENABLED IP_PROXY_INFO found for adsOwner: {}", affiliateAds.getAdsOwner());
             result.setStatus(StatusConstant.FAILED);
             affiliateTestRepository.save(result);

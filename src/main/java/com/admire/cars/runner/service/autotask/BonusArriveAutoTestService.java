@@ -100,12 +100,15 @@ public class BonusArriveAutoTestService {
         log.info("AFFILIATE_TEST_TASK_CLEANUP taskId={} deleted={} affiliateNetwork={} adsOwner={} region={}",
                 taskId, deleted, task.getAffiliateNetwork(), task.getAdsOwner(), syncRegion);
 
-        List<IpProxyInfo> proxies = ipProxyInfoRepository.findByAdsOwnerAndStatusIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(
+        List<IpProxyInfo> proxies = ipProxyInfoRepository
+                .findByAdsOwnerAndStatusIgnoreCaseAndTargetCountryIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(
                 task.getAdsOwner(),
                 StatusConstant.ENABLED,
+                syncRegion,
                 Constant.PROXY_TYPE_DYNAMIC,
                 Constant.PROXY_PROTOCOL_SOCKETS5);
         if (proxies.isEmpty()) {
+            log.warn("No ENABLED IP_PROXY_INFO found for adsOwner: {} with targetCountry: {}", task.getAdsOwner(), syncRegion);
             throw new IllegalArgumentException("No ENABLED IP_PROXY_INFO found for adsOwner: " + task.getAdsOwner());
         }
         OkHttpClient httpClient = null;

@@ -3,6 +3,8 @@ package com.admire.cars.runner.service;
 import com.admire.cars.runner.entity.AffiliateTest;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.AffiliateTestRepository;
+import com.admire.cars.runner.repository.AdsNormalInfoRepository;
+import com.admire.cars.runner.repository.IpProxyInfoRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,11 +32,17 @@ class AffiliateTestServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private AdsNormalInfoRepository adsNormalInfoRepository;
+
+    @Mock
+    private IpProxyInfoRepository ipProxyInfoRepository;
+
     private AffiliateTestService service;
 
     @BeforeEach
     void setUp() {
-        service = new AffiliateTestService(resultRepository, userRepository);
+        service = new AffiliateTestService(resultRepository, userRepository, adsNormalInfoRepository, ipProxyInfoRepository);
     }
 
     @Test
