@@ -96,7 +96,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
                 shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
                 shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-                shiftLink.setDisplayNumber(5L);
+                shiftLink.setDisplayNumber(1L);
                 shiftLink.setStatus(adsNormalInfo.getStatus());
                 shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
                 shiftLinkRepository.save(shiftLink);

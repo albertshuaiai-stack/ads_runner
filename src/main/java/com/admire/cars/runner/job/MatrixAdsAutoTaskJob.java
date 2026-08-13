@@ -110,7 +110,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
                 shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
                 shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-                shiftLink.setDisplayNumber(5L);
+                shiftLink.setDisplayNumber(1L);
                 shiftLink.setStatus(adsMatrixInfo.getStatus());
                 shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
                 shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());

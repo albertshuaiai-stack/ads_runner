@@ -2177,7 +2177,7 @@ public class AuthIntegrationTest {
             org.junit.jupiter.api.Assertions.assertEquals(adsId, shiftLink.getAdsId());
             org.junit.jupiter.api.Assertions.assertEquals("Normal", shiftLink.getAdsType());
             org.junit.jupiter.api.Assertions.assertEquals("Audit Campaign", shiftLink.getAdsName());
-            org.junit.jupiter.api.Assertions.assertEquals(5L, shiftLink.getDisplayNumber());
+            org.junit.jupiter.api.Assertions.assertEquals(1L, shiftLink.getDisplayNumber());
             org.junit.jupiter.api.Assertions.assertEquals(
                     "http://localhost:" + port + "/landing?ranMID=41274&utm_source=rakuten",
                     shiftLink.getFullUrl());
