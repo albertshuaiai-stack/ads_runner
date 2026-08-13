@@ -134,7 +134,7 @@ public class AffiliateTestService {
         adsNormalInfo.setCampainCountry(affiliateTest.getRegion());
         adsNormalInfo.setPlatformName(affiliateTest.getAffiliateNetwork());
         adsNormalInfo.setAffiliteUrl(affiliateTest.getTrackingUrl());
-        adsNormalInfo.setLandingPageUrl(affiliateTest.getFinalUrl());
+        adsNormalInfo.setLandingPageUrl(affiliateTest.getSiteUrl());
         adsNormalInfo.setDynamicProxyInfo(dynamicProxyInfo);
         adsNormalInfo.setStatus("PAUSED");
         adsNormalInfo.setAdsOwner(affiliateTest.getAdsOwner());
