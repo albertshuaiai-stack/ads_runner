@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="normal-post-back-003-drop-not-null" author="copilot">
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="ADS_OWNER" columnDataType="VARCHAR(64)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="AFFILIATE_SITE" columnDataType="VARCHAR(64)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="ADVERTISER_SHOP_ID" columnDataType="VARCHAR(64)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="ADVERTISER_SHOP_NAME" columnDataType="VARCHAR(512)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="SIGN_ID" columnDataType="VARCHAR(64)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="ORDER_NO" columnDataType="VARCHAR(128)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="ORDER_TIME" columnDataType="TIMESTAMP"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="ORDER_AMOUNT" columnDataType="DECIMAL(19,2)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="USER_COMMISSION_AMOUNT" columnDataType="DECIMAL(19,2)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="STATUS" columnDataType="VARCHAR(64)"/>
+        <dropNotNullConstraint tableName="ADS_NORMAL_POST_BACK" columnName="CLICK_TIME" columnDataType="TIMESTAMP"/>
+    </changeSet>
+
+</databaseChangeLog>

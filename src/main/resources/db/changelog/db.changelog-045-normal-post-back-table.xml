@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="normal-post-back-001-create-table" author="copilot">
+        <createTable tableName="ADS_NORMAL_POST_BACK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="AFFILIATE_SITE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADVERTISER_SHOP_ID" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADVERTISER_SHOP_NAME" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SIGN_ID" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ORDER_NO" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ORDER_TIME" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ORDER_AMOUNT" type="DECIMAL(19,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_COMMISSION_AMOUNT" type="DECIMAL(19,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="STATUS" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SUB_ID" type="VARCHAR(128)"/>
+            <column name="SUB_ID2" type="VARCHAR(128)"/>
+            <column name="CLICK_TIME" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="normal-post-back-002-create-indexes" author="copilot">
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_ADS_OWNER" tableName="ADS_NORMAL_POST_BACK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_ORDER_NO" tableName="ADS_NORMAL_POST_BACK">
+            <column name="ORDER_NO"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_SIGN_ID" tableName="ADS_NORMAL_POST_BACK">
+            <column name="SIGN_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_STATUS" tableName="ADS_NORMAL_POST_BACK">
+            <column name="STATUS"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_ORDER_TIME" tableName="ADS_NORMAL_POST_BACK">
+            <column name="ORDER_TIME"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_CLICK_TIME" tableName="ADS_NORMAL_POST_BACK">
+            <column name="CLICK_TIME"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
