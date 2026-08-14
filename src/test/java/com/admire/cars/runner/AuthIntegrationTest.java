@@ -144,6 +144,44 @@ public class AuthIntegrationTest {
     }
 
     @Test
+    public void postbackEndpointDoesNotRequireToken() {
+        webTestClient.post().uri("/api/postback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "affiliateSite", "SiteA",
+                        "advertiserShopId", "shop-1",
+                        "advertiserShopName", "Shop One",
+                        "signId", "sign-1",
+                        "orderNo", "order-1",
+                        "orderTime", "2026-08-14 10:00:00",
+                        "orderAmount", 100.00,
+                        "userCommissionAmount", 12.50,
+                        "status", "SUCCESS",
+                        "clickTime", "2026-08-14 09:55:00"))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("api_key is required");
+
+        webTestClient.post().uri("/api/postback")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData("affiliateSite", "SiteA")
+                        .with("advertiserShopId", "shop-1")
+                        .with("advertiserShopName", "Shop One")
+                        .with("signId", "sign-1")
+                        .with("orderNo", "order-1")
+                        .with("orderTime", "2026-08-14T10:00:00")
+                        .with("orderAmount", "100.00")
+                        .with("userCommissionAmount", "12.50")
+                        .with("status", "SUCCESS")
+                        .with("clickTime", "2026-08-14T09:55:00"))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.message").isEqualTo("api_key is required");
+    }
+
+    @Test
     public void loginTokenHasConfiguredExpiration() {
         User user = new User();
         user.setUserName("expiryuser");

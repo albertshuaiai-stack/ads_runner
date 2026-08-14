@@ -107,4 +107,13 @@
     <!-- Create EXCHANGE_RATE table with seed CNY→USD rate -->
     <include file="db/changelog/db.changelog-044-exchange-rate-table.xml"/>
 
+    <!-- Create ADS_NORMAL_POST_BACK table -->
+    <include file="db/changelog/db.changelog-045-normal-post-back-table.xml"/>
+
+    <!-- Drop non-primary NOT NULL constraints from ADS_NORMAL_POST_BACK -->
+    <include file="db/changelog/db.changelog-046-normal-post-back-drop-not-null.xml"/>
+
+    <!-- Change ADS_NORMAL_POST_BACK time columns to VARCHAR -->
+    <include file="db/changelog/db.changelog-047-normal-post-back-time-to-varchar.xml"/>
+
 </databaseChangeLog>

@@ -62,25 +62,27 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
 
         String userAgent = userAgentService.getUserAgent();
         String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
+
         final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
         AdsTaskLog adsTaskLog = new AdsTaskLog();
         adsTaskLogList.add(adsTaskLog);
         final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
         //Verify Http client IP region
         IpVerificationDto ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsNormalInfo.getCampainCountry());
+        String enrichedAffiliateUrl = enrichAffiliateUrl(affiliateUrl);
         buildAdsTaskLog(adsTaskLog, adsNormalInfo,
                 ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
                 0L, userAgent, null);
         if (ipVerificationDto.isMatched()) {
             adsTaskLog.setSuccess(true);
-            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(affiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
+            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(enrichedAffiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
             final long startTime = System.currentTimeMillis();
             adsTaskLog = new AdsTaskLog();
             adsTaskLogList.add(adsTaskLog);
             buildAdsTaskLog(adsTaskLog, adsNormalInfo,
                     (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
                     (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
-                    1L, userAgent, affiliateUrl);
+                    1L, userAgent, enrichedAffiliateUrl);
             AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(okHttpClient, adsHttpRequestDto);
 
             final long durationMillis = System.currentTimeMillis() - startTime;
@@ -171,5 +173,11 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         return value.trim();
     }
 
+    private String enrichAffiliateUrl(String affiliateUrL) {
+        if (!StringUtils.hasText(affiliateUrL)) {
+            throw new IllegalArgumentException("affiliateUrL is required");
+        }
+        return affiliateUrL.replace("{subid}", UUID.randomUUID().toString());
+    }
 
 }
