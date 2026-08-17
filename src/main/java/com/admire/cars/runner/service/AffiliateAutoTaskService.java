@@ -1,8 +1,6 @@
 package com.admire.cars.runner.service;
 
-import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
-import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.*;
 import com.admire.cars.runner.service.autotask.BonusArriveAutoSyncService;
@@ -10,10 +8,8 @@ import com.admire.cars.runner.service.autotask.BonusArriveAutoTestService;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
 import com.admire.cars.runner.util.AdsHttpClientTool;
-import com.admire.cars.runner.util.AdsHttpRequestDto;
 import com.admire.cars.runner.util.AdsHttpResponseDto;
 import jakarta.persistence.criteria.Predicate;
-import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -352,8 +348,6 @@ public class AffiliateAutoTaskService {
     public void testAd(Long affiliateAdsId) {
         AffiliateAds affiliateAds = affiliateAdsRepository.findById(affiliateAdsId)
                 .orElseThrow(() -> new IllegalArgumentException("AFFILIATE_ADS not found: " + affiliateAdsId));
-        final List<String> proxyFailures = new ArrayList<>();
-
         AffiliateTest result = new AffiliateTest();
         result.setAffiliateNetwork(affiliateAds.getAffiliateNetwork());
         result.setRegion(affiliateAds.getRegion());
@@ -363,57 +357,15 @@ public class AffiliateAutoTaskService {
         result.setAdsOwner(affiliateAds.getAdsOwner());
         String region = affiliateAds.getRegion() == null ? null : affiliateAds.getRegion().trim();
 
-        List<IpProxyInfo> proxies = ipProxyInfoRepository
-                .findByAdsOwnerAndStatusIgnoreCaseAndTargetCountryIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(
-                affiliateAds.getAdsOwner(),
-                StatusConstant.ENABLED,
-                region,
-                Constant.PROXY_TYPE_DYNAMIC,
-                Constant.PROXY_PROTOCOL_SOCKETS5);
-        if (proxies.isEmpty()) {
-            log.warn("No ENABLED IP_PROXY_INFO found for adsOwner: {} with targetCountry: {}", affiliateAds.getAdsOwner(), region);
-            log.error("No ENABLED IP_PROXY_INFO found for adsOwner: {}", affiliateAds.getAdsOwner());
-            result.setStatus(StatusConstant.FAILED);
-            affiliateTestRepository.save(result);
-            return;
-        }
-        OkHttpClient okHttpClient = null;
-        IpProxyInfo ipProxyInfo = null;
-        IpVerificationDto ipVerification = null;
-        for (IpProxyInfo proxy : proxies) {
-            okHttpClient = ipProxyService.buildOkHttpClient(proxy.getProxyInfo());
-            ipVerification = ipProxyService.ipVerification4OkHttpClient(okHttpClient, region);
-            ipProxyInfo = proxy;
-            if (ipVerification.isMatched()) {
-                break;
-            } else {
-                proxyFailures.add("proxyId=" + ipProxyInfo.getId()
-                        + " region mismatch expected=" + region
-                        + " actual=" + ipVerification.getCountryCode());
-            }
-        }
-        String userAgent = userAgentService.getUserAgent();
-        if (null != ipVerification && ipVerification.isMatched()) {
-            log.info("AFFILIATE_TEST_TASK Proxy verification passed. Ad ID={} proxyId={} region={}, ipVerification:{}",
-                    affiliateAdsId, ipProxyInfo.getId(), region, ipVerification);
-            final long startTime = System.currentTimeMillis();
-            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(
-                    affiliateAds.getTrackingUrl(),affiliateAds.getSiteUrl(),Constant.DEVICE_TYPE_DESK,userAgent);
-            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(okHttpClient, adsHttpRequestDto);
-            final long durationMillis = System.currentTimeMillis() - startTime;
-            log.info("AFFILIATE_ADS Test. Ad ID={} proxyId={} region={}, ipVerification:{} duration={}ms",
-                    affiliateAdsId, ipProxyInfo.getId(), region, ipVerification, durationMillis);
-            result.setFinalUrl(adsHttpResponseDto.getUrl());
-            result.setStatus(adsHttpResponseDto.getStatus());
+        final long startTime = System.currentTimeMillis();
+        AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(affiliateAds, region);
+        final long durationMillis = System.currentTimeMillis() - startTime;
+        log.info("AFFILIATE_ADS Test. Ad ID={} region={}, Test status:{}, Landing Page URL:{}, Response URL:{}, duration={}ms",
+                affiliateAdsId, region, adsHttpResponseDto.getStatus(), affiliateAds.getSiteUrl(), adsHttpResponseDto.getUrl(), durationMillis);
+        result.setFinalUrl(adsHttpResponseDto.getUrl());
+        result.setStatus(adsHttpResponseDto.getStatus());
 
-            affiliateAds.setStatus(adsHttpResponseDto.getStatus());
-        } else {
-            String failureMessage = String.join("; ", proxyFailures);
-            log.error("AFFILIATE_ADS Test Proxy verification failed. Ad ID={} region={} failures={}",
-                    affiliateAdsId, region, failureMessage);
-            result.setStatus(StatusConstant.FAILED);
-            affiliateAds.setStatus(StatusConstant.FAILED);
-        }
+        affiliateAds.setStatus(adsHttpResponseDto.getStatus());
         affiliateAdsRepository.save(affiliateAds);
         affiliateTestRepository.save(result);
     }

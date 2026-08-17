@@ -2,18 +2,11 @@ package com.admire.cars.runner.job;
 
 import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
-import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
-import com.admire.cars.runner.repository.AdsTaskLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
-import com.admire.cars.runner.service.proxy.IpProxyService;
-import com.admire.cars.runner.service.proxy.UserAgentService;
 import com.admire.cars.runner.util.AdsHttpClientTool;
-import com.admire.cars.runner.util.AdsHttpRequestDto;
 import com.admire.cars.runner.util.AdsHttpResponseDto;
-import okhttp3.OkHttpClient;
-import org.apache.commons.compress.utils.Lists;
 import org.quartz.JobDataMap;
 import org.quartz.JobExecutionContext;
 import org.slf4j.Logger;
@@ -39,16 +32,6 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     private ShiftLinkRepository shiftLinkRepository;
 
     @Autowired
-    private AdsTaskLogRepository adsTaskLogRepository;
-
-    @Autowired
-    private IpProxyService ipProxyService;
-
-    @Autowired
-    private UserAgentService userAgentService;
-
-
-    @Autowired
     private AdsHttpClientTool adsHttpClientTool;
 
     @Override
@@ -67,41 +50,9 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                     adsMatrixInfo.getId(), jobId, "No affiliate info found for this matrix ad");
             return;
         }
-        String userAgent = userAgentService.getUserAgent();
         for (int affiliateIndex = 0; affiliateIndex < adsMatrixAffiliateInfoList.size(); affiliateIndex++) {
-            List<AdsTaskLog> adsTaskLogList = Lists.newArrayList();
-            List<ShiftLink> shiftLinkList = Lists.newArrayList();
-            AdsTaskLog adsTaskLog = new AdsTaskLog();
-            adsTaskLogList.add(adsTaskLog);
             AdsMatrixAffiliateInfo adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(affiliateIndex);
-            final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsMatrixInfo.getDynamicProxyInfo());
-            // Verify IP for each affiliate
-            IpVerificationDto ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsMatrixInfo.getCampainCountry());
-            buildAdsTaskLog(adsTaskLog, adsMatrixInfo, null,
-                    ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
-                    0L, userAgent, null);
-            if (!ipVerificationDto.isMatched()) {
-                log.warn("MATRIX_AUTO_TASK_IP_VERIFICATION_FAILED adsId={} affiliateIndex={} platform={} IP verification failed",
-                        adsMatrixInfo.getId(), affiliateIndex, adsMatrixAffiliateInfo.getPlatformName());
-                adsTaskLog.setErrMsg("IP verification failed for affiliate");
-                adsTaskLog.setSuccess(false);
-                continue;
-            }
-            adsTaskLog.setSuccess(true);
-            AdsTaskLog adsTaskLog1 = new AdsTaskLog();
-            adsTaskLogList.add(adsTaskLog1);
-            buildAdsTaskLog(adsTaskLog1, adsMatrixInfo, adsMatrixAffiliateInfo.getPlatformName(),
-                    (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
-                    (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
-                    (long) (affiliateIndex + 1), userAgent, adsMatrixAffiliateInfo.getAffiliteUrl());
-            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(adsMatrixAffiliateInfo.getAffiliteUrl(), landingPageUrl, Constant.DEVICE_TYPE_DESK, userAgent);
-            final long startTime = System.currentTimeMillis();
-            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(okHttpClient, adsHttpRequestDto);
-            final long durationMillis = System.currentTimeMillis() - startTime;
-            adsTaskLog1.setDurationMillis(String.valueOf(durationMillis));
-            adsTaskLog1.setStatusCode(String.valueOf(adsHttpResponseDto.getCode()));
-            adsTaskLog1.setResponseUrl(adsHttpResponseDto.getUrl());
-            adsTaskLog1.setErrMsg(adsHttpResponseDto.getError());
+            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsMatrixInfo, adsMatrixAffiliateInfo);
             LocalDateTime eventTime = LocalDateTime.now();
             if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
                 ShiftLink shiftLink = new ShiftLink();
@@ -115,16 +66,12 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setStatus(adsMatrixInfo.getStatus());
                 shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
                 shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
-                shiftLinkList.add(shiftLink);
-
-                adsTaskLog1.setSuccess(true);
                 updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
+                shiftLinkRepository.save(shiftLink);
+
             } else {
-                adsTaskLog1.setSuccess(false);
                 updateMatrixFailedCounter(adsMatrixInfo.getId(), eventTime);
             }
-            adsTaskLogRepository.saveAll(adsTaskLogList);
-            shiftLinkRepository.saveAll(shiftLinkList);
             // Sleep 5 minutes before processing next affiliate
             if (affiliateIndex < adsMatrixAffiliateInfoList.size() - 1) {
                 sleepBeforeNextAffiliate();
@@ -209,19 +156,5 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             log.warn("Thread sleep interrupted", e);
             Thread.currentThread().interrupt();
         }
-    }
-
-    private void buildAdsTaskLog(AdsTaskLog adsTaskLog, AdsMatrixInfo adsMatrixInfo, String platformName,
-                                            String ip, String countryCode, Long sequence, String userAgent, String requestUrl) {
-        adsTaskLog.setAdsOwner(adsMatrixInfo.getAdsOwner());
-        adsTaskLog.setAdsName(adsMatrixInfo.getCampainName());
-        adsTaskLog.setAdsType(Constant.ADS_TYPE_MATRIX);
-        adsTaskLog.setPlatformName(platformName);
-        adsTaskLog.setIp(ip);
-        adsTaskLog.setCountryCode(countryCode);
-        adsTaskLog.setDevice(Constant.DEVICE_TYPE_DESK);
-        adsTaskLog.setUserAgent(userAgent);
-        adsTaskLog.setSequence((long) sequence);
-        adsTaskLog.setRequestUrl(requestUrl);
     }
 }

@@ -38,102 +38,40 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     private ShiftLinkRepository shiftLinkRepository;
 
     @Autowired
-    private AdsTaskLogRepository adsTaskLogRepository;
-
-    @Autowired
-    private IpProxyService ipProxyService;
-
-    @Autowired
-    private UserAgentService userAgentService;
-
-    @Autowired
     private AdsHttpClientTool adsHttpClientTool;
 
     @Override
     protected void executeTask(JobExecutionContext context) {
-
-        List<AdsTaskLog> adsTaskLogList = Lists.newArrayList();
         JobDataMap jobDataMap = context.getMergedJobDataMap();
         String jobId = resolveJobId(context, jobDataMap);
         Long adsId = resolveAdsId(jobId, jobDataMap);
 
         AdsNormalInfo adsNormalInfo = adsNormalInfoRepository.findById(adsId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_INFO not found: " + adsId));
+        AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+        if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+            ShiftLink shiftLink = new ShiftLink();
+            shiftLink.setAdsId(adsNormalInfo.getId());
+            shiftLink.setAdsName(adsNormalInfo.getCampainName());
+            shiftLink.setAdsType(Constant.ADS_TYPE_NORMAL);
+            shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
+            shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
+            shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
+            shiftLink.setDisplayNumber(1L);
+            shiftLink.setStatus(adsNormalInfo.getStatus());
+            shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
+            shiftLinkRepository.save(shiftLink);
 
-        String userAgent = userAgentService.getUserAgent();
-        String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
-
-        final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
-        AdsTaskLog adsTaskLog = new AdsTaskLog();
-        adsTaskLogList.add(adsTaskLog);
-        final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
-        //Verify Http client IP region
-        IpVerificationDto ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsNormalInfo.getCampainCountry());
-        String enrichedAffiliateUrl = enrichAffiliateUrl(affiliateUrl);
-        buildAdsTaskLog(adsTaskLog, adsNormalInfo,
-                ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
-                0L, userAgent, null);
-        if (ipVerificationDto.isMatched()) {
-            adsTaskLog.setSuccess(true);
-            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(enrichedAffiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
-            final long startTime = System.currentTimeMillis();
-            adsTaskLog = new AdsTaskLog();
-            adsTaskLogList.add(adsTaskLog);
-            buildAdsTaskLog(adsTaskLog, adsNormalInfo,
-                    (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
-                    (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
-                    1L, userAgent, enrichedAffiliateUrl);
-            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(okHttpClient, adsHttpRequestDto);
-
-            final long durationMillis = System.currentTimeMillis() - startTime;
-            adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
-            adsTaskLog.setStatusCode(String.valueOf(adsHttpResponseDto.getCode()));
-            adsTaskLog.setResponseUrl(adsHttpResponseDto.getUrl());
-            adsTaskLog.setErrMsg(adsHttpResponseDto.getError());
-            if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
-                ShiftLink shiftLink = new ShiftLink();
-                shiftLink.setAdsId(adsNormalInfo.getId());
-                shiftLink.setAdsName(adsNormalInfo.getCampainName());
-                shiftLink.setAdsType(Constant.ADS_TYPE_NORMAL);
-                shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
-                shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
-                shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-                shiftLink.setDisplayNumber(1L);
-                shiftLink.setStatus(adsNormalInfo.getStatus());
-                shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
-                shiftLinkRepository.save(shiftLink);
-                adsTaskLog.setSuccess(true);
-
-                adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
-                adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
-            } else {
-                adsTaskLog.setSuccess(false);
-                adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
-            }
-
+            adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
+            adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
         } else {
-            adsTaskLog.setSuccess(false);
-            adsTaskLog.setErrMsg("IP verification failed: expected country " + adsNormalInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
+            adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
         }
-
         adsNormalInfoRepository.save(adsNormalInfo);
-        adsTaskLogRepository.saveAll(adsTaskLogList);
     }
 
 
-    private void buildAdsTaskLog(AdsTaskLog adsTaskLog, AdsNormalInfo adsNormalInfo,
-                                            String ip, String countryCode, Long sequence,String userAgent, String requestUrl) {
-        adsTaskLog.setAdsOwner(adsNormalInfo.getAdsOwner());
-        adsTaskLog.setAdsName(adsNormalInfo.getCampainName());
-        adsTaskLog.setAdsType(Constant.ADS_TYPE_NORMAL);
-        adsTaskLog.setPlatformName(adsNormalInfo.getPlatformName());
-        adsTaskLog.setIp(ip);
-        adsTaskLog.setCountryCode(countryCode);
-        adsTaskLog.setDevice(Constant.DEVICE_TYPE_DESK);
-        adsTaskLog.setUserAgent(userAgent);
-        adsTaskLog.setSequence(sequence);
-        adsTaskLog.setRequestUrl(requestUrl);
-    }
+
 
 
     private String resolveJobId(JobExecutionContext context, JobDataMap jobDataMap) {
@@ -163,21 +101,6 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
             throw new IllegalArgumentException("adsId is required for normal ads job execution");
         }
         return jobDataAdsId;
-    }
-
-
-    private String requireText(String value, String message) {
-        if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
-    }
-
-    private String enrichAffiliateUrl(String affiliateUrL) {
-        if (!StringUtils.hasText(affiliateUrL)) {
-            throw new IllegalArgumentException("affiliateUrL is required");
-        }
-        return affiliateUrL.replace("{subid}", UUID.randomUUID().toString());
     }
 
 }
