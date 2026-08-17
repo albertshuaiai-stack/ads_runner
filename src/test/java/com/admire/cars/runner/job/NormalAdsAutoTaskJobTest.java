@@ -1,5 +1,6 @@
 package com.admire.cars.runner.job;
 
+import com.admire.cars.runner.util.AdsHttpClientTool;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -11,11 +12,11 @@ class NormalAdsAutoTaskJobTest {
 
     @Test
     void enrichAffiliateUrl_replacesSubidPlaceholder() throws Exception {
-        NormalAdsAutoTaskJob job = new NormalAdsAutoTaskJob();
-        Method method = NormalAdsAutoTaskJob.class.getDeclaredMethod("enrichAffiliateUrl", String.class);
+        AdsHttpClientTool tool = new AdsHttpClientTool();
+        Method method = AdsHttpClientTool.class.getDeclaredMethod("enrichAffiliateUrl", String.class);
         method.setAccessible(true);
 
-        String result = (String) method.invoke(job, "https://example.com/click?subid={subid}");
+        String result = (String) method.invoke(tool, "https://example.com/click?subid={subid}");
 
         assertTrue(result.startsWith("https://example.com/click?subid="));
         assertNotEquals("https://example.com/click?subid={subid}", result);
