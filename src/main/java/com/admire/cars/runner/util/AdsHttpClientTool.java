@@ -22,6 +22,8 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 @Slf4j
@@ -43,6 +45,13 @@ public class AdsHttpClientTool {
 
 
     private static final int MAX_REDIRECT_HOPS = 10;
+    private static final Pattern JS_REDIRECT_PATTERN = Pattern.compile(
+            "(?is)(?:window|document|top|self)\\s*\\.\\s*location(?:\\.href)?\\s*=\\s*['\"]([^'\"]+)['\"]");
+    private static final Pattern LOCATION_REPLACE_PATTERN = Pattern.compile(
+            "(?is)location\\.replace\\s*\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)");
+    private static final Pattern META_REFRESH_PATTERN = Pattern.compile(
+            "(?is)<meta[^>]+http-equiv\\s*=\\s*['\"]?refresh['\"]?[^>]+content\\s*=\\s*['\"][^'\"]*url\\s*=\\s*([^'\"\\s>]+)");
+    private static final Pattern REFRESH_HEADER_PATTERN = Pattern.compile("(?i)\\burl\\s*=\\s*(.+)$");
 
 
     /**
@@ -52,6 +61,7 @@ public class AdsHttpClientTool {
      */
     public AdsHttpResponseDto applyAffiliateAd(AdsNormalInfo adsNormalInfo) {
 
+        AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
         String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
         final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
@@ -69,7 +79,6 @@ public class AdsHttpClientTool {
             AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(enrichedAffiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
             URI requestUri = toRequestUri(enrichedAffiliateUrl, "affiliateUrl");
             try {
-                RedirectResult result = null;
                 // Redirect Start
                 OkHttpClient redirectClient = okHttpClient.newBuilder()
                         .followRedirects(false)
@@ -81,8 +90,10 @@ public class AdsHttpClientTool {
                     Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
                     try (Response response = redirectClient.newCall(request).execute()) {
                         int statusCode = response.code();
-                        URI responseUri = currentUri;
-                        log.warn("Apply Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
+                        URI responseUri = response.request() != null && response.request().url() != null
+                                ? response.request().url().uri()
+                                : currentUri;
+                        log.warn("Apply Normal Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
                         adsTaskLog = new AdsTaskLog();
                         adsTaskLogList.add(adsTaskLog);
                         buildAdsTaskLog(adsTaskLog, adsNormalInfo,
@@ -95,55 +106,80 @@ public class AdsHttpClientTool {
                         adsTaskLog.setStatusCode(String.valueOf(statusCode));
                         adsTaskLog.setResponseUrl(responseUri.toString());
                         if (statusCode >= 200 && statusCode < 300) {
-                            result = new RedirectResult(statusCode, responseUri);
-                            adsTaskLog.setErrMsg("");
-                            adsTaskLog.setSuccess(true);
+                            if (isLandingPage(responseUri, adsHttpRequestDto.getLandingPageUrl())){
+                                adsTaskLog.setErrMsg("");
+                                adsTaskLog.setSuccess(true);
+                                adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                                break;
+                            }
+                            String redirectTarget = null;
+                            if (response.body() != null) {
+                                String responseBody = response.body().string();
+                                redirectTarget = extractClientRedirectTarget(responseBody);
+                            }
+                            if (!StringUtils.hasText(redirectTarget)) {
+                                redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
+                            }
+                            if (!StringUtils.hasText(redirectTarget)) {
+                                redirectTarget = response.header("Location");
+                            }
+                            if (StringUtils.hasText(redirectTarget)) {
+                                URI nextUri = resolveRedirectUri(currentUri, redirectTarget);
+                                adsTaskLog.setLocation(nextUri.toString());
+                                currentUri = nextUri;
+                                continue;
+                            }
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response body does not contain a redirect target");
                             break;
-                        }
-
-                        if (statusCode >= 300 && statusCode < 400) {
+                        } else if (statusCode >= 300 && statusCode < 400) {
                             String location = response.header("Location");
                             adsTaskLog.setLocation(location);
                             if (!StringUtils.hasText(location)) {
-                                result = new RedirectResult(statusCode, responseUri);
                                 adsTaskLog.setErrMsg("No Location found from header");
+                                adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
                                 break;
                             }
                             URI nextUri = currentUri.resolve(location.trim());
                             currentUri = nextUri;
                             continue;
+                        } else {
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
+                            break;
                         }
-                        result = new RedirectResult(statusCode, responseUri);
-                        break;
+
                     }
                 }
-                adsTaskLogRepository.saveAll(adsTaskLogList);
+                if (!StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                    adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Response URL does not match landing page prefix with max redirect times.");
+                }
                 // Redirect End
-                if (result.statusCode >= 200 && result.statusCode < 300) {
-                    if (isLandingPage(result.finalUri, adsHttpRequestDto.getLandingPageUrl())) {
-                        return new AdsHttpResponseDto(StatusConstant.SUCCESS, result.statusCode, result.finalUriText(), "");
-                    }
-                    return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response URL does not match landing page prefix");
-                }
-                if (result.statusCode >= 300 && result.statusCode < 400) {
-                    return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response URL does not match landing page prefix");
-                }
-                return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response status code is not a redirect or success code");
             } catch (IOException proxyIoException) {
-                log.error("Apply Affiliate Ads. Request URL={} error={}", requestUri, proxyIoException.getMessage(), proxyIoException);
-                return new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), proxyIoException.getMessage());
+                log.error("Apply Normal Affiliate Ads. Request URL={} error={}", requestUri, proxyIoException.getMessage(), proxyIoException);
+                adsTaskLog = new AdsTaskLog();
+                adsTaskLogList.add(adsTaskLog);
+                buildAdsTaskLog(adsTaskLog, adsNormalInfo,
+                        (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
+                        (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
+                        (long)-1 , userAgent, "");
+                adsTaskLog.setErrMsg(proxyIoException.getMessage());
+                adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), proxyIoException.getMessage());
             }
         } else {
-            adsTaskLog.setSuccess(false);
             adsTaskLog.setErrMsg("IP verification failed: expected country " + adsNormalInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
         }
-        return new AdsHttpResponseDto(StatusConstant.FAILED, -1, null,
-                "IP verification failed: expected country " + adsNormalInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
+        adsTaskLogRepository.saveAll(adsTaskLogList);
+        return adsHttpResponseDto;
     }
 
 
+    /**
+     * Matrix Ads Task
+     * @param matrixInfo
+     * @param adsMatrixAffiliateInfo
+     * @return
+     */
     public AdsHttpResponseDto applyAffiliateAd(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
-
+        AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
         String affiliateUrl = requireText(adsMatrixAffiliateInfo.getAffiliteUrl(), "affiliateUrl is required");
         final String landingPageUrl = requireText(matrixInfo.getLandingPageUrl(), "landingPageUrl is required");
@@ -161,7 +197,6 @@ public class AdsHttpClientTool {
             AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(affiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
             URI requestUri = toRequestUri(affiliateUrl, "affiliateUrl");
             try {
-                RedirectResult result = null;
                 // Redirect Start
                 OkHttpClient redirectClient = okHttpClient.newBuilder()
                         .followRedirects(false)
@@ -173,8 +208,10 @@ public class AdsHttpClientTool {
                     Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
                     try (Response response = redirectClient.newCall(request).execute()) {
                         int statusCode = response.code();
-                        URI responseUri = currentUri;
-                        log.warn("Matrix Ads Apply Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
+                        URI responseUri = response.request() != null && response.request().url() != null
+                                ? response.request().url().uri()
+                                : currentUri;
+                        log.warn("Apply Matrix Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
                         adsTaskLog = new AdsTaskLog();
                         adsTaskLogList.add(adsTaskLog);
                         buildAdsTaskLog(adsTaskLog, matrixInfo,
@@ -187,50 +224,61 @@ public class AdsHttpClientTool {
                         adsTaskLog.setStatusCode(String.valueOf(statusCode));
                         adsTaskLog.setResponseUrl(responseUri.toString());
                         if (statusCode >= 200 && statusCode < 300) {
-                            result = new RedirectResult(statusCode, responseUri);
-                            adsTaskLog.setErrMsg("");
-                            adsTaskLog.setSuccess(true);
+                            if (isLandingPage(responseUri, adsHttpRequestDto.getLandingPageUrl())){
+                                adsTaskLog.setErrMsg("");
+                                adsTaskLog.setSuccess(true);
+                                adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                                break;
+                            }
+                            String responseBody = response.body() != null ? response.body().string() : "";
+                            String redirectTarget = extractClientRedirectTarget(responseBody);
+                            if (!StringUtils.hasText(redirectTarget)) {
+                                redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
+                            }
+                            if (StringUtils.hasText(redirectTarget)) {
+                                URI nextUri = resolveRedirectUri(currentUri, redirectTarget);
+                                adsTaskLog.setLocation(nextUri.toString());
+                                currentUri = nextUri;
+                                continue;
+                            }
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response body does not contain a redirect target");
                             break;
-                        }
-
-                        if (statusCode >= 300 && statusCode < 400) {
+                        } else if (statusCode >= 300 && statusCode < 400) {
                             String location = response.header("Location");
                             adsTaskLog.setLocation(location);
                             if (!StringUtils.hasText(location)) {
-                                result = new RedirectResult(statusCode, responseUri);
                                 adsTaskLog.setErrMsg("No Location found from header");
+                                adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
                                 break;
                             }
                             URI nextUri = currentUri.resolve(location.trim());
                             currentUri = nextUri;
                             continue;
+                        } else {
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
+                            break;
                         }
-                        result = new RedirectResult(statusCode, responseUri);
-                        break;
                     }
                 }
-                adsTaskLogRepository.saveAll(adsTaskLogList);
-                // Redirect End
-                if (result.statusCode >= 200 && result.statusCode < 300) {
-                    if (isLandingPage(result.finalUri, adsHttpRequestDto.getLandingPageUrl())) {
-                        return new AdsHttpResponseDto(StatusConstant.SUCCESS, result.statusCode, result.finalUriText(), "");
-                    }
-                    return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response URL does not match landing page prefix");
+                if (!StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                    adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Response URL does not match landing page prefix with max redirect times.");
                 }
-                if (result.statusCode >= 300 && result.statusCode < 400) {
-                    return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response URL does not match landing page prefix");
-                }
-                return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response status code is not a redirect or success code");
             } catch (IOException proxyIoException) {
-                log.error("Apply Affiliate Ads. Request URL={} error={}", requestUri, proxyIoException.getMessage(), proxyIoException);
-                return new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), proxyIoException.getMessage());
+                log.error("Apply Matrix Affiliate Ads. Request URL={} error={}", requestUri, proxyIoException.getMessage(), proxyIoException);
+                adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), proxyIoException.getMessage());
+                adsTaskLog = new AdsTaskLog();
+                adsTaskLogList.add(adsTaskLog);
+                buildAdsTaskLog(adsTaskLog, matrixInfo,
+                        (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
+                        (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
+                        (long)-1 , userAgent, "");
+                adsTaskLog.setErrMsg(proxyIoException.getMessage());
             }
         } else {
-            adsTaskLog.setSuccess(false);
             adsTaskLog.setErrMsg("IP verification failed: expected country " + matrixInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
         }
-        return new AdsHttpResponseDto(StatusConstant.FAILED, -1, null,
-                "IP verification failed: expected country " + matrixInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
+        adsTaskLogRepository.saveAll(adsTaskLogList);
+        return adsHttpResponseDto;
     }
 
     /**
@@ -279,7 +327,6 @@ public class AdsHttpClientTool {
             AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(enrichedAffiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
             URI requestUri = toRequestUri(enrichedAffiliateUrl, "affiliateUrl");
             try {
-                RedirectResult result = null;
                 // Redirect Start
                 OkHttpClient redirectClient = httpClient.newBuilder()
                         .followRedirects(false)
@@ -290,38 +337,44 @@ public class AdsHttpClientTool {
                     Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
                     try (Response response = redirectClient.newCall(request).execute()) {
                         int statusCode = response.code();
-                        URI responseUri = currentUri;
-                        log.warn("Apply Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
+                        URI responseUri = response.request() != null && response.request().url() != null
+                                ? response.request().url().uri()
+                                : currentUri;
+                        log.warn("Apply Normal Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
                         if (statusCode >= 200 && statusCode < 300) {
-                            result = new RedirectResult(statusCode, responseUri);
-                            break;
-                        }
-
-                        if (statusCode >= 300 && statusCode < 400) {
+                            if (isLandingPage(responseUri, adsHttpRequestDto.getLandingPageUrl())){
+                                return new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                            }
+                            String redirectTarget = null;
+                            if (response.body() != null) {
+                                String responseBody = response.body().string();
+                                redirectTarget = extractClientRedirectTarget(responseBody);
+                            }
+                            if (!StringUtils.hasText(redirectTarget)) {
+                                redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
+                            }
+                            if (!StringUtils.hasText(redirectTarget)) {
+                                redirectTarget = response.header("Location");
+                            }
+                            if (StringUtils.hasText(redirectTarget)) {
+                                currentUri = resolveRedirectUri(currentUri, redirectTarget);
+                                continue;
+                            }
+                            return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response body does not contain a redirect target");
+                        } else if (statusCode >= 300 && statusCode < 400) {
                             String location = response.header("Location");
                             if (!StringUtils.hasText(location)) {
-                                result = new RedirectResult(statusCode, responseUri);
-                                break;
+                                return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
                             }
                             URI nextUri = currentUri.resolve(location.trim());
                             currentUri = nextUri;
                             continue;
+                        } else {
+                            return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                         }
-                        result = new RedirectResult(statusCode, responseUri);
-                        break;
                     }
                 }
                 // Redirect End
-                if (result.statusCode >= 200 && result.statusCode < 300) {
-                    if (isLandingPage(result.finalUri, adsHttpRequestDto.getLandingPageUrl())) {
-                        return new AdsHttpResponseDto(StatusConstant.SUCCESS, result.statusCode, result.finalUriText(), "");
-                    }
-                    return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response URL does not match landing page prefix");
-                }
-                if (result.statusCode >= 300 && result.statusCode < 400) {
-                    return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response URL does not match landing page prefix");
-                }
-                return new AdsHttpResponseDto(StatusConstant.FAILED, result.statusCode, result.finalUriText(), "Response status code is not a redirect or success code");
             } catch (IOException proxyIoException) {
                 log.error("Apply Affiliate Ads. Request URL={} error={}", requestUri, proxyIoException.getMessage(), proxyIoException);
                 return new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), proxyIoException.getMessage());
@@ -374,6 +427,66 @@ public class AdsHttpClientTool {
         return uri != null && StringUtils.hasText(landingPage) && uri.toString().startsWith(landingPage);
     }
 
+    private String extractClientRedirectTarget(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return null;
+        }
+        String target = findPatternMatch(JS_REDIRECT_PATTERN, responseBody);
+        if (StringUtils.hasText(target)) {
+            return target;
+        }
+        target = findPatternMatch(LOCATION_REPLACE_PATTERN, responseBody);
+        if (StringUtils.hasText(target)) {
+            return target;
+        }
+        target = findPatternMatch(META_REFRESH_PATTERN, responseBody);
+        if (StringUtils.hasText(target)) {
+            return target;
+        }
+        return null;
+    }
+
+    private String findPatternMatch(Pattern pattern, String value) {
+        Matcher matcher = pattern.matcher(value);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return null;
+    }
+
+    private String extractRefreshHeaderTarget(String refreshHeader) {
+        if (!StringUtils.hasText(refreshHeader)) {
+            return null;
+        }
+        Matcher matcher = REFRESH_HEADER_PATTERN.matcher(refreshHeader.trim());
+        if (!matcher.find()) {
+            return null;
+        }
+        String target = matcher.group(1).trim();
+        if (target.startsWith("\"") || target.startsWith("'")) {
+            target = target.substring(1).trim();
+        }
+        if (target.endsWith("\"") || target.endsWith("'")) {
+            target = target.substring(0, target.length() - 1).trim();
+        }
+        if (target.startsWith(";")) {
+            target = target.substring(1).trim();
+        }
+        return target;
+    }
+
+    private URI resolveRedirectUri(URI currentUri, String redirectTarget) {
+        if (!StringUtils.hasText(redirectTarget)) {
+            throw new IllegalArgumentException("redirectTarget is required");
+        }
+        String normalized = redirectTarget.trim().replace(" ", "%20").replace("|", "%7C");
+        try {
+            return currentUri.resolve(URI.create(normalized));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("redirectTarget is invalid URL: " + redirectTarget, ex);
+        }
+    }
+
     private Request buildRequest(AdsHttpRequestDto adsHttpRequestDto, String url) {
         return new Request.Builder()
                 .url(url)
@@ -409,17 +522,4 @@ public class AdsHttpClientTool {
         return value.trim();
     }
 
-    private static final class RedirectResult {
-        private final int statusCode;
-        private final URI finalUri;
-
-        private RedirectResult(int statusCode, URI finalUri) {
-            this.statusCode = statusCode;
-            this.finalUri = finalUri;
-        }
-
-        private String finalUriText() {
-            return finalUri == null ? "" : finalUri.toString();
-        }
-    }
 }
