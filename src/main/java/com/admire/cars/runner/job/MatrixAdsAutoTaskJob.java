@@ -102,6 +102,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             adsTaskLog1.setStatusCode(String.valueOf(adsHttpResponseDto.getCode()));
             adsTaskLog1.setResponseUrl(adsHttpResponseDto.getUrl());
             adsTaskLog1.setErrMsg(adsHttpResponseDto.getError());
+            LocalDateTime eventTime = LocalDateTime.now();
             if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
                 ShiftLink shiftLink = new ShiftLink();
                 shiftLink.setAdsId(adsMatrixInfo.getId());
@@ -117,16 +118,13 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLinkList.add(shiftLink);
 
                 adsTaskLog1.setSuccess(true);
-
-                adsMatrixInfo.setSuccessCount(adsMatrixInfo.getSuccessCount() + 1);
-                adsMatrixInfo.setLastSuccessDate(LocalDateTime.now());
+                updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
             } else {
-                adsMatrixInfo.setFailedCount(adsMatrixInfo.getFailedCount() + 1);
                 adsTaskLog1.setSuccess(false);
+                updateMatrixFailedCounter(adsMatrixInfo.getId(), eventTime);
             }
             adsTaskLogRepository.saveAll(adsTaskLogList);
             shiftLinkRepository.saveAll(shiftLinkList);
-            adsMatrixInfoRepository.save(adsMatrixInfo);
             // Sleep 5 minutes before processing next affiliate
             if (affiliateIndex < adsMatrixAffiliateInfoList.size() - 1) {
                 sleepBeforeNextAffiliate();
@@ -187,6 +185,20 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             throw new IllegalArgumentException(message);
         }
         return value.trim();
+    }
+
+    private void updateMatrixSuccessCounter(Long adsId, LocalDateTime eventTime) {
+        int updated = adsMatrixInfoRepository.incrementSuccessCount(adsId, eventTime);
+        if (updated != 1) {
+            throw new IllegalStateException("Failed to update matrix success counter for adsId=" + adsId);
+        }
+    }
+
+    private void updateMatrixFailedCounter(Long adsId, LocalDateTime eventTime) {
+        int updated = adsMatrixInfoRepository.incrementFailedCount(adsId, eventTime);
+        if (updated != 1) {
+            throw new IllegalStateException("Failed to update matrix failed counter for adsId=" + adsId);
+        }
     }
 
     private void sleepBeforeNextAffiliate() {

@@ -4,17 +4,23 @@ import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.AdsNormalPostBackService;
 import com.admire.cars.runner.service.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
+@Slf4j
 public class AdsApiConsumeController {
 
     private final UserService userService;
@@ -23,10 +29,13 @@ public class AdsApiConsumeController {
 
     private final AdsNormalPostBackService adsNormalPostBackService;
 
-    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService, AdsNormalPostBackService adsNormalPostBackService) {
+    private final ObjectMapper objectMapper;
+
+    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService, AdsNormalPostBackService adsNormalPostBackService, ObjectMapper objectMapper) {
         this.userService = userService;
         this.adsApiConsumeService = adsApiConsumeService;
         this.adsNormalPostBackService = adsNormalPostBackService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -41,6 +50,7 @@ public class AdsApiConsumeController {
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
+            log.info("consumeNormalAds campaignName: {}", campaignName);
             String result = adsApiConsumeService.consumeNormalAds(campaignName, apiKey);
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_PLAIN)
@@ -64,6 +74,7 @@ public class AdsApiConsumeController {
             @RequestParam(value = "api_key", required = false) String apiKeyParam) {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
+            log.info("consumeMatrixAds campaignName: {}", campaignName);
             String result = adsApiConsumeService.consumeMatrixAds(campaignName, apiKey);
             return ResponseEntity.ok()
                     .contentType(MediaType.TEXT_PLAIN)
@@ -79,22 +90,41 @@ public class AdsApiConsumeController {
     /**
      * Post back
      * @param apiKeyParam
-     * @param adsNormalPostBack
      * @return
      */
-    @PostMapping(value = "/postback", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> create(
+
+    @PostMapping(value = "/postback")
+    public ResponseEntity<Map<String, Object>> createByJson(
             @RequestParam(value = "api_key", required = false) String apiKeyParam,
-            @RequestBody AdsNormalPostBack adsNormalPostBack) {
+            @RequestParam(value = "advertiser_shop_id", required = false) String advertiserShopId,
+            @RequestParam(value = "advertiser_shop_name", required = false) String advertiserShopName,
+            @RequestParam(value = "sign_id", required = false) String signId,
+            @RequestParam(value = "order_no", required = false) String orderNo,
+            @RequestParam(value = "order_time", required = false) String orderTime,
+            @RequestParam(value = "order_amount", required = false) String orderAmount,
+            @RequestParam(value = "user_commission_amount", required = false) String userCommissionAmount,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "sub_id", required = false) String subId,
+            @RequestParam(value = "sub_id2", required = false) String subId2,
+            @RequestParam(value = "click_time", required = false) String clickTime) {
+
+        AdsNormalPostBack adsNormalPostBack = new AdsNormalPostBack();
+        adsNormalPostBack.setAdvertiserShopId(advertiserShopId);
+        adsNormalPostBack.setAdvertiserShopName(advertiserShopName);
+        adsNormalPostBack.setSignId(signId);
+        adsNormalPostBack.setOrderNo(orderNo);
+        adsNormalPostBack.setOrderTime(orderTime);
+        adsNormalPostBack.setOrderAmount(parseBigDecimal(orderAmount,"order_amount"));
+        adsNormalPostBack.setUserCommissionAmount(parseBigDecimal(userCommissionAmount,"user_commission_amount"));
+        adsNormalPostBack.setStatus(status);
+        adsNormalPostBack.setSubId(subId);
+        adsNormalPostBack.setSubId2(subId2);
+        adsNormalPostBack.setClickTime(clickTime);
+        log.info("postback with adsNormalPostBack:{}", adsNormalPostBack);
         return createPostBack(apiKeyParam, adsNormalPostBack);
     }
 
-    @PostMapping(value = "/postback", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> createByForm(
-            @RequestParam(value = "api_key", required = false) String apiKeyParam,
-            @ModelAttribute AdsNormalPostBack adsNormalPostBack) {
-        return createPostBack(apiKeyParam, adsNormalPostBack);
-    }
+
 
     private ResponseEntity<Map<String, Object>> createPostBack(String apiKeyParam, AdsNormalPostBack adsNormalPostBack) {
         try {
@@ -117,6 +147,19 @@ public class AdsApiConsumeController {
             return apiKeyParam.trim();
         }
         throw new IllegalArgumentException("api_key is required");
+    }
+
+
+
+    private BigDecimal parseBigDecimal(String value, String fieldName) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(fieldName + " must be a valid decimal number");
+        }
     }
 
 }

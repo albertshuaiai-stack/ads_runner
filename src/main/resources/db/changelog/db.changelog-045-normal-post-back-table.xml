@@ -17,33 +17,33 @@
                 <constraints nullable="false"/>
             </column>
             <column name="ADVERTISER_SHOP_ID" type="VARCHAR(64)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="ADVERTISER_SHOP_NAME" type="VARCHAR(512)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="SIGN_ID" type="VARCHAR(64)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="ORDER_NO" type="VARCHAR(128)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="ORDER_TIME" type="TIMESTAMP">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="ORDER_AMOUNT" type="DECIMAL(19,2)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="USER_COMMISSION_AMOUNT" type="DECIMAL(19,2)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="STATUS" type="VARCHAR(64)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
             <column name="SUB_ID" type="VARCHAR(128)"/>
             <column name="SUB_ID2" type="VARCHAR(128)"/>
             <column name="CLICK_TIME" type="TIMESTAMP">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
         </createTable>
     </changeSet>

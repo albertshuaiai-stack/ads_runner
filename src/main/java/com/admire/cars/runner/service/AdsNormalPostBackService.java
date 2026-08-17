@@ -113,12 +113,12 @@ public class AdsNormalPostBackService {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + adsNormalPostBack.getAdsOwner()));
 
         adsNormalPostBack.setAdsOwner(owner.getUserPhoneNumber());
-        adsNormalPostBack.setAffiliateSite(requiredTrim(adsNormalPostBack.getAffiliateSite(), "affiliateSite"));
-        adsNormalPostBack.setAdvertiserShopId(requiredTrim(adsNormalPostBack.getAdvertiserShopId(), "advertiserShopId"));
-        adsNormalPostBack.setAdvertiserShopName(requiredTrim(adsNormalPostBack.getAdvertiserShopName(), "advertiserShopName"));
-        adsNormalPostBack.setSignId(requiredTrim(adsNormalPostBack.getSignId(), "signId"));
-        adsNormalPostBack.setOrderNo(requiredTrim(adsNormalPostBack.getOrderNo(), "orderNo"));
-        adsNormalPostBack.setStatus(requiredTrim(adsNormalPostBack.getStatus(), "status"));
+        adsNormalPostBack.setAffiliateSite(trimToNull(adsNormalPostBack.getAffiliateSite()));
+        adsNormalPostBack.setAdvertiserShopId(trimToNull(adsNormalPostBack.getAdvertiserShopId()));
+        adsNormalPostBack.setAdvertiserShopName(trimToNull(adsNormalPostBack.getAdvertiserShopName()));
+        adsNormalPostBack.setSignId(trimToNull(adsNormalPostBack.getSignId()));
+        adsNormalPostBack.setOrderNo(trimToNull(adsNormalPostBack.getOrderNo()));
+        adsNormalPostBack.setStatus(trimToNull(adsNormalPostBack.getStatus()));
         adsNormalPostBack.setSubId(trimToNull(adsNormalPostBack.getSubId()));
         adsNormalPostBack.setSubId2(trimToNull(adsNormalPostBack.getSubId2()));
 
@@ -132,33 +132,22 @@ public class AdsNormalPostBackService {
         validateLength(adsNormalPostBack.getSubId(), "subId", 128);
         validateLength(adsNormalPostBack.getSubId2(), "subId2", 128);
 
-        adsNormalPostBack.setOrderTime(requiredTrim(adsNormalPostBack.getOrderTime(), "orderTime"));
-        adsNormalPostBack.setClickTime(requiredTrim(adsNormalPostBack.getClickTime(), "clickTime"));
+        adsNormalPostBack.setOrderTime(trimToNull(adsNormalPostBack.getOrderTime()));
+        adsNormalPostBack.setClickTime(trimToNull(adsNormalPostBack.getClickTime()));
 
         validateLength(adsNormalPostBack.getOrderTime(), "orderTime", 32);
         validateLength(adsNormalPostBack.getClickTime(), "clickTime", 32);
-        if (adsNormalPostBack.getOrderAmount() == null) {
-            throw new IllegalArgumentException("orderAmount is required");
-        }
-        if (adsNormalPostBack.getUserCommissionAmount() == null) {
-            throw new IllegalArgumentException("userCommissionAmount is required");
-        }
         validateAmount(adsNormalPostBack.getOrderAmount(), "orderAmount");
         validateAmount(adsNormalPostBack.getUserCommissionAmount(), "userCommissionAmount");
     }
 
     private void validateAmount(BigDecimal value, String fieldName) {
+        if (value == null) {
+            return;
+        }
         if (value.scale() > 2) {
             throw new IllegalArgumentException(fieldName + " must have at most 2 decimal places");
         }
-    }
-
-    private String requiredTrim(String value, String fieldName) {
-        String trimmed = trimToNull(value);
-        if (trimmed == null) {
-            throw new IllegalArgumentException(fieldName + " is required");
-        }
-        return trimmed;
     }
 
     private void validateLength(String value, String fieldName, int maxLength) {

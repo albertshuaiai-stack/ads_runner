@@ -32,36 +32,36 @@ public class AdsNormalPostBack {
     @Column(name = "AFFILIATE_SITE", length = 64)
     private String affiliateSite;
 
-    @Column(name = "ADVERTISER_SHOP_ID", length = 64)
+    @Column(name = "advertiser_shop_id", length = 64)
     private String advertiserShopId;
 
-    @Column(name = "ADVERTISER_SHOP_NAME", length = 512)
+    @Column(name = "advertiser_shop_name", length = 512)
     private String advertiserShopName;
 
-    @Column(name = "SIGN_ID", length = 64)
+    @Column(name = "sign_id", length = 64)
     private String signId;
 
-    @Column(name = "ORDER_NO", length = 128)
+    @Column(name = "order_no", length = 128)
     private String orderNo;
 
-    @Column(name = "ORDER_TIME", length = 32)
+    @Column(name = "order_time", length = 32)
     private String orderTime;
 
-    @Column(name = "ORDER_AMOUNT", precision = 19, scale = 2)
+    @Column(name = "order_amount", precision = 19, scale = 2)
     private BigDecimal orderAmount;
 
-    @Column(name = "USER_COMMISSION_AMOUNT", precision = 19, scale = 2)
+    @Column(name = "user_commission_amount", precision = 19, scale = 2)
     private BigDecimal userCommissionAmount;
 
-    @Column(name = "STATUS", length = 64)
+    @Column(name = "status", length = 64)
     private String status;
 
-    @Column(name = "SUB_ID", length = 128)
+    @Column(name = "sub_id", length = 128)
     private String subId;
 
-    @Column(name = "SUB_ID2", length = 128)
+    @Column(name = "sub_id2", length = 128)
     private String subId2;
 
-    @Column(name = "CLICK_TIME", length = 32)
+    @Column(name = "click_time", length = 32)
     private String clickTime;
 }
