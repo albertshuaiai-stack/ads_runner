@@ -40,7 +40,7 @@ public class AdsNormalPostBackService {
         User user = userService.getEnabledUserByApiKey(apiKey);
         String adsOwner = user.getUserPhoneNumber();
         adsNormalPostBack.setAdsOwner(adsOwner);
-        adsNormalPostBack.setAffiliateSite("BonuesArrive");
+        adsNormalPostBack.setAffiliateSite("BonusArrive");
         validateAndNormalize(adsNormalPostBack);
         return adsNormalPostBackRepository.save(adsNormalPostBack);
     }
