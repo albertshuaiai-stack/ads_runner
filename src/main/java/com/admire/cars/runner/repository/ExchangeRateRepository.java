@@ -23,4 +23,11 @@ public interface ExchangeRateRepository extends JpaRepository<ExchangeRate, Long
             @Param("fromCurrency") String fromCurrency,
             @Param("toCurrency") String toCurrency,
             @Param("asOf") LocalDate asOf);
+
+    Optional<ExchangeRate> findByFromCurrencyAndToCurrencyAndEffectiveDate(
+            String fromCurrency,
+            String toCurrency,
+            LocalDate effectiveDate);
+
+    Optional<ExchangeRate> findTopByOrderByEffectiveDateDescCreateDateDescIdDesc();
 }

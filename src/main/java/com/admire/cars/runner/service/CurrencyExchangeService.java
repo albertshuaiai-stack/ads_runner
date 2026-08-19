@@ -53,4 +53,9 @@ public class CurrencyExchangeService {
             return exchangeRate.getRate();
         });
     }
+
+    public ExchangeRate getLatestExchangeRate() {
+        return exchangeRateRepository.findTopByOrderByEffectiveDateDescCreateDateDescIdDesc()
+                .orElseThrow(() -> new IllegalStateException("No exchange rate records found"));
+    }
 }
