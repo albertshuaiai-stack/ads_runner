@@ -46,8 +46,11 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         String jobId = resolveJobId(context, jobDataMap);
         Long adsId = resolveAdsId(jobId, jobDataMap);
 
-        AdsNormalInfo adsNormalInfo = adsNormalInfoRepository.findById(adsId)
-                .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_INFO not found: " + adsId));
+        AdsNormalInfo adsNormalInfo = adsNormalInfoRepository.findById(adsId).orElse(null);
+        if (adsNormalInfo == null) {
+            log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
+            return;
+        }
         AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
         if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
             ShiftLink shiftLink = new ShiftLink();

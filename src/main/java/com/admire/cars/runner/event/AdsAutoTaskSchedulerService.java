@@ -102,6 +102,9 @@ public class AdsAutoTaskSchedulerService {
             String groupName = buildGroupName(event.adsOwner(), event.adsType());
             JobKey jobKey = JobKey.jobKey(buildJobName(event), groupName);
             JobKey legacyJobKey = isNormalAds(event) ? JobKey.jobKey(buildLegacyNormalJobName(event.adsId()), groupName) : null;
+            JobKey legacyMatrixJobKey = Constant.ADS_TYPE_MATRIX.equalsIgnoreCase(event.adsType())
+                    ? JobKey.jobKey(buildLegacyMatrixJobName(event.adsId()), groupName)
+                    : null;
             boolean deleted = false;
 
             if (scheduler.checkExists(jobKey)) {
@@ -110,6 +113,10 @@ public class AdsAutoTaskSchedulerService {
             }
             if (legacyJobKey != null && scheduler.checkExists(legacyJobKey)) {
                 scheduler.deleteJob(legacyJobKey);
+                deleted = true;
+            }
+            if (legacyMatrixJobKey != null && scheduler.checkExists(legacyMatrixJobKey)) {
+                scheduler.deleteJob(legacyMatrixJobKey);
                 deleted = true;
             }
 
@@ -159,17 +166,20 @@ public class AdsAutoTaskSchedulerService {
 
     private String buildJobName(AdsAutoTaskRegistrationEvent event) {
         if (isNormalAds(event)) {
-            return event.adsId() + "-" + safeToken(event.adsOwner()) + "-" + safeToken(event.campainCountry()) + "-"
-                    + safeToken(event.platformName()) + "-" + safeToken(event.campainName());
+            return buildQuartzJobName(event.adsId(), event.adsOwner(), event.campainCountry(), event.platformName(), event.campainName());
         }
         if (Constant.ADS_TYPE_MATRIX.equalsIgnoreCase(event.adsType())) {
-            return "matrix-ads-task-" + event.adsId();
+            return buildQuartzJobName(event.adsId(), event.adsOwner(), event.campainCountry(), "Matrix", event.campainName());
         }
         return buildJobName(event.adsId());
     }
 
     private String buildLegacyNormalJobName(Long adsId) {
         return "ads-task-" + adsId;
+    }
+
+    private String buildLegacyMatrixJobName(Long adsId) {
+        return "matrix-ads-task-" + adsId;
     }
 
     private String buildTriggerName(Long adsId) {
@@ -195,10 +205,14 @@ public class AdsAutoTaskSchedulerService {
 
     private boolean isJobForAdsId(String jobName, Long adsId, String adsType) {
         String idToken = String.valueOf(adsId);
-        if (Constant.ADS_TYPE_MATRIX.equalsIgnoreCase(adsType)) {
-            return ("matrix-ads-task-" + idToken).equals(jobName) || ("ads-task-" + idToken).equals(jobName);
-        }
-        return jobName.startsWith(idToken + "-") || ("ads-task-" + idToken).equals(jobName);
+        return jobName.startsWith(idToken + "-")
+                || buildLegacyNormalJobName(adsId).equals(jobName)
+                || (Constant.ADS_TYPE_MATRIX.equalsIgnoreCase(adsType) && buildLegacyMatrixJobName(adsId).equals(jobName));
+    }
+
+    private String buildQuartzJobName(Long adsId, String adsOwner, String campainCountry, String platformName, String campainName) {
+        return adsId + "-" + safeToken(adsOwner) + "-" + safeToken(campainCountry) + "-"
+                + safeToken(platformName) + "-" + safeToken(campainName);
     }
 
     private String safeToken(String value) {

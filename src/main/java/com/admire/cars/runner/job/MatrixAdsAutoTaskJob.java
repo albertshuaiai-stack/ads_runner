@@ -41,9 +41,11 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
         String jobId = resolveJobId(context, jobDataMap);
         Long adsId = resolveAdsId(jobId, jobDataMap);
 
-        AdsMatrixInfo adsMatrixInfo = adsMatrixInfoRepository.findById(adsId)
-                .orElseThrow(() -> new IllegalArgumentException("ADS_MATRIX_INFO not found: " + adsId));
-        final String landingPageUrl = requireText(adsMatrixInfo.getLandingPageUrl(), "landingPageUrl is required");
+        AdsMatrixInfo adsMatrixInfo = adsMatrixInfoRepository.findById(adsId).orElse(null);
+        if (adsMatrixInfo == null) {
+            log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
+            return;
+        }
         List<AdsMatrixAffiliateInfo> adsMatrixAffiliateInfoList = adsMatrixInfo.getAffiliateInfos();
         if (CollectionUtils.isEmpty(adsMatrixAffiliateInfoList)) {
             log.warn("MATRIX_AUTO_TASK_NO_AFFILIATE_INFO adsId={} Job Id:{}  message={}",
