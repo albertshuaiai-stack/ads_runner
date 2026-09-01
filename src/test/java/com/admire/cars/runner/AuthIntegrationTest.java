@@ -2075,7 +2075,7 @@ public class AuthIntegrationTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        waitForTriggerState(TriggerKey.triggerKey("ads-trigger-" + normalId, "8899000001-Normal"), TriggerState.PAUSED);
+        waitForTriggerState(TriggerKey.triggerKey("Normal-trigger-" + normalId, "8899000001-Normal"), TriggerState.PAUSED);
 
         webTestClient.put().uri("/api/normal-ads/" + normalId)
                 .header("AMtoken", token)
@@ -2083,7 +2083,7 @@ public class AuthIntegrationTest {
                 .exchange()
                 .expectStatus().isOk();
 
-        waitForTriggerState(TriggerKey.triggerKey("ads-trigger-" + normalId, "8899000001-Normal"), TriggerState.NORMAL);
+        waitForTriggerState(TriggerKey.triggerKey("Normal-trigger-" + normalId, "8899000001-Normal"), TriggerState.NORMAL);
 
         webTestClient.delete().uri("/api/normal-ads/" + normalId)
                 .header("AMtoken", token)

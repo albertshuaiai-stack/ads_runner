@@ -40,7 +40,7 @@ public class AdsAutoTaskSchedulerService {
             String groupName = buildGroupName(event.adsOwner(), event.adsType());
             String jobName = buildJobName(event);
             JobKey jobKey = JobKey.jobKey(jobName, groupName);
-            TriggerKey triggerKey = TriggerKey.triggerKey(buildTriggerName(event.adsId()), groupName);
+            TriggerKey triggerKey = TriggerKey.triggerKey(buildTriggerName(event.adsType(), event.adsId()), groupName);
             Class<? extends AdsAutoTaskJob> jobClass = resolveJobClass(event.adsType());
 
             if (event.intervalTime() != null && event.intervalTime() > 0) {
@@ -66,7 +66,7 @@ public class AdsAutoTaskSchedulerService {
                 scheduler.scheduleJob(jobDetail, trigger);
                 
                 // Debug: log trigger state
-                TriggerKey tk = TriggerKey.triggerKey(buildTriggerName(event.adsId()), buildGroupName(event.adsOwner(), event.adsType()));
+                TriggerKey tk = TriggerKey.triggerKey(buildTriggerName(event.adsType(), event.adsId()), buildGroupName(event.adsOwner(), event.adsType()));
                 Trigger savedTrigger = scheduler.getTrigger(tk);
                 log.info("AUTO_JOB_SCHEDULED jobGroup={} jobId={} intervalMinutes={} adsType={} nextFireTime={} finalFireTime={}",
                         groupName, jobKey.getName(), event.intervalTime(), event.adsType(), 
@@ -133,7 +133,7 @@ public class AdsAutoTaskSchedulerService {
     public ExecuteTimeInfo getExecuteTimeInfo(Long adsId, String adsOwner, String adsType) {
         try {
             String groupName = buildGroupName(adsOwner, adsType);
-            TriggerKey triggerKey = TriggerKey.triggerKey(buildTriggerName(adsId), groupName);
+            TriggerKey triggerKey = TriggerKey.triggerKey(buildTriggerName(adsType, adsId), groupName);
             Trigger trigger = scheduler.getTrigger(triggerKey);
             if (trigger == null) {
                 return new ExecuteTimeInfo(null, null);
@@ -182,8 +182,8 @@ public class AdsAutoTaskSchedulerService {
         return "matrix-ads-task-" + adsId;
     }
 
-    private String buildTriggerName(Long adsId) {
-        return "ads-trigger-" + adsId;
+    private String buildTriggerName(String adsType,Long adsId) {
+        return adsType + "-trigger-" + adsId;
     }
 
     private boolean isNormalAds(AdsAutoTaskRegistrationEvent event) {

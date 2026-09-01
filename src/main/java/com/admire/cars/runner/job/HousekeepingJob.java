@@ -1,9 +1,6 @@
 package com.admire.cars.runner.job;
 
-import com.admire.cars.runner.repository.ShiftLinkLogRepository;
-import com.admire.cars.runner.repository.ShiftLinkRepository;
-import com.admire.cars.runner.repository.AdsTaskLogRepository;
-import com.admire.cars.runner.repository.HouseKeepingLogRepository;
+import com.admire.cars.runner.repository.*;
 import com.admire.cars.runner.entity.HouseKeepingLog;
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.Job;
@@ -31,18 +28,25 @@ public class HousekeepingJob implements Job {
     private AdsTaskLogRepository adsTaskLogRepository;
 
     @Autowired
+    private AdsMatrixInfoRepository adsMatrixInfoRepository;
+
+    @Autowired
+    private AdsNormalInfoRepository adsNormalInfoRepository;
+
+
+    @Autowired
     private HouseKeepingLogRepository houseKeepingLogRepository;
 
-    @Value("${housekeeping.shift-link-log.retention-days:5}")
+    @Value("${housekeeping.shift-link-log.retention-days:7}")
     private int shiftLinkLogRetentionDays;
 
     @Value("${housekeeping.normal.shift-link.retention-days:1}")
     private int normalShiftLinkRetentionDays;
 
-    @Value("${housekeeping.matrix.shift-link.retention-days:3}")
+    @Value("${housekeeping.matrix.shift-link.retention-days:1}")
     private int matrixShiftLinkRetentionDays;
 
-    @Value("${housekeeping.ads-task-log.retention-days:2}")
+    @Value("${housekeeping.ads-task-log.retention-days:1}")
     private int adsTaskLogRetentionDays;
 
     @Override
@@ -79,6 +83,12 @@ public class HousekeepingJob implements Job {
             houseKeepingLogRepository.save(houseKeepingLog);
             log.info("HOUSEKEEPING_JOB_END totalPurged={}", 
                     purgeShiftLinkLog + purgeNormalShiftLink + purgeMatrixShiftLink + purgeAdsTaskLog);
+
+           int revertMatrixCount = adsMatrixInfoRepository.revertSuccessAndFailedCount();
+           int revertNormalCount = adsNormalInfoRepository.revertSuccessAndFailedCount();
+
+           log.info("HOUSEKEEPING_REVERT_SUCCESS_AND_FAILED_COUNT matrixCount={} normalCount={}", revertMatrixCount, revertNormalCount);
+
         } catch (Exception ex) {
             log.error("HOUSEKEEPING_JOB_FAILED", ex);
             throw new IllegalStateException("Housekeeping job failed", ex);

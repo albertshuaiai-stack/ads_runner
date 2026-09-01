@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,13 +22,12 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
 
     private static final Logger log = LoggerFactory.getLogger(MatrixAdsAutoTaskJob.class);
 
-
     @Autowired
     private AdsMatrixInfoRepository adsMatrixInfoRepository;
 
-
     @Autowired
     private ShiftLinkRepository shiftLinkRepository;
+
 
     @Autowired
     private AdsHttpClientTool adsHttpClientTool;
@@ -52,32 +50,38 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                     adsMatrixInfo.getId(), jobId, "No affiliate info found for this matrix ad");
             return;
         }
-        for (int affiliateIndex = 0; affiliateIndex < adsMatrixAffiliateInfoList.size(); affiliateIndex++) {
-            AdsMatrixAffiliateInfo adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(affiliateIndex);
-            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsMatrixInfo, adsMatrixAffiliateInfo);
-            LocalDateTime eventTime = LocalDateTime.now();
-            if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
-                ShiftLink shiftLink = new ShiftLink();
-                shiftLink.setAdsId(adsMatrixInfo.getId());
-                shiftLink.setAdsName(adsMatrixInfo.getCampainName());
-                shiftLink.setAdsType(Constant.ADS_TYPE_MATRIX);
-                shiftLink.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
-                shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
-                shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-                shiftLink.setDisplayNumber(1L);
-                shiftLink.setStatus(adsMatrixInfo.getStatus());
-                shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
-                shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
-                updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
-                shiftLinkRepository.save(shiftLink);
+        ShiftLink lastGeneratedShiftLink = shiftLinkRepository.findLastShiftLink(adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getCampainName(), Constant.ADS_TYPE_MATRIX);
+        AdsMatrixAffiliateInfo adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(0);
+        if (null != lastGeneratedShiftLink) {
+            for (int index = 0; index < adsMatrixAffiliateInfoList.size(); index ++) {
+                if (lastGeneratedShiftLink.getPlatformName().equals(adsMatrixAffiliateInfoList.get(index).getPlatformName())
+                        && lastGeneratedShiftLink.getRemarks().equalsIgnoreCase(adsMatrixAffiliateInfoList.get(index).getRemarks())) {
+                    int nextIndex = (index + 1) % adsMatrixAffiliateInfoList.size();
+                    adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(nextIndex);
+                    break;
 
-            } else {
-                updateMatrixFailedCounter(adsMatrixInfo.getId(), eventTime);
+                }
             }
-            // Sleep 5 minutes before processing next affiliate
-            if (affiliateIndex < adsMatrixAffiliateInfoList.size() - 1) {
-                sleepBeforeNextAffiliate();
-            }
+        }
+        AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsMatrixInfo, adsMatrixAffiliateInfo);
+        LocalDateTime eventTime = LocalDateTime.now();
+        if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+            ShiftLink shiftLink = new ShiftLink();
+            shiftLink.setAdsId(adsMatrixInfo.getId());
+            shiftLink.setAdsName(adsMatrixInfo.getCampainName());
+            shiftLink.setAdsType(Constant.ADS_TYPE_MATRIX);
+            shiftLink.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
+            shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
+            shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
+            shiftLink.setDisplayNumber(1L);
+            shiftLink.setStatus(adsMatrixInfo.getStatus());
+            shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
+            shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
+            updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
+            shiftLinkRepository.save(shiftLink);
+
+        } else {
+            updateMatrixFailedCounter(adsMatrixInfo.getId(), eventTime);
         }
     }
 
@@ -150,13 +154,4 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
         }
     }
 
-    private void sleepBeforeNextAffiliate() {
-        try {
-            log.info("Sleeping for 5 minutes before processing next AdsMatrixAffiliateInfo...");
-            Thread.sleep(5 * 60 * 1000); // 5 minutes in milliseconds
-        } catch (InterruptedException e) {
-            log.warn("Thread sleep interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-    }
 }

@@ -1,5 +1,6 @@
 package com.admire.cars.runner.repository;
 
+import com.admire.cars.runner.entity.AdsTaskLog;
 import com.admire.cars.runner.entity.ShiftLink;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -29,6 +30,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
               and s.adsType = :adsType
               and upper(s.status) = upper(:status)
               and coalesce(s.displayTimes, 0) < coalesce(s.displayNumber, 0)
+              order by (s.displayTimes - s.displayNumber) desc, s.id DESC
             """)
     List<ShiftLink> findEligibleForConsume(String adsOwner, String adsName, String adsType, String status);
 
@@ -42,6 +44,15 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
              order by s.id DESC
             """)
     List<ShiftLink> findEligibleForNormalConsume(String adsOwner, String adsName, String adsType, String status);
+
+    @Query("""
+            select s from ShiftLink s
+            where s.adsOwner = :adsOwner
+              and s.adsName = :adsName
+              and s.adsType = :adsType
+              ORDER BY s.createDate DESC LIMIT 1
+            """)
+    ShiftLink findLastShiftLink(String adsOwner, String adsName, String adsType);
 
     List<ShiftLink> findByPlatformName(String platformName);
 
@@ -64,7 +75,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
 
     @Modifying
     @Transactional
-    @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
+    @Query("delete from ShiftLink s where s.displayNumber = 1 and s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
     int deleteByCreateDateBeforeAndAdsTypeMatrix(LocalDateTime cutoff);
 
 }

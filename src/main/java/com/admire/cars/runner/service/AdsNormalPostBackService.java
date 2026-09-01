@@ -5,6 +5,7 @@ import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.AdsNormalPostBackRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional
 public class AdsNormalPostBackService {
@@ -41,6 +43,13 @@ public class AdsNormalPostBackService {
         String adsOwner = user.getUserPhoneNumber();
         adsNormalPostBack.setAdsOwner(adsOwner);
         validateAndNormalize(adsNormalPostBack);
+
+        adsNormalPostBackRepository.findByAdsOwnerAndOrderNo(adsOwner, adsNormalPostBack.getOrderNo())
+                .ifPresent(existing -> {
+                    existing.setStatus(adsNormalPostBack.getStatus());
+                    adsNormalPostBack.setId(existing.getId());
+                    log.info("Updated existing ADS_NORMAL_POST_BACK: {}", existing.getId());
+                });
         return adsNormalPostBackRepository.save(adsNormalPostBack);
     }
 

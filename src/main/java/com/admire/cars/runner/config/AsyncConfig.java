@@ -14,8 +14,8 @@ public class AsyncConfig {
     @Bean(name = "adsAsyncExecutor")
     public Executor adsAsyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(8);
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(30);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("ads-auto-task-");
         executor.initialize();

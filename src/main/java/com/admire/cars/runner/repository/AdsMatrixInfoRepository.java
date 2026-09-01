@@ -37,4 +37,10 @@ public interface AdsMatrixInfoRepository extends JpaRepository<AdsMatrixInfo, Lo
              where m.id = :id
             """)
     int incrementFailedCount(Long id, LocalDateTime eventTime);
+
+
+    @Modifying
+    @Transactional
+    @Query("update AdsMatrixInfo m set m.successCount = 0, m.failedCount = 0")
+    int revertSuccessAndFailedCount();
 }

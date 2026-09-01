@@ -19,9 +19,13 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,6 +56,17 @@ public class AdsHttpClientTool {
     private static final Pattern META_REFRESH_PATTERN = Pattern.compile(
             "(?is)<meta[^>]+http-equiv\\s*=\\s*['\"]?refresh['\"]?[^>]+content\\s*=\\s*['\"][^'\"]*url\\s*=\\s*([^'\"\\s>]+)");
     private static final Pattern REFRESH_HEADER_PATTERN = Pattern.compile("(?i)\\burl\\s*=\\s*(.+)$");
+    private static final Pattern SEARCH_PARAM_REDIRECT_PATTERN = Pattern.compile(
+            "(?is)searchParams\\.get\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)");
+    private static final Pattern PRIORITY_SEARCH_PARAM_REDIRECT_PATTERN = Pattern.compile(
+            "(?is)searchParams\\.get\\(\\s*['\"]((?:store_)?url|redirect(?:_url)?|target|dest(?:ination)?|link|tracking(?:_link)?)['\"]\\s*\\)");
+    private static final List<String> REFER_LINKS = Arrays.asList(
+            "https://www.instagram.com/",
+            "https://www.facebook.com/",
+            "https://www.youtube.com/",
+            "https://admirecars.com/",
+            "https://x.com/",
+            "https://www.reddit.com/");
 
 
     /**
@@ -101,7 +116,7 @@ public class AdsHttpClientTool {
                                 (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
                                 (long)(hop + 1), userAgent, currentUri.toString());
 
-                        final long durationMillis = System.currentTimeMillis() - startTime;
+                        final long durationMillis = (System.currentTimeMillis() - startTime)/1000;
                         adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
                         adsTaskLog.setStatusCode(String.valueOf(statusCode));
                         adsTaskLog.setResponseUrl(responseUri.toString());
@@ -115,7 +130,7 @@ public class AdsHttpClientTool {
                             String redirectTarget = null;
                             if (response.body() != null) {
                                 String responseBody = response.body().string();
-                                redirectTarget = extractClientRedirectTarget(responseBody);
+                                redirectTarget = extractClientRedirectTarget(responseBody, currentUri);
                             }
                             if (!StringUtils.hasText(redirectTarget)) {
                                 redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
@@ -139,7 +154,7 @@ public class AdsHttpClientTool {
                                 adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
                                 break;
                             }
-                            URI nextUri = currentUri.resolve(location.trim());
+                            URI nextUri = resolveRedirectUri(currentUri, location);
                             currentUri = nextUri;
                             continue;
                         } else {
@@ -219,7 +234,7 @@ public class AdsHttpClientTool {
                                 (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
                                 (long)(hop + 1), userAgent, currentUri.toString());
                         adsTaskLog.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
-                        final long durationMillis = System.currentTimeMillis() - startTime;
+                        final long durationMillis = (System.currentTimeMillis() - startTime)/1000;
                         adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
                         adsTaskLog.setStatusCode(String.valueOf(statusCode));
                         adsTaskLog.setResponseUrl(responseUri.toString());
@@ -231,7 +246,7 @@ public class AdsHttpClientTool {
                                 break;
                             }
                             String responseBody = response.body() != null ? response.body().string() : "";
-                            String redirectTarget = extractClientRedirectTarget(responseBody);
+                            String redirectTarget = extractClientRedirectTarget(responseBody, currentUri);
                             if (!StringUtils.hasText(redirectTarget)) {
                                 redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
                             }
@@ -251,7 +266,7 @@ public class AdsHttpClientTool {
                                 adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
                                 break;
                             }
-                            URI nextUri = currentUri.resolve(location.trim());
+                            URI nextUri = resolveRedirectUri(currentUri, location);
                             currentUri = nextUri;
                             continue;
                         } else {
@@ -428,6 +443,10 @@ public class AdsHttpClientTool {
     }
 
     private String extractClientRedirectTarget(String responseBody) {
+        return extractClientRedirectTarget(responseBody, null);
+    }
+
+    private String extractClientRedirectTarget(String responseBody, URI currentUri) {
         if (!StringUtils.hasText(responseBody)) {
             return null;
         }
@@ -443,7 +462,67 @@ public class AdsHttpClientTool {
         if (StringUtils.hasText(target)) {
             return target;
         }
+        target = extractSearchParamRedirectTarget(responseBody, currentUri);
+        if (StringUtils.hasText(target)) {
+            return target;
+        }
         return null;
+    }
+
+    private String extractSearchParamRedirectTarget(String responseBody, URI currentUri) {
+        if (currentUri == null || !StringUtils.hasText(currentUri.getRawQuery())) {
+            return null;
+        }
+        Matcher matcher = PRIORITY_SEARCH_PARAM_REDIRECT_PATTERN.matcher(responseBody);
+        while (matcher.find()) {
+            String paramName = matcher.group(1).trim();
+            String paramValue = getQueryParameter(currentUri, paramName);
+            if (looksLikeRedirectTarget(paramValue)) {
+                return paramValue;
+            }
+        }
+        matcher = SEARCH_PARAM_REDIRECT_PATTERN.matcher(responseBody);
+        while (matcher.find()) {
+            String paramName = matcher.group(1).trim();
+            String paramValue = getQueryParameter(currentUri, paramName);
+            if (looksLikeRedirectTarget(paramValue)) {
+                return paramValue;
+            }
+        }
+        return null;
+    }
+
+    private String getQueryParameter(URI uri, String paramName) {
+        String rawQuery = uri == null ? null : uri.getRawQuery();
+        if (!StringUtils.hasText(rawQuery) || !StringUtils.hasText(paramName)) {
+            return null;
+        }
+        for (String pair : rawQuery.split("&")) {
+            int idx = pair.indexOf('=');
+            String key = idx >= 0 ? pair.substring(0, idx) : pair;
+            if (paramName.equals(urlDecode(key))) {
+                String value = idx >= 0 ? pair.substring(idx + 1) : "";
+                return urlDecode(value);
+            }
+        }
+        return null;
+    }
+
+    private String urlDecode(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        return URLDecoder.decode(value, StandardCharsets.UTF_8);
+    }
+
+    private boolean looksLikeRedirectTarget(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        return value.startsWith("http://")
+                || value.startsWith("https://")
+                || value.startsWith("//")
+                || value.startsWith("/");
     }
 
     private String findPatternMatch(Pattern pattern, String value) {
@@ -479,37 +558,45 @@ public class AdsHttpClientTool {
         if (!StringUtils.hasText(redirectTarget)) {
             throw new IllegalArgumentException("redirectTarget is required");
         }
-        String normalized = redirectTarget.trim().replace(" ", "%20").replace("|", "%7C");
-        try {
-            return currentUri.resolve(URI.create(normalized));
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("redirectTarget is invalid URL: " + redirectTarget, ex);
-        }
+        URI targetUri = toUri(redirectTarget, "redirectTarget");
+        return currentUri.resolve(targetUri);
     }
 
     private Request buildRequest(AdsHttpRequestDto adsHttpRequestDto, String url) {
+        String referLink = getRandomReferLink();
+        log.info("Using referer link: {}, User-Agent:{}, user device:{}",
+                referLink, adsHttpRequestDto.getUserAgent(), adsHttpRequestDto.getDeviceType());
         return new Request.Builder()
                 .url(url)
                 .header("Accept", "text/html, application/json, text/plain, */*")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Cache-Control", "no-cache")
                 .header("Pragma", "no-cache")
+                .header("Referer", referLink)
                 .header("X-Device-Type", adsHttpRequestDto.getDeviceType())
                 .header("User-Agent", adsHttpRequestDto.getUserAgent())
                 .get()
                 .build();
     }
 
+    private String getRandomReferLink() {
+        return REFER_LINKS.get(ThreadLocalRandom.current().nextInt(REFER_LINKS.size()));
+    }
+
     private URI toRequestUri(String value, String fieldName) {
         String normalized = requireText(value, fieldName + " is required");
+        return toUri(normalized, fieldName);
+    }
+
+    private URI toUri(String value, String fieldName) {
         try {
-            return URI.create(normalized);
+            return URI.create(value);
         } catch (IllegalArgumentException ex) {
-            String sanitized = normalized.replace(" ", "%20").replace("|", "%7C");
+            String sanitized = value.replace(" ", "%20").replace("|", "%7C");
             try {
                 return URI.create(sanitized);
             } catch (IllegalArgumentException nested) {
-                throw new IllegalArgumentException(fieldName + " is invalid URL: " + normalized, nested);
+                throw new IllegalArgumentException(fieldName + " is invalid URL: " + value, nested);
             }
         }
     }
