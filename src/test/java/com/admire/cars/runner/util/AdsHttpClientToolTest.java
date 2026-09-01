@@ -117,6 +117,24 @@ class AdsHttpClientToolTest {
     }
 
     @Test
+    void applyAffiliateAd_matrixHandlesAbsoluteRedirectWithPercentInQuery() throws Exception {
+        HttpServer server = startPercentRedirectServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsMatrixInfo matrixInfo = buildMatrixInfo(baseUrl);
+            AdsMatrixAffiliateInfo affiliateInfo = buildMatrixAffiliateInfo(baseUrl);
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(matrixInfo, affiliateInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(baseUrl + "/final?c=IHG%20Summer%20Sale.%20Save%20Up%20to%2030%25%20By%207/30", response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void applyAffiliateAd_normalFollowsSearchParamBasedJsRedirects() throws Exception {
         HttpServer server = startSearchParamRedirectServer();
         try {
@@ -237,6 +255,25 @@ class AdsHttpClientToolTest {
             String host = exchange.getRequestHeaders().getFirst("Host");
             exchange.getResponseHeaders().add("Location",
                     "http://" + host + "/final?c=InterContinental| Best Price Guarantee");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/final", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer startPercentRedirectServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            String host = exchange.getRequestHeaders().getFirst("Host");
+            exchange.getResponseHeaders().add("Location",
+                    "http://" + host + "/final?c=IHG Summer Sale. Save Up to 30% By 7/30");
             exchange.sendResponseHeaders(302, -1);
             exchange.close();
         });

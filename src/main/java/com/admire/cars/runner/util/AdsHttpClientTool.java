@@ -592,13 +592,39 @@ public class AdsHttpClientTool {
         try {
             return URI.create(value);
         } catch (IllegalArgumentException ex) {
-            String sanitized = value.replace(" ", "%20").replace("|", "%7C");
+            String sanitized = sanitizeUriValue(value);
             try {
                 return URI.create(sanitized);
             } catch (IllegalArgumentException nested) {
                 throw new IllegalArgumentException(fieldName + " is invalid URL: " + value, nested);
             }
         }
+    }
+
+    private String sanitizeUriValue(String value) {
+        StringBuilder sanitized = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '%' && !hasValidPercentEncoding(value, i)) {
+                sanitized.append("%25");
+            } else {
+                sanitized.append(ch);
+            }
+        }
+        return sanitized.toString().replace(" ", "%20").replace("|", "%7C");
+    }
+
+    private boolean hasValidPercentEncoding(String value, int index) {
+        if (index + 2 >= value.length()) {
+            return false;
+        }
+        return isHexDigit(value.charAt(index + 1)) && isHexDigit(value.charAt(index + 2));
+    }
+
+    private boolean isHexDigit(char ch) {
+        return (ch >= '0' && ch <= '9')
+                || (ch >= 'a' && ch <= 'f')
+                || (ch >= 'A' && ch <= 'F');
     }
 
 
