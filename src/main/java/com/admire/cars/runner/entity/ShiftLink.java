@@ -50,6 +50,10 @@ public class ShiftLink {
     @Column(name = "REMARKS", length = 64)
     private String remarks;
 
+    public String getRemarks() {
+        return remarks == null ? "" : remarks;
+    }
+
     @Column(name = "STATUS", nullable = false, length = 16)
     private String status;
 
