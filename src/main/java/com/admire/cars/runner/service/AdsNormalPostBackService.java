@@ -89,9 +89,9 @@ public class AdsNormalPostBackService {
                         scopedAdsOwner.toLowerCase()));
             }
             if (StringUtils.hasText(affiliateSite)) {
-                predicates.add(criteriaBuilder.like(
+                predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("affiliateSite")),
-                        "%" + affiliateSite.trim().toLowerCase() + "%"));
+                          affiliateSite.trim().toLowerCase()));
             }
 
             if (StringUtils.hasText(orderNo)) {

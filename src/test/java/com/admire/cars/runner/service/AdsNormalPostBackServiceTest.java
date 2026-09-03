@@ -20,6 +20,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -91,5 +92,25 @@ class AdsNormalPostBackServiceTest {
         assertEquals("order-1", found.getOrderNo());
         assertEquals(1, service.search(null, null, null, null, 1L, PageRequest.of(0, 10)).getTotalElements());
         assertEquals(1, service.search("13800000000", null, null, null, null, PageRequest.of(0, 10)).getTotalElements());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.search(null, null, null, null, null, PageRequest.of(0, 10)));
+    }
+
+    @Test
+    void search_allows_admin_without_ads_owner_filter() {
+        User admin = new User();
+        admin.setId(1L);
+        admin.setUserPhoneNumber("13800000000");
+        admin.setUserRole("admin");
+
+        AdsNormalPostBack saved = new AdsNormalPostBack();
+        saved.setId(1L);
+        saved.setAdsOwner("13800000000");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(adsNormalPostBackRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(saved)));
+
+        assertEquals(1, service.search(null, null, null, null, 1L, PageRequest.of(0, 10)).getTotalElements());
     }
 }

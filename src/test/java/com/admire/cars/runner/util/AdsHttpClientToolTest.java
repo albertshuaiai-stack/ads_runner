@@ -135,6 +135,25 @@ class AdsHttpClientToolTest {
     }
 
     @Test
+    void applyAffiliateAd_matrixHandlesAffiliateUrlWithBracketCharacter() throws Exception {
+        HttpServer server = startRedirectServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsMatrixInfo matrixInfo = buildMatrixInfo(baseUrl);
+            AdsMatrixAffiliateInfo affiliateInfo = buildMatrixAffiliateInfo(baseUrl);
+            affiliateInfo.setAffiliteUrl(baseUrl + "/index/index/openurl?camref=1011lkzHo&pubref=151966291x21515177451/[loyalty:151966291");
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(matrixInfo, affiliateInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(baseUrl + "/final?lkid=82853225&subid=566&cid=final", response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void applyAffiliateAd_normalFollowsSearchParamBasedJsRedirects() throws Exception {
         HttpServer server = startSearchParamRedirectServer();
         try {

@@ -602,16 +602,41 @@ public class AdsHttpClientTool {
     }
 
     private String sanitizeUriValue(String value) {
-        StringBuilder sanitized = new StringBuilder(value.length() + 8);
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            if (ch == '%' && !hasValidPercentEncoding(value, i)) {
+        int prefixEnd = findAuthorityPrefixEnd(value);
+        String prefix = value.substring(0, prefixEnd);
+        String remainder = value.substring(prefixEnd);
+        StringBuilder sanitized = new StringBuilder(value.length() + 16);
+        sanitized.append(prefix);
+        for (int i = 0; i < remainder.length(); i++) {
+            char ch = remainder.charAt(i);
+            if (ch == '%' && !hasValidPercentEncoding(remainder, i)) {
                 sanitized.append("%25");
+            } else if (ch == ' ') {
+                sanitized.append("%20");
+            } else if (ch == '|') {
+                sanitized.append("%7C");
+            } else if (ch == '[') {
+                sanitized.append("%5B");
+            } else if (ch == ']') {
+                sanitized.append("%5D");
             } else {
                 sanitized.append(ch);
             }
         }
-        return sanitized.toString().replace(" ", "%20").replace("|", "%7C");
+        return sanitized.toString();
+    }
+
+    private int findAuthorityPrefixEnd(String value) {
+        int schemeIndex = value.indexOf("://");
+        if (schemeIndex < 0) {
+            return 0;
+        }
+        int authorityStart = schemeIndex + 3;
+        int authorityEnd = value.indexOf('/', authorityStart);
+        if (authorityEnd >= 0) {
+            return authorityEnd;
+        }
+        return value.length();
     }
 
     private boolean hasValidPercentEncoding(String value, int index) {
