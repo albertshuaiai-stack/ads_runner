@@ -66,7 +66,23 @@ public class AdsHttpClientTool {
             "https://www.youtube.com/",
             "https://admirecars.com/",
             "https://x.com/",
-            "https://www.reddit.com/");
+            "https://www.reddit.com/",
+            "https://www.google.com/",
+            "https://www.bing.com/",
+            "https://www.yahoo.com/",
+            "https://www.linkedin.com/",
+            "https://www.pinterest.com/",
+            "https://www.amazon.com/",
+            "https://www.wikipedia.org/",
+            "https://medium.com/",
+            "https://www.quora.com/",
+            "https://www.tiktok.com/",
+            "https://www.spotify.com/",
+            "https://www.netflix.com/",
+            "https://stackoverflow.com/",
+            "https://news.google.com/",
+            "https://www.nytimes.com/",
+            "https://www.theguardian.com/");
 
 
     /**
