@@ -40,14 +40,18 @@ public class AdsPostBackController {
             HttpServletRequest request) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
-        Page<AdsNormalPostBack> postBacks = adsNormalPostBackService.search(
-                adsOwner,
-                affiliateSite,
-                orderNo,
-                status,
-                getUserIdOrNull(request),
-                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
-        return ResponseEntity.ok(postBacks);
+        try {
+            Page<AdsNormalPostBack> postBacks = adsNormalPostBackService.search(
+                    adsOwner,
+                    affiliateSite,
+                    orderNo,
+                    status,
+                    getUserIdOrNull(request),
+                    PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+            return ResponseEntity.ok(postBacks);
+        } catch (IllegalArgumentException ex) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
+        }
     }
 
     private Long getUserIdOrNull(HttpServletRequest request) {

@@ -60,6 +60,7 @@ public class ToolEmailController {
 
     @GetMapping
     public ResponseEntity<Page<ToolEmail>> search(
+            @RequestParam(required = false) String adsOwner,
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String emailAddress,
             @RequestParam(defaultValue = "0") int page,
@@ -68,9 +69,10 @@ public class ToolEmailController {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
         Page<ToolEmail> toolEmails = toolEmailService.search(
+                adsOwner,
                 userName,
                 emailAddress,
-                getUserId(request),
+                getUserIdOrNull(request),
                 PageRequest.of(
                         safePage,
                         safeSize,
@@ -118,6 +120,14 @@ public class ToolEmailController {
         Object uid = request.getAttribute("userId");
         if (uid == null) {
             throw new IllegalArgumentException("userId not found in request");
+        }
+        return (Long) uid;
+    }
+
+    private Long getUserIdOrNull(HttpServletRequest request) {
+        Object uid = request.getAttribute("userId");
+        if (uid == null) {
+            return null;
         }
         return (Long) uid;
     }

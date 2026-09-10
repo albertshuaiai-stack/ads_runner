@@ -55,23 +55,35 @@ public class ReferUserAgentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ReferUserAgent>> getAll() {
-        return ResponseEntity.ok(referUserAgentService.getAll());
+    public ResponseEntity<org.springframework.data.domain.Page<ReferUserAgent>> getAll(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "10") int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(size, 1);
+        return ResponseEntity.ok(referUserAgentService.getAll(org.springframework.data.domain.PageRequest.of(safePage, safeSize, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"))));
     }
 
     @GetMapping("/by-device/{device}")
-    public ResponseEntity<List<ReferUserAgent>> getByDevice(@PathVariable String device) {
+    public ResponseEntity<org.springframework.data.domain.Page<ReferUserAgent>> getByDevice(@PathVariable String device,
+                                                                                             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+                                                                                             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "10") int size) {
         try {
-            return ResponseEntity.ok(referUserAgentService.getByDevice(device));
+            int safePage = Math.max(page, 0);
+            int safeSize = Math.max(size, 1);
+            return ResponseEntity.ok(referUserAgentService.getByDevice(device, org.springframework.data.domain.PageRequest.of(safePage, safeSize, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"))));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
 
     @GetMapping("/by-device/{device}/user-agents")
-    public ResponseEntity<List<String>> getUserAgentListByDevice(@PathVariable String device) {
+    public ResponseEntity<org.springframework.data.domain.Page<String>> getUserAgentListByDevice(@PathVariable String device,
+                                                                                                   @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+                                                                                                   @org.springframework.web.bind.annotation.RequestParam(defaultValue = "10") int size) {
         try {
-            return ResponseEntity.ok(referUserAgentService.getUserAgentListByDevice(device));
+            int safePage = Math.max(page, 0);
+            int safeSize = Math.max(size, 1);
+            return ResponseEntity.ok(referUserAgentService.getUserAgentListByDevice(device, org.springframework.data.domain.PageRequest.of(safePage, safeSize, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.ASC, "id"))));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }

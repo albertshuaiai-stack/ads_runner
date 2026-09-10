@@ -2,6 +2,8 @@ package com.admire.cars.runner.repository;
 
 import com.admire.cars.runner.entity.ReferUserAgent;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -9,4 +11,5 @@ import java.util.List;
 @Repository
 public interface ReferUserAgentRepository extends JpaRepository<ReferUserAgent, Long> {
     List<ReferUserAgent> findByDeviceIgnoreCaseOrderByIdAsc(String device);
+    Page<ReferUserAgent> findByDeviceIgnoreCaseOrderByIdAsc(String device, Pageable pageable);
 }

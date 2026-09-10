@@ -72,12 +72,21 @@ public class AdsNormalPostBackService {
         String normalizedAdsOwner = normalizeOptional(adsOwner);
         User currentUser = currentUserId == null ? null : getCurrentUser(currentUserId);
         boolean admin = currentUser != null && isAdmin(currentUser);
-        String scopedAdsOwner = currentUser == null
-                ? normalizedAdsOwner
-                : (admin ? normalizedAdsOwner : currentUser.getUserPhoneNumber());
-
-        if (currentUser == null && !StringUtils.hasText(scopedAdsOwner)) {
-            throw new IllegalArgumentException("adsOwner is required");
+        String scopedAdsOwner;
+        if (currentUser != null) {
+            if (admin) {
+                // admin: use provided adsOwner if any, otherwise no owner filter
+                scopedAdsOwner = normalizedAdsOwner;
+            } else {
+                // non-admin logged user: always scope to token-derived owner
+                scopedAdsOwner = currentUser.getUserPhoneNumber();
+            }
+        } else {
+            // unauthenticated caller: require adsOwner to be provided
+            if (!StringUtils.hasText(normalizedAdsOwner)) {
+                throw new IllegalArgumentException("adsOwner is required");
+            }
+            scopedAdsOwner = normalizedAdsOwner;
         }
 
         Specification<AdsNormalPostBack> specification = (root, query, criteriaBuilder) -> {
@@ -89,9 +98,10 @@ public class AdsNormalPostBackService {
                         scopedAdsOwner.toLowerCase()));
             }
             if (StringUtils.hasText(affiliateSite)) {
-                predicates.add(criteriaBuilder.equal(
+                // support partial, case-insensitive match for affiliate site
+                predicates.add(criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("affiliateSite")),
-                          affiliateSite.trim().toLowerCase()));
+                        "%" + affiliateSite.trim().toLowerCase() + "%"));
             }
 
             if (StringUtils.hasText(orderNo)) {

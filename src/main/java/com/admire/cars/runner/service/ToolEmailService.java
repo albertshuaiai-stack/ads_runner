@@ -49,14 +49,28 @@ public class ToolEmailService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ToolEmail> search(String userName, String emailAddress, Long currentUserId, Pageable pageable) {
-        User currentUser = getCurrentUser(currentUserId);
-        boolean admin = isAdmin(currentUser);
+    public Page<ToolEmail> search(String adsOwner, String userName, String emailAddress, Long currentUserId, Pageable pageable) {
+        String normalizedAdsOwner = trimToNull(adsOwner);
+        User currentUser = currentUserId == null ? null : getCurrentUser(currentUserId);
+        boolean admin = currentUser != null && isAdmin(currentUser);
+        String scopedAdsOwner;
+        if (currentUser != null) {
+            if (admin) {
+                scopedAdsOwner = normalizedAdsOwner; // admin may filter or not
+            } else {
+                scopedAdsOwner = currentUser.getUserPhoneNumber(); // non-admin forced
+            }
+        } else {
+            scopedAdsOwner = normalizedAdsOwner; // unauthenticated may filter by param or not
+        }
+
         Specification<ToolEmail> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (!admin) {
-                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
+            if (StringUtils.hasText(scopedAdsOwner)) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("adsOwner")),
+                        scopedAdsOwner.toLowerCase()));
             }
             if (StringUtils.hasText(userName)) {
                 predicates.add(criteriaBuilder.like(

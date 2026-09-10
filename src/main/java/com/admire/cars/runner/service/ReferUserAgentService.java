@@ -48,8 +48,8 @@ public class ReferUserAgentService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReferUserAgent> getAll() {
-        return referUserAgentRepository.findAll();
+    public org.springframework.data.domain.Page<ReferUserAgent> getAll(org.springframework.data.domain.Pageable pageable) {
+        return referUserAgentRepository.findAll(pageable);
     }
 
     public ReferUserAgent update(Long id, ReferUserAgent updateData) {
@@ -82,25 +82,42 @@ public class ReferUserAgentService {
     }
 
     @Transactional(readOnly = true)
-    public List<String> getUserAgentListByDevice(String device) {
+    public org.springframework.data.domain.Page<String> getUserAgentListByDevice(String device, org.springframework.data.domain.Pageable pageable) {
         String normalizedDevice = normalizeRequired(device, Constant.DEVICE, 16);
-        List<ReferUserAgent> cachedList = userAgentsByDeviceCache.get(normalizedDevice);
-        if (cachedList == null) {
-            cacheDevice(normalizedDevice);
-            cachedList = userAgentsByDeviceCache.getOrDefault(normalizedDevice, Collections.emptyList());
+        // If cache present and no pagination requested (pageable is null or unpaged), return full cached list
+        if (pageable == null || pageable.isUnpaged()) {
+            List<ReferUserAgent> cachedList = userAgentsByDeviceCache.get(normalizedDevice);
+            if (cachedList == null) {
+                cacheDevice(normalizedDevice);
+                cachedList = userAgentsByDeviceCache.getOrDefault(normalizedDevice, Collections.emptyList());
+            }
+            List<String> uaList = cachedList.stream().map(ReferUserAgent::getUserAgent).toList();
+            return new org.springframework.data.domain.PageImpl<>(uaList);
         }
-        return cachedList.stream().map(ReferUserAgent::getUserAgent).toList();
+        // Use repository pagination
+        org.springframework.data.domain.Page<ReferUserAgent> page = referUserAgentRepository.findByDeviceIgnoreCaseOrderByIdAsc(normalizedDevice, pageable);
+        List<String> uaList = page.stream().map(ReferUserAgent::getUserAgent).toList();
+        return new org.springframework.data.domain.PageImpl<>(uaList, pageable, page.getTotalElements());
+    }
+
+    // Backwards-compatible overload for existing callers
+    @Transactional(readOnly = true)
+    public List<String> getUserAgentListByDevice(String device) {
+        return getUserAgentListByDevice(device, org.springframework.data.domain.Pageable.unpaged()).getContent();
     }
 
     @Transactional(readOnly = true)
-    public List<ReferUserAgent> getByDevice(String device) {
+    public org.springframework.data.domain.Page<ReferUserAgent> getByDevice(String device, org.springframework.data.domain.Pageable pageable) {
         String normalizedDevice = normalizeRequired(device, Constant.DEVICE, 16);
-        List<ReferUserAgent> cachedList = userAgentsByDeviceCache.get(normalizedDevice);
-        if (cachedList == null) {
-            cacheDevice(normalizedDevice);
-            cachedList = userAgentsByDeviceCache.getOrDefault(normalizedDevice, Collections.emptyList());
+        if (pageable == null || pageable.isUnpaged()) {
+            List<ReferUserAgent> cachedList = userAgentsByDeviceCache.get(normalizedDevice);
+            if (cachedList == null) {
+                cacheDevice(normalizedDevice);
+                cachedList = userAgentsByDeviceCache.getOrDefault(normalizedDevice, Collections.emptyList());
+            }
+            return new org.springframework.data.domain.PageImpl<>(new ArrayList<>(cachedList));
         }
-        return new ArrayList<>(cachedList);
+        return referUserAgentRepository.findByDeviceIgnoreCaseOrderByIdAsc(normalizedDevice, pageable);
     }
 
     private void reloadCache() {

@@ -67,6 +67,7 @@ public class ToolIncomeService {
 
     @Transactional(readOnly = true)
     public Page<ToolIncome> search(
+            String adsOwner,
             String platformName,
             String userName,
             String paypalAccount,
@@ -74,13 +75,26 @@ public class ToolIncomeService {
             LocalDate payoutDateEnd,
             Long currentUserId,
             Pageable pageable) {
-        User currentUser = getCurrentUser(currentUserId);
-        boolean admin = isAdmin(currentUser);
+        String normalizedAdsOwner = trimToNull(adsOwner);
+        User currentUser = currentUserId == null ? null : getCurrentUser(currentUserId);
+        boolean admin = currentUser != null && isAdmin(currentUser);
+        String scopedAdsOwner;
+        if (currentUser != null) {
+            if (admin) {
+               scopedAdsOwner = normalizedAdsOwner;
+            } else {
+               scopedAdsOwner = currentUser.getUserPhoneNumber();
+            }
+        } else {
+            scopedAdsOwner = normalizedAdsOwner;
+        }
         Specification<ToolIncome> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (!admin) {
-                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
+            if (StringUtils.hasText(scopedAdsOwner)) {
+               predicates.add(criteriaBuilder.equal(
+                       criteriaBuilder.lower(root.get("adsOwner")),
+                       scopedAdsOwner.toLowerCase()));
             }
             if (StringUtils.hasText(platformName)) {
                 predicates.add(criteriaBuilder.like(

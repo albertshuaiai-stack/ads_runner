@@ -62,6 +62,7 @@ public class ToolIncomeController {
 
     @GetMapping
     public ResponseEntity<Page<ToolIncome>> search(
+            @RequestParam(required = false) String adsOwner,
             @RequestParam(required = false) String platformName,
             @RequestParam(required = false) String userName,
             @RequestParam(required = false) String paypalAccount,
@@ -73,12 +74,13 @@ public class ToolIncomeController {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
         Page<ToolIncome> toolIncomes = toolIncomeService.search(
+                adsOwner,
                 platformName,
                 userName,
                 paypalAccount,
                 payoutDateBegin,
                 payoutDateEnd,
-                getUserId(request),
+                getUserIdOrNull(request),
                 PageRequest.of(
                         safePage,
                         safeSize,
@@ -126,6 +128,14 @@ public class ToolIncomeController {
         Object uid = request.getAttribute("userId");
         if (uid == null) {
             throw new IllegalArgumentException("userId not found in request");
+        }
+        return (Long) uid;
+    }
+
+    private Long getUserIdOrNull(HttpServletRequest request) {
+        Object uid = request.getAttribute("userId");
+        if (uid == null) {
+            return null;
         }
         return (Long) uid;
     }

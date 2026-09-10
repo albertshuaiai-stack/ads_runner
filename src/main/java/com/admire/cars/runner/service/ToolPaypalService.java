@@ -50,14 +50,28 @@ public class ToolPaypalService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ToolPaypal> search(String paypalEmail, String primaryEmail, Long currentUserId, Pageable pageable) {
-        User currentUser = getCurrentUser(currentUserId);
-        boolean admin = isAdmin(currentUser);
+    public Page<ToolPaypal> search(String adsOwner, String paypalEmail, String primaryEmail, Long currentUserId, Pageable pageable) {
+        String normalizedAdsOwner = trimToNull(adsOwner);
+        User currentUser = currentUserId == null ? null : getCurrentUser(currentUserId);
+        boolean admin = currentUser != null && isAdmin(currentUser);
+        String scopedAdsOwner;
+        if (currentUser != null) {
+            if (admin) {
+                scopedAdsOwner = normalizedAdsOwner;
+            } else {
+                scopedAdsOwner = currentUser.getUserPhoneNumber();
+            }
+        } else {
+            scopedAdsOwner = normalizedAdsOwner;
+        }
+
         Specification<ToolPaypal> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (!admin) {
-                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
+            if (StringUtils.hasText(scopedAdsOwner)) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("adsOwner")),
+                        scopedAdsOwner.toLowerCase()));
             }
             if (StringUtils.hasText(paypalEmail)) {
                 predicates.add(criteriaBuilder.like(
