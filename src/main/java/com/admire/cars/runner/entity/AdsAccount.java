@@ -40,6 +40,9 @@ public class AdsAccount {
     @Column(name = "MCC_ACCOUNT", length = 64)
     private String mccAccount;
 
+    @Column(name = "EMAIL_ADDRESS", length = 64)
+    private String emailAddress;
+
     @Column(name = "STATUS", nullable = false, length = 32)
     private String status;
 

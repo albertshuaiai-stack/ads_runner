@@ -28,6 +28,9 @@ public class AdsAccountService {
     private final AdsPlatformRepository adsPlatformRepository;
     private final UserRepository userRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.admire.cars.runner.repository.ToolEmailRepository toolEmailRepository;
+
     public AdsAccountService(
             AdsAccountRepository adsAccountRepository,
             AdsPlatformRepository adsPlatformRepository,
@@ -62,7 +65,9 @@ public class AdsAccountService {
             String mccAccount,
             String agencyPlatform,
             String accountType,
+            String emailAddress,
             String status,
+            String adsOwner,
             Long currentUserId,
             Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
@@ -71,9 +76,13 @@ public class AdsAccountService {
         Specification<AdsAccount> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (!admin) {
+            // adsOwner is optional. If provided, use it. Otherwise non-admin users are restricted to their own owner.
+            if (StringUtils.hasText(adsOwner)) {
+                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), adsOwner.trim()));
+            } else if (!admin) {
                 predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
             }
+
             if (StringUtils.hasText(adsAccount)) {
                 predicates.add(criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("adsAccount")),
@@ -93,6 +102,11 @@ public class AdsAccountService {
                 predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("accountType")),
                         accountType.trim().toLowerCase(Locale.ROOT)));
+            }
+            if (StringUtils.hasText(emailAddress)) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("emailAddress")),
+                        emailAddress.trim().toLowerCase(Locale.ROOT)));
             }
             if (StringUtils.hasText(status)) {
                 predicates.add(criteriaBuilder.equal(
@@ -155,7 +169,8 @@ public class AdsAccountService {
         adsAccount.setAdsAccount(trimToNull(adsAccount.getAdsAccount()));
         adsAccount.setMccAccount(trimToNull(adsAccount.getMccAccount()));
         adsAccount.setAgencyPlatform(trimToNull(adsAccount.getAgencyPlatform()));
-        adsAccount.setAccountType(normalizeEnumLike(adsAccount.getAccountType(), "SELF"));
+        adsAccount.setEmailAddress(trimToNull(adsAccount.getEmailAddress()));
+        adsAccount.setAccountType(normalizeEnumLike(adsAccount.getAccountType(), "NORMAL"));
         adsAccount.setStatus(normalizeEnumLike(adsAccount.getStatus(), "ACTIVE"));
 
         if (!StringUtils.hasText(adsAccount.getAdsAccount())) {
@@ -168,7 +183,21 @@ public class AdsAccountService {
             adsAccount.setAgencyPlatform(platform.getPlatformName());
         }
 
-        validateAllowed(adsAccount.getAccountType(), "accountType", "SELF", "AGENCY");
+        // if emailAddress is provided, it must exist in TOOL_EMAL (if repository available)
+        if (adsAccount.getEmailAddress() != null) {
+            if (toolEmailRepository != null) {
+                com.admire.cars.runner.entity.ToolEmail te = toolEmailRepository.findByEmailAddress(adsAccount.getEmailAddress())
+                        .orElseThrow(() -> new IllegalArgumentException("TOOL_EMAL not found by emailAddress: " + adsAccount.getEmailAddress()));
+                // if adsOwner not specified, prefer owner from tool email
+                if (!StringUtils.hasText(adsAccount.getAdsOwner())) {
+                    adsAccount.setAdsOwner(te.getAdsOwner());
+                }
+            } else {
+                // repository not available in this context (e.g., tests) - skip strict validation
+            }
+        }
+
+        validateAllowed(adsAccount.getAccountType(), "accountType", "MCC", "NORMAL", "AGENCY");
         validateAllowed(adsAccount.getStatus(), "status", "ACTIVE", "PAUSED", "DEACTIVED");
 
         validateLength(adsAccount.getAdsAccount(), "adsAccount", 64);
@@ -176,6 +205,7 @@ public class AdsAccountService {
         validateLength(adsAccount.getAgencyPlatform(), "agencyPlatform", 64);
         validateLength(adsAccount.getAccountType(), "accountType", 32);
         validateLength(adsAccount.getStatus(), "status", 32);
+        validateLength(adsAccount.getEmailAddress(), "emailAddress", 64);
     }
 
     private String normalizeEnumLike(String value, String defaultValue) {

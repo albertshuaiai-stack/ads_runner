@@ -64,7 +64,9 @@ public class AdsAccountController {
             @RequestParam(required = false) String mccAccount,
             @RequestParam(required = false) String agencyPlatform,
             @RequestParam(required = false) String accountType,
+            @RequestParam(required = false) String emailAddress,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String adsOwner,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -75,7 +77,9 @@ public class AdsAccountController {
                 mccAccount,
                 agencyPlatform,
                 accountType,
+                emailAddress,
                 status,
+                adsOwner,
                 getUserId(request),
                 PageRequest.of(
                         safePage,

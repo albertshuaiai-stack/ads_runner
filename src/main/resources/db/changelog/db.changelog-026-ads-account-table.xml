@@ -18,6 +18,7 @@
             </column>
             <column name="AGENCY_PLATFORM" type="VARCHAR(64)"/>
             <column name="MCC_ACCOUNT" type="VARCHAR(64)"/>
+            <column name="EMAIL_ADDRESS" type="VARCHAR(64)"/>
             <column name="STATUS" type="VARCHAR(32)">
                 <constraints nullable="false"/>
             </column>
@@ -46,12 +47,32 @@
         <createIndex indexName="IDX_ADS_ACCOUNT_ACCOUNT_TYPE" tableName="ADS_ACCOUNT">
             <column name="ACCOUNT_TYPE"/>
         </createIndex>
+        <createIndex indexName="IDX_ADS_ACCOUNT_EMAIL_ADDRESS" tableName="ADS_ACCOUNT">
+            <column name="EMAIL_ADDRESS"/>
+        </createIndex>
         <createIndex indexName="IDX_ADS_ACCOUNT_STATUS" tableName="ADS_ACCOUNT">
             <column name="STATUS"/>
         </createIndex>
         <createIndex indexName="IDX_ADS_ACCOUNT_ADS_OWNER" tableName="ADS_ACCOUNT">
             <column name="ADS_OWNER"/>
         </createIndex>
+    </changeSet>
+
+    <!-- Migrate legacy account type values: SELF -> NORMAL -->
+    <changeSet id="ads-account-003-migrate-account-type-self-to-normal" author="copilot">
+        <update tableName="ADS_ACCOUNT">
+            <column name="ACCOUNT_TYPE" value="NORMAL"/>
+            <where>ACCOUNT_TYPE = 'SELF'</where>
+        </update>
+    </changeSet>
+
+    <!-- Add foreign key constraint from ADS_ACCOUNT.EMAIL_ADDRESS -> TOOL_EMAL.EMAIL_ADDRESS -->
+    <changeSet id="ads-account-004-add-email-fk" author="copilot">
+        <addForeignKeyConstraint baseTableName="ADS_ACCOUNT"
+                                 baseColumnNames="EMAIL_ADDRESS"
+                                 referencedTableName="TOOL_EMAL"
+                                 referencedColumnNames="EMAIL_ADDRESS"
+                                 constraintName="FK_ADS_ACCOUNT_EMAIL_ADDRESS"/>
     </changeSet>
 
 </databaseChangeLog>
