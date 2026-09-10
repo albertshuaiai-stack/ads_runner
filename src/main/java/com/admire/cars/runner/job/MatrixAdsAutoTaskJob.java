@@ -16,6 +16,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
 
@@ -50,19 +51,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
                     adsMatrixInfo.getId(), jobId, "No affiliate info found for this matrix ad");
             return;
         }
-        ShiftLink lastGeneratedShiftLink = shiftLinkRepository.findLastShiftLink(adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getCampainName(), Constant.ADS_TYPE_MATRIX);
-        AdsMatrixAffiliateInfo adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(0);
-        if (null != lastGeneratedShiftLink) {
-            for (int index = 0; index < adsMatrixAffiliateInfoList.size(); index ++) {
-                if (lastGeneratedShiftLink.getPlatformName().equals(adsMatrixAffiliateInfoList.get(index).getPlatformName())
-                        && lastGeneratedShiftLink.getRemarks().equalsIgnoreCase(adsMatrixAffiliateInfoList.get(index).getRemarks())) {
-                    int nextIndex = (index + 1) % adsMatrixAffiliateInfoList.size();
-                    adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(nextIndex);
-                    break;
-
-                }
-            }
-        }
+        AdsMatrixAffiliateInfo adsMatrixAffiliateInfo = adsMatrixAffiliateInfoList.get(ThreadLocalRandom.current().nextInt(adsMatrixAffiliateInfoList.size()));
         AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsMatrixInfo, adsMatrixAffiliateInfo);
         LocalDateTime eventTime = LocalDateTime.now();
         if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
