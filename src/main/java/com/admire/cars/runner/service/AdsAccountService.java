@@ -176,12 +176,7 @@ public class AdsAccountService {
         if (!StringUtils.hasText(adsAccount.getAdsAccount())) {
             throw new IllegalArgumentException("adsAccount is required");
         }
-
-        if (adsAccount.getAgencyPlatform() != null) {
-            AdsPlatform platform = adsPlatformRepository.findByPlatformNameIgnoreCase(adsAccount.getAgencyPlatform())
-                    .orElseThrow(() -> new IllegalArgumentException("ADS_PLATFORM not found: " + adsAccount.getAgencyPlatform()));
-            adsAccount.setAgencyPlatform(platform.getPlatformName());
-        }
+        adsAccount.setAgencyPlatform(adsAccount.getAgencyPlatform());
 
         // if emailAddress is provided, it must exist in TOOL_EMAL (if repository available)
         if (adsAccount.getEmailAddress() != null) {
@@ -264,5 +259,41 @@ public class AdsAccountService {
                 && Arrays.stream(user.getUserRole().split(","))
                 .map(String::trim)
                 .anyMatch(role -> "admin".equalsIgnoreCase(role));
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<AdsAccount> findByAccountType(String accountType, Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        boolean admin = isAdmin(currentUser);
+        String normalized = accountType == null ? null : accountType.trim().toUpperCase(java.util.Locale.ROOT);
+        Specification<AdsAccount> specification = (root, query, criteriaBuilder) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            if (!admin) {
+                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
+            }
+            if (normalized != null) {
+                predicates.add(criteriaBuilder.equal(root.get("accountType"), normalized));
+            }
+            return predicates.isEmpty() ? criteriaBuilder.conjunction() : criteriaBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+        return adsAccountRepository.findAll(specification);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<AdsAccount> findByAccountTypeNot(String accountType, Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        boolean admin = isAdmin(currentUser);
+        String normalized = accountType == null ? null : accountType.trim().toUpperCase(java.util.Locale.ROOT);
+        Specification<AdsAccount> specification = (root, query, criteriaBuilder) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            if (!admin) {
+                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
+            }
+            if (normalized != null) {
+                predicates.add(criteriaBuilder.notEqual(root.get("accountType"), normalized));
+            }
+            return predicates.isEmpty() ? criteriaBuilder.conjunction() : criteriaBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+        return adsAccountRepository.findAll(specification);
     }
 }

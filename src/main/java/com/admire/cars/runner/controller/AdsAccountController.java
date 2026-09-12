@@ -124,6 +124,18 @@ public class AdsAccountController {
         }
     }
 
+    @GetMapping("/mcc")
+    public ResponseEntity<java.util.List<AdsAccount>> getMccAccounts(HttpServletRequest request) {
+        java.util.List<AdsAccount> list = adsAccountService.findByAccountType("MCC", getUserId(request));
+        return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/normal")
+    public ResponseEntity<java.util.List<AdsAccount>> getNormalAccounts(HttpServletRequest request) {
+        java.util.List<AdsAccount> list = adsAccountService.findByAccountTypeNot("MCC", getUserId(request));
+        return ResponseEntity.ok(list);
+    }
+
     private Long getUserId(HttpServletRequest request) {
         Object uid = request.getAttribute("userId");
         if (uid == null) {
