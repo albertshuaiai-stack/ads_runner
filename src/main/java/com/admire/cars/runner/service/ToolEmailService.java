@@ -90,6 +90,12 @@ public class ToolEmailService {
         return toolEmailRepository.findAll(specification, pageable);
     }
 
+    public List<ToolEmail> myList(Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        String adsOwner = currentUser.getUserPhoneNumber();
+        return toolEmailRepository.findAllByAdsOwnerOrderByCreateDateDescIdDesc(adsOwner);
+    }
+
     public ToolEmail update(Long id, ToolEmail updateData, Long currentUserId) {
         if (updateData == null) {
             throw new IllegalArgumentException("updateData is required");

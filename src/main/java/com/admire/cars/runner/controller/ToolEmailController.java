@@ -80,6 +80,12 @@ public class ToolEmailController {
         return ResponseEntity.ok(toolEmails);
     }
 
+    @GetMapping("/my-list")
+    public ResponseEntity<java.util.List<ToolEmail>> myList(HttpServletRequest request) {
+        java.util.List<ToolEmail> list = toolEmailService.myList(getUserId(request));
+        return ResponseEntity.ok(list);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> update(
             @PathVariable Long id,

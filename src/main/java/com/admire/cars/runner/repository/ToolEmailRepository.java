@@ -12,4 +12,6 @@ public interface ToolEmailRepository extends JpaRepository<ToolEmail, Long>, Jpa
     Optional<ToolEmail> findByEmailAddress(String emailAddress);
 
     Optional<ToolEmail> findByUserName(String userName);
+
+    java.util.List<ToolEmail> findAllByAdsOwnerOrderByCreateDateDescIdDesc(String adsOwner);
 }
