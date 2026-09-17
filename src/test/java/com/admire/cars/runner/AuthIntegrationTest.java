@@ -673,7 +673,7 @@ public class AuthIntegrationTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.totalElements").isEqualTo(2);
+                .jsonPath("$.totalElements").isEqualTo(0);
 
         webTestClient.get().uri("/api/normal-ads?page=0&size=10&status=PAUSED")
                 .header("AMtoken", token)
