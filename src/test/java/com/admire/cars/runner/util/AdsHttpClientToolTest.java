@@ -81,6 +81,23 @@ class AdsHttpClientToolTest {
     }
 
     @Test
+    void applyAffiliateAd_normalFollowsPermanentServerRedirectsToFinalUrl() throws Exception {
+        HttpServer server = startPermanentServerRedirectServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsNormalInfo adsNormalInfo = buildNormalInfo(baseUrl);
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(baseUrl + "/final?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid=", response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void applyAffiliateAd_normalFollowRefreshHeaderRedirectsToFinalUrl() throws Exception {
         HttpServer server = startRefreshRedirectServer();
         try {
@@ -171,6 +188,27 @@ class AdsHttpClientToolTest {
     }
 
     @Test
+    void applyAffiliateAd_matrixPreservesClientRedirectSuffix() throws Exception {
+        HttpServer server = startClientRedirectSuffixServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsMatrixInfo matrixInfo = buildMatrixInfo(baseUrl);
+            AdsMatrixAffiliateInfo affiliateInfo = buildMatrixAffiliateInfo(baseUrl);
+            affiliateInfo.setAffiliteUrl(baseUrl + "/index/index/openurl?track=43615712065c6043&url=");
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(matrixInfo, affiliateInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(
+                    baseUrl + "/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734",
+                    response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void applyAffiliateAd_normalFollowsSearchParamBasedJsRedirects() throws Exception {
         HttpServer server = startSearchParamRedirectServer();
         try {
@@ -192,6 +230,60 @@ class AdsHttpClientToolTest {
 
             assertEquals(StatusConstant.SUCCESS, response.getStatus());
             assertEquals(baseUrl + "/final", response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void applyAffiliateAd_normalPreservesClientRedirectSuffix() throws Exception {
+        HttpServer server = startClientRedirectSuffixServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsNormalInfo adsNormalInfo = new AdsNormalInfo();
+            adsNormalInfo.setAffiliteUrl(baseUrl + "/index/index/openurl?track=43615712065c6043&url=");
+            adsNormalInfo.setLandingPageUrl(baseUrl + "/final");
+            adsNormalInfo.setCampainCountry("US");
+            adsNormalInfo.setDynamicProxyInfo(null);
+            adsNormalInfo.setAdsOwner("13800000000");
+            adsNormalInfo.setCampainName("Normal Campaign");
+            adsNormalInfo.setPlatformName("Platform");
+            adsNormalInfo.setStatus("RUNNING");
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(
+                    baseUrl + "/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734",
+                    response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void applyAffiliateAd_normalFollowsVarAssignedJavascriptRedirect() throws Exception {
+        HttpServer server = startVarAssignedJsRedirectServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsNormalInfo adsNormalInfo = new AdsNormalInfo();
+            adsNormalInfo.setAffiliteUrl(baseUrl + "/index/index/openurl?track=43615712065c6043&url=");
+            adsNormalInfo.setLandingPageUrl(baseUrl + "/final");
+            adsNormalInfo.setCampainCountry("US");
+            adsNormalInfo.setDynamicProxyInfo(null);
+            adsNormalInfo.setAdsOwner("13800000000");
+            adsNormalInfo.setCampainName("Normal Campaign");
+            adsNormalInfo.setPlatformName("Platform");
+            adsNormalInfo.setStatus("RUNNING");
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(
+                    baseUrl + "/final?affiliate_id=133734&click_id=5601876235&clickId=5601876235&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734",
+                    response.getUrl());
         } finally {
             server.stop(0);
         }
@@ -285,6 +377,38 @@ class AdsHttpClientToolTest {
         return server;
     }
 
+    private HttpServer startPermanentServerRedirectServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/step1?sharedId=&subId1=T2oFu0000m1gk464wg&subId3=");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/step1", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/step2?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid=");
+            exchange.sendResponseHeaders(301, -1);
+            exchange.close();
+        });
+        server.createContext("/step2", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/step3?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid=");
+            exchange.sendResponseHeaders(308, -1);
+            exchange.close();
+        });
+        server.createContext("/step3", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/final?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid=");
+            exchange.sendResponseHeaders(301, -1);
+            exchange.close();
+        });
+        server.createContext("/final", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
     private HttpServer startRefreshRedirectServer() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/index/index/openurl", exchange -> {
@@ -361,6 +485,79 @@ class AdsHttpClientToolTest {
         });
         server.createContext("/step2", exchange -> {
             exchange.getResponseHeaders().add("Location", "/final");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/final", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer startClientRedirectSuffixServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            String host = exchange.getRequestHeaders().getFirst("Host");
+            String body = "<html><head><script>window.location.href='http://" + host + "/bridge?url="
+                    + URLEncoder.encode("http://" + host + "/final", StandardCharsets.UTF_8)
+                    + "&sid=lh_5xu07l7jk6ae';</script></head><body>redirecting</body></html>";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.createContext("/bridge", exchange -> {
+            String query = exchange.getRequestURI().getRawQuery();
+            if (query == null || !query.contains("sid=lh_5xu07l7jk6ae")) {
+                byte[] body = "missing sid".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(400, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+                return;
+            }
+            exchange.getResponseHeaders().add("Location", "/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/final", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer startVarAssignedJsRedirectServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            String host = exchange.getRequestHeaders().getFirst("Host");
+            String body = "<!DOCTYPE html><html><head><script type=\"text/javascript\">"
+                    + "var u = 'http://" + host + "/bridge?url=http://www.michaelstars.com&sid=lh_5x7uptulmrz6';"
+                    + "location.replace(u);"
+                    + "</script></head><body></body></html>";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.createContext("/bridge", exchange -> {
+            String query = exchange.getRequestURI().getRawQuery();
+            if (query == null || !query.contains("sid=lh_5x7uptulmrz6")) {
+                byte[] body = "missing sid".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(400, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+                return;
+            }
+            exchange.getResponseHeaders().add("Location", "/final?affiliate_id=133734&click_id=5601876235&clickId=5601876235&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734");
             exchange.sendResponseHeaders(302, -1);
             exchange.close();
         });

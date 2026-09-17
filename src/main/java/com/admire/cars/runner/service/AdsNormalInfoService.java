@@ -65,9 +65,9 @@ public class AdsNormalInfoService {
                         "%" + campainName.toLowerCase() + "%"));
             }
             if (StringUtils.hasText(platformName)) {
-                predicates.add(criteriaBuilder.like(
+                predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("platformName")),
-                        "%" + platformName.toLowerCase() + "%"));
+                        platformName.toLowerCase()));
             }
             if (StringUtils.hasText(status)) {
                 predicates.add(criteriaBuilder.equal(
@@ -75,9 +75,9 @@ public class AdsNormalInfoService {
                         status.toLowerCase()));
             }
             if (StringUtils.hasText(scopedAdsOwner)) {
-                predicates.add(criteriaBuilder.like(
+                predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("adsOwner")),
-                        "%" + scopedAdsOwner.toLowerCase() + "%"));
+                        scopedAdsOwner.toLowerCase()));
             }
 
             return predicates.isEmpty()

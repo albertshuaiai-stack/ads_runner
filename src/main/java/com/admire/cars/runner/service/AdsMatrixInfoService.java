@@ -61,10 +61,10 @@ public class AdsMatrixInfoService {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_MATRIX_INFO not found: " + id));
     }
 
-    public Page<AdsMatrixInfo> search(String campainName, String platformName, String status, Long currentUserId, Pageable pageable) {
+    public Page<AdsMatrixInfo> search(String campainName, String platformName, String status, String adsOwner, Long currentUserId, Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
         boolean admin = isAdmin(currentUser);
-        String adsOwner = currentUser.getUserPhoneNumber();
+        String scopedAdsOwner = admin ? adsOwner : currentUser.getUserPhoneNumber();
         Specification<AdsMatrixInfo> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -78,17 +78,17 @@ public class AdsMatrixInfoService {
                         criteriaBuilder.lower(root.get("status")),
                         status.toLowerCase()));
             }
-            if (!admin) {
+            if (StringUtils.hasText(scopedAdsOwner)) {
                 predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(root.get("adsOwner")),
-                        adsOwner.toLowerCase()));
+                        scopedAdsOwner.toLowerCase()));
             }
             if (StringUtils.hasText(platformName)) {
                 query.distinct(true);
                 Join<AdsMatrixInfo, AdsMatrixAffiliateInfo> affiliateJoin = root.join("affiliateInfos", JoinType.LEFT);
-                predicates.add(criteriaBuilder.like(
+                predicates.add(criteriaBuilder.equal(
                         criteriaBuilder.lower(affiliateJoin.get("platformName")),
-                        "%" + platformName.toLowerCase() + "%"));
+                        platformName.toLowerCase()));
             }
 
             return predicates.isEmpty()

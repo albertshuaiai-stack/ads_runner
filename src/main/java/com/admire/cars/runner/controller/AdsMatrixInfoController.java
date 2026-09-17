@@ -64,6 +64,7 @@ public class AdsMatrixInfoController {
             @RequestParam(required = false) String campainName,
             @RequestParam(required = false) String platformName,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String adsOwner,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -74,6 +75,7 @@ public class AdsMatrixInfoController {
                 campainName,
                 platformName,
                 status,
+                adsOwner,
                 userId,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(new PageImpl<>(

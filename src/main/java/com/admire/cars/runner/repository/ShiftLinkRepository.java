@@ -30,7 +30,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
               and s.adsType = :adsType
               and upper(s.status) = upper(:status)
               and coalesce(s.displayTimes, 0) < coalesce(s.displayNumber, 0)
-              order by (s.displayTimes - s.displayNumber) desc, s.id DESC
+              order by (s.displayNumber - s.displayTimes) desc, s.id DESC
             """)
     List<ShiftLink> findEligibleForConsume(String adsOwner, String adsName, String adsType, String status);
 
@@ -75,7 +75,7 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
 
     @Modifying
     @Transactional
-    @Query("delete from ShiftLink s where s.displayNumber = 1 and s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
+    @Query("delete from ShiftLink s where (s.displayNumber - s.displayTimes) = 0 and s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
     int deleteByCreateDateBeforeAndAdsTypeMatrix(LocalDateTime cutoff);
 
 }
