@@ -67,6 +67,12 @@ public class AdsTaskLog {
     @Column(name = "LOCATION", length = 1024)
     private String location;
 
+    @Column(name = "PAGE_TYPE", length = 64)
+    private String pageType;
+
+    @Column(name = "REDIRECT_TYPE", length = 64)
+    private String redirectType;
+
     @Column(name = "SUCCESS")
     private Boolean success;
 
