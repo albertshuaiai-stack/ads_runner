@@ -64,6 +64,23 @@ class AdsHttpClientToolTest {
     }
 
     @Test
+    void applyAffiliateAd_normalFollowsServerRedirectToFinalUrl() throws Exception {
+        HttpServer server = startServerRedirectServer();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsNormalInfo adsNormalInfo = buildNormalInfo(baseUrl);
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(baseUrl + "/final?lkid=82853225&subid=566&cid=final", response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void applyAffiliateAd_normalFollowRefreshHeaderRedirectsToFinalUrl() throws Exception {
         HttpServer server = startRefreshRedirectServer();
         try {
@@ -229,6 +246,28 @@ class AdsHttpClientToolTest {
             exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
             exchange.sendResponseHeaders(200, bytes.length);
             exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.createContext("/step2", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/final?lkid=82853225&subid=566&cid=final");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/final", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private HttpServer startServerRedirectServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/step2");
+            exchange.sendResponseHeaders(302, -1);
             exchange.close();
         });
         server.createContext("/step2", exchange -> {

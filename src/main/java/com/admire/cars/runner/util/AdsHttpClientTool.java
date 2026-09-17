@@ -140,72 +140,43 @@ public class AdsHttpClientTool {
                         adsTaskLog.setStatusCode(String.valueOf(statusCode));
                         adsTaskLog.setResponseUrl(responseUri.toString());
                         if (statusCode >= 200 && statusCode < 300) {
-                            if (isLandingPage(responseUri, adsHttpRequestDto.getLandingPageUrl())){
+                            if (isLandingPage(responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                                adsTaskLog.setPageType("normal");
+                                adsTaskLog.setRedirectType("none");
                                 adsTaskLog.setErrMsg("");
                                 adsTaskLog.setSuccess(true);
                                 adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
                                 break;
                             }
-                            String redirectTarget = null;
-                            String responseBody = null;
-                            if (response.body() != null) {
-                                responseBody = response.body().string();
-                                redirectTarget = extractClientRedirectTarget(responseBody, currentUri);
-                            }
-
-                            // try refresh header and location header
-                            if (!StringUtils.hasText(redirectTarget)) {
-                                redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
-                            }
-                            if (!StringUtils.hasText(redirectTarget)) {
-                                redirectTarget = response.header("Location");
-                            }
-
-                            // If the target contains an encoded URL parameter (new=url encoded or url=...), extract it
+                            String responseBody = response.body() != null ? response.body().string() : "";
+                            String redirectTarget = resolveClientRedirectTarget(responseBody, response.header("Refresh"), response.header("Location"), currentUri);
                             if (StringUtils.hasText(redirectTarget)) {
-                                String decoded = extractEncodedRedirectFromString(redirectTarget);
-                                if (StringUtils.hasText(decoded)) {
-                                    redirectTarget = decoded;
-                                }
-                            } else if (StringUtils.hasText(responseBody)) {
-                                String decodedFromBody = extractEncodedRedirectFromString(responseBody);
-                                if (StringUtils.hasText(decodedFromBody)) {
-                                    redirectTarget = decodedFromBody;
-                                }
-                            }
-
-                            if (StringUtils.hasText(redirectTarget)) {
+                                log.warn("Apply Normal Affiliate Ads. Request URL={} redirectTarget={} hop={} status={}", currentUri, redirectTarget, hop + 1, statusCode);
                                 URI nextUri = resolveRedirectUri(currentUri, redirectTarget);
                                 adsTaskLog.setLocation(nextUri.toString());
-                                // determine redirect type for logging
-                                if (StringUtils.hasText(responseBody)) {
-                                    String detected = null;
-                                    if (findPatternMatch(JS_REDIRECT_PATTERN, responseBody) != null) detected = "javascript";
-                                    else if (findPatternMatch(LOCATION_REPLACE_PATTERN, responseBody) != null) detected = "location_replace";
-                                    else if (findPatternMatch(META_REFRESH_PATTERN, responseBody) != null) detected = "meta_refresh";
-                                    else if (extractSearchParamRedirectTarget(responseBody, currentUri) != null) detected = "search_param";
-                                    adsTaskLog.setPageType("client_redirect");
-                                    adsTaskLog.setRedirectType(detected == null ? "client_unknown" : detected);
-                                } else {
-                                    adsTaskLog.setPageType("server_redirect");
-                                    adsTaskLog.setRedirectType("temporary");
-                                }
+                                adsTaskLog.setPageType("client_redirect");
+                                adsTaskLog.setRedirectType(detectClientRedirectType(responseBody, currentUri));
                                 adsTaskLog.setResponseUrl(redirectTarget);
                                 currentUri = nextUri;
                                 continue;
                             }
-                            log.warn("Apply Normal Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
                             adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response body does not contain a redirect target");
                             break;
                         } else if (statusCode >= 300 && statusCode < 400) {
-                            String location = response.header("Location");
-                            adsTaskLog.setLocation(location);
+                            String responseBody = response.body() != null ? response.body().string() : "";
+                            String location = resolveServerRedirectTarget(responseBody, response.header("Location"), response.header("Refresh"), currentUri);
                             if (!StringUtils.hasText(location)) {
+                                adsTaskLog.setPageType("server_redirect");
+                                adsTaskLog.setRedirectType("temporary");
                                 adsTaskLog.setErrMsg("No Location found from header");
                                 adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
                                 break;
                             }
                             URI nextUri = resolveRedirectUri(currentUri, location);
+                            adsTaskLog.setPageType("server_redirect");
+                            adsTaskLog.setRedirectType("temporary");
+                            adsTaskLog.setLocation(nextUri.toString());
+                            adsTaskLog.setResponseUrl(location);
                             currentUri = nextUri;
                             continue;
                         } else {
@@ -446,17 +417,17 @@ public class AdsHttpClientTool {
                                 redirectTarget = response.header("Location");
                             }
 
-                            if (StringUtils.hasText(redirectTarget)) {
-                                String decoded = extractEncodedRedirectFromString(redirectTarget);
-                                if (StringUtils.hasText(decoded)) {
-                                    redirectTarget = decoded;
-                                }
-                            } else if (StringUtils.hasText(responseBody)) {
-                                String decodedFromBody = extractEncodedRedirectFromString(responseBody);
-                                if (StringUtils.hasText(decodedFromBody)) {
-                                    redirectTarget = decodedFromBody;
-                                }
-                            }
+//                            if (StringUtils.hasText(redirectTarget)) {
+//                                String decoded = extractEncodedRedirectFromString(redirectTarget);
+//                                if (StringUtils.hasText(decoded)) {
+//                                    redirectTarget = decoded;
+//                                }
+//                            } else if (StringUtils.hasText(responseBody)) {
+//                                String decodedFromBody = extractEncodedRedirectFromString(responseBody);
+//                                if (StringUtils.hasText(decodedFromBody)) {
+//                                    redirectTarget = decodedFromBody;
+//                                }
+//                            }
 
                             if (StringUtils.hasText(redirectTarget)) {
                                 currentUri = resolveRedirectUri(currentUri, redirectTarget);
@@ -554,6 +525,63 @@ public class AdsHttpClientTool {
             return target;
         }
         return null;
+    }
+
+    private String resolveClientRedirectTarget(String responseBody, String refreshHeader, String locationHeader, URI currentUri) {
+        String redirectTarget = extractClientRedirectTarget(responseBody, currentUri);
+        if (!StringUtils.hasText(redirectTarget)) {
+            redirectTarget = extractRefreshHeaderTarget(refreshHeader);
+        }
+        if (!StringUtils.hasText(redirectTarget)) {
+            redirectTarget = locationHeader;
+        }
+        return normalizeRedirectTarget(redirectTarget, responseBody);
+    }
+
+    private String resolveServerRedirectTarget(String responseBody, String locationHeader, String refreshHeader, URI currentUri) {
+        String redirectTarget = locationHeader;
+        if (!StringUtils.hasText(redirectTarget)) {
+            redirectTarget = extractRefreshHeaderTarget(refreshHeader);
+        }
+        if (!StringUtils.hasText(redirectTarget)) {
+            redirectTarget = extractClientRedirectTarget(responseBody, currentUri);
+        }
+        return normalizeRedirectTarget(redirectTarget, responseBody);
+    }
+
+    private String normalizeRedirectTarget(String redirectTarget, String responseBody) {
+        if (StringUtils.hasText(redirectTarget)) {
+            String decoded = extractEncodedRedirectFromString(redirectTarget);
+            if (StringUtils.hasText(decoded)) {
+                return decoded;
+            }
+        }
+        if (StringUtils.hasText(responseBody)) {
+            String decodedFromBody = extractEncodedRedirectFromString(responseBody);
+            if (StringUtils.hasText(decodedFromBody)) {
+                return decodedFromBody;
+            }
+        }
+        return redirectTarget;
+    }
+
+    private String detectClientRedirectType(String responseBody, URI currentUri) {
+        if (!StringUtils.hasText(responseBody)) {
+            return "client_unknown";
+        }
+        if (findPatternMatch(JS_REDIRECT_PATTERN, responseBody) != null) {
+            return "javascript";
+        }
+        if (findPatternMatch(LOCATION_REPLACE_PATTERN, responseBody) != null) {
+            return "location_replace";
+        }
+        if (findPatternMatch(META_REFRESH_PATTERN, responseBody) != null) {
+            return "meta_refresh";
+        }
+        if (extractSearchParamRedirectTarget(responseBody, currentUri) != null) {
+            return "search_param";
+        }
+        return "client_unknown";
     }
 
     private String extractSearchParamRedirectTarget(String responseBody, URI currentUri) {
