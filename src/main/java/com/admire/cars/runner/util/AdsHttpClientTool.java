@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,6 +38,9 @@ public class AdsHttpClientTool {
 
     @Autowired
     private IpProxyService ipProxyService;
+
+    @Autowired
+    private com.admire.cars.runner.config.AutoTaskConfig autoTaskConfig;
 
     @Autowired
     private UserAgentService userAgentService;
@@ -362,11 +366,18 @@ public class AdsHttpClientTool {
                 OkHttpClient redirectClient = httpClient.newBuilder()
                         .followRedirects(false)
                         .followSslRedirects(false)
+                        .callTimeout(autoTaskConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS)
+                        .writeTimeout(autoTaskConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS)
                         .build();
                 URI currentUri = requestUri;
                 for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        log.warn("Apply Normal Affiliate Ads (test) aborted: thread interrupted before request");
+                        return new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), "Interrupted");
+                    }
                     Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
-                    try (Response response = redirectClient.newCall(request).execute()) {
+                    okhttp3.Call call = redirectClient.newCall(request);
+                    try (Response response = call.execute()) {
                         int statusCode = response.code();
                         URI responseUri = response.request() != null && response.request().url() != null
                                 ? response.request().url().uri()
