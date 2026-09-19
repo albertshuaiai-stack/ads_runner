@@ -3,6 +3,7 @@ package com.admire.cars.runner.service;
 import com.admire.cars.runner.entity.ToolOutcome;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.ToolOutcomeRepository;
+import com.admire.cars.runner.repository.AdsAccountRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
@@ -25,10 +26,12 @@ public class ToolOutcomeService {
 
     private final ToolOutcomeRepository toolOutcomeRepository;
     private final UserRepository userRepository;
+    private final AdsAccountRepository adsAccountRepository;
 
-    public ToolOutcomeService(ToolOutcomeRepository toolOutcomeRepository, UserRepository userRepository) {
+    public ToolOutcomeService(ToolOutcomeRepository toolOutcomeRepository, AdsAccountRepository adsAccountRepository, UserRepository userRepository) {
         this.toolOutcomeRepository = toolOutcomeRepository;
         this.userRepository = userRepository;
+        this.adsAccountRepository = adsAccountRepository;
     }
 
     public ToolOutcome create(ToolOutcome toolOutcome, Long currentUserId) {
@@ -132,6 +135,8 @@ public class ToolOutcomeService {
         toolOutcome.setCurrency(normalizeEnumLike(toolOutcome.getCurrency(), null));
         toolOutcome.setRemarks(trimToNull(toolOutcome.getRemarks()));
 
+        toolOutcome.setAdsAccount(trimToNull(toolOutcome.getAdsAccount()));
+
         if (toolOutcome.getOutcomeAmount() != null && toolOutcome.getOutcomeAmount().signum() < 0) {
             throw new IllegalArgumentException("outcomeAmount must be greater than or equal to 0");
         }
@@ -146,9 +151,21 @@ public class ToolOutcomeService {
                 "OTHERS");
         validateAllowed(toolOutcome.getCurrency(), "currency", "CNY", "USD");
 
+        // when MEDIABY, adsAccount is required and must exist in ADS_ACCOUNT
+        if ("MEDIABY".equals(toolOutcome.getOutcomeType())) {
+            if (!StringUtils.hasText(toolOutcome.getAdsAccount())) {
+                throw new IllegalArgumentException("adsAccount is required when outcomeType is MEDIABY");
+            }
+            if (!adsAccountRepository.existsByAdsAccountIgnoreCase(toolOutcome.getAdsAccount().trim())) {
+                throw new IllegalArgumentException("ADS_ACCOUNT not found by adsAccount: " + toolOutcome.getAdsAccount());
+            }
+            toolOutcome.setAdsAccount(toolOutcome.getAdsAccount().trim());
+        }
+
         validateLength(toolOutcome.getOutcomeType(), "outcomeType", 64);
         validateLength(toolOutcome.getCurrency(), "currency", 32);
         validateLength(toolOutcome.getRemarks(), "remarks", 128);
+        validateLength(toolOutcome.getAdsAccount(), "adsAccount", 64);
     }
 
     private String normalizeOutcomeType(String value) {

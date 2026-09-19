@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AdsAccountRepository extends JpaRepository<AdsAccount, Long>, JpaSpecificationExecutor<AdsAccount> {
+    boolean existsByAdsAccountIgnoreCase(String adsAccount);
 }

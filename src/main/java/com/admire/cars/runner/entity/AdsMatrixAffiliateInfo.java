@@ -40,6 +40,9 @@ public class AdsMatrixAffiliateInfo {
     @Column(name = "PLATFORM_NAME", nullable = false, length = 32)
     private String platformName;
 
+    @Column(name = "USER_NAME", length = 128)
+    private String userName;
+
     @Column(name = "AFFILITE_URL", length = 2056)
     private String affiliteUrl;
 

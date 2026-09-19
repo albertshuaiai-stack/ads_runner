@@ -31,6 +31,7 @@ public class AdsAccountService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.admire.cars.runner.repository.ToolEmailRepository toolEmailRepository;
 
+
     public AdsAccountService(
             AdsAccountRepository adsAccountRepository,
             AdsPlatformRepository adsPlatformRepository,
@@ -64,6 +65,7 @@ public class AdsAccountService {
             String adsAccount,
             String mccAccount,
             String agencyPlatform,
+            String brand,
             String accountType,
             String emailAddress,
             String status,
@@ -97,6 +99,11 @@ public class AdsAccountService {
                 predicates.add(criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("agencyPlatform")),
                         "%" + agencyPlatform.trim().toLowerCase(Locale.ROOT) + "%"));
+            }
+            if (StringUtils.hasText(brand)) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("brand")),
+                        "%" + brand.trim().toLowerCase(Locale.ROOT) + "%"));
             }
             if (StringUtils.hasText(accountType)) {
                 predicates.add(criteriaBuilder.equal(
@@ -139,6 +146,9 @@ public class AdsAccountService {
         if (updateData.getAgencyPlatform() != null) {
             existing.setAgencyPlatform(updateData.getAgencyPlatform());
         }
+        if (updateData.getBrand() != null) {
+            existing.setBrand(updateData.getBrand());
+        }
         if (updateData.getAccountType() != null) {
             existing.setAccountType(updateData.getAccountType());
         }
@@ -169,6 +179,7 @@ public class AdsAccountService {
         adsAccount.setAdsAccount(trimToNull(adsAccount.getAdsAccount()));
         adsAccount.setMccAccount(trimToNull(adsAccount.getMccAccount()));
         adsAccount.setAgencyPlatform(trimToNull(adsAccount.getAgencyPlatform()));
+        adsAccount.setBrand(trimToNull(adsAccount.getBrand()));
         adsAccount.setEmailAddress(trimToNull(adsAccount.getEmailAddress()));
         adsAccount.setAccountType(normalizeEnumLike(adsAccount.getAccountType(), "NORMAL"));
         adsAccount.setStatus(normalizeEnumLike(adsAccount.getStatus(), "ACTIVE"));
@@ -192,12 +203,14 @@ public class AdsAccountService {
             }
         }
 
+
         validateAllowed(adsAccount.getAccountType(), "accountType", "MCC", "NORMAL", "AGENCY");
         validateAllowed(adsAccount.getStatus(), "status", "ACTIVE", "PAUSED", "DEACTIVED");
 
         validateLength(adsAccount.getAdsAccount(), "adsAccount", 64);
         validateLength(adsAccount.getMccAccount(), "mccAccount", 64);
         validateLength(adsAccount.getAgencyPlatform(), "agencyPlatform", 64);
+        validateLength(adsAccount.getBrand(), "brand", 128);
         validateLength(adsAccount.getAccountType(), "accountType", 32);
         validateLength(adsAccount.getStatus(), "status", 32);
         validateLength(adsAccount.getEmailAddress(), "emailAddress", 64);
@@ -295,5 +308,27 @@ public class AdsAccountService {
             return predicates.isEmpty() ? criteriaBuilder.conjunction() : criteriaBuilder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
         return adsAccountRepository.findAll(specification);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<String> getAllAdsAccounts(Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        boolean admin = isAdmin(currentUser);
+        java.util.List<AdsAccount> list;
+        if (admin) {
+            list = adsAccountRepository.findAll();
+        } else {
+            Specification<AdsAccount> specification = (root, query, cb) ->
+                    cb.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber());
+            list = adsAccountRepository.findAll(specification);
+        }
+        return list.stream()
+                .map(AdsAccount::getAdsAccount)
+                .filter(java.util.Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .sorted(String::compareToIgnoreCase)
+                .toList();
     }
 }

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="052-create-ads-running-audit" author="copilot">
+        <createTable tableName="ADS_RUNNING_AUDIT">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="BRAND" type="varchar(128)"/>
+            <column name="PLATFORM" type="varchar(128)"/>
+            <column name="EMAIL" type="varchar(1024)"/>
+            <column name="ADS_OWNER" type="varchar(32)"/>
+            <column name="CREATE_DATE" type="datetime"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

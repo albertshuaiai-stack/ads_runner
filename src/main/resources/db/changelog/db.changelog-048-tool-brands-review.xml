@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="tool-brands-review-001-create-table" author="copilot">
+        <createTable tableName="TOOL_BRANDS_REVIEW">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="BRAND" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SCORE" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMARKS" type="VARCHAR(1024)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false" foreignKeyName="FK_TOOL_BRANDS_REVIEW_ADS_OWNER" references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="tool-brands-review-002-indexes" author="copilot">
+        <createIndex indexName="IDX_TOOL_BRANDS_REVIEW_ADS_OWNER" tableName="TOOL_BRANDS_REVIEW">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_BRANDS_REVIEW_BRAND" tableName="TOOL_BRANDS_REVIEW">
+            <column name="BRAND"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_BRANDS_REVIEW_SCORE" tableName="TOOL_BRANDS_REVIEW">
+            <column name="SCORE"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -34,14 +34,14 @@ public class ToolOutcomeController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@RequestBody ToolOutcome toolOutcome, HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> create(@RequestBody com.admire.cars.runner.dto.ToolOutcomeDto dto, HttpServletRequest request) {
         try {
-            ToolOutcome created = toolOutcomeService.create(toolOutcome, getUserId(request));
+            com.admire.cars.runner.entity.ToolOutcome created = toolOutcomeService.create(dto.toEntity(), getUserId(request));
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "TOOL_OUTCOME created successfully");
             response.put("id", created.getId());
-            response.put("data", created);
+            response.put("data", com.admire.cars.runner.dto.ToolOutcomeDto.fromEntity(created));
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
             Map<String, Object> response = new HashMap<>();
@@ -52,16 +52,17 @@ public class ToolOutcomeController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ToolOutcome> getById(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<com.admire.cars.runner.dto.ToolOutcomeDto> getById(@PathVariable Long id, HttpServletRequest request) {
         try {
-            return ResponseEntity.ok(toolOutcomeService.getById(id, getUserId(request)));
+            com.admire.cars.runner.entity.ToolOutcome e = toolOutcomeService.getById(id, getUserId(request));
+            return ResponseEntity.ok(com.admire.cars.runner.dto.ToolOutcomeDto.fromEntity(e));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
 
     @GetMapping
-    public ResponseEntity<Page<ToolOutcome>> search(
+    public ResponseEntity<org.springframework.data.domain.Page<com.admire.cars.runner.dto.ToolOutcomeDto>> search(
             @RequestParam(required = false) String outcomeType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate payDateBegin,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate payDateEnd,
@@ -70,7 +71,7 @@ public class ToolOutcomeController {
             HttpServletRequest request) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(size, 1);
-        Page<ToolOutcome> toolOutcomes = toolOutcomeService.search(
+        org.springframework.data.domain.Page<com.admire.cars.runner.entity.ToolOutcome> toolOutcomes = toolOutcomeService.search(
                 outcomeType,
                 payDateBegin,
                 payDateEnd,
@@ -79,20 +80,23 @@ public class ToolOutcomeController {
                         safePage,
                         safeSize,
                         Sort.by(Sort.Direction.DESC, "createDate").and(Sort.by(Sort.Direction.DESC, "id"))));
-        return ResponseEntity.ok(toolOutcomes);
+        java.util.List<com.admire.cars.runner.dto.ToolOutcomeDto> content = toolOutcomes.getContent().stream()
+                .map(com.admire.cars.runner.dto.ToolOutcomeDto::fromEntity)
+                .toList();
+        return ResponseEntity.ok(new org.springframework.data.domain.PageImpl<>(content, toolOutcomes.getPageable(), toolOutcomes.getTotalElements()));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> update(
             @PathVariable Long id,
-            @RequestBody ToolOutcome updateData,
+            @RequestBody com.admire.cars.runner.dto.ToolOutcomeDto dto,
             HttpServletRequest request) {
         try {
-            ToolOutcome updated = toolOutcomeService.update(id, updateData, getUserId(request));
+            com.admire.cars.runner.entity.ToolOutcome updated = toolOutcomeService.update(id, dto.toEntity(), getUserId(request));
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "TOOL_OUTCOME updated successfully");
-            response.put("data", updated);
+            response.put("data", com.admire.cars.runner.dto.ToolOutcomeDto.fromEntity(updated));
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             Map<String, Object> response = new HashMap<>();

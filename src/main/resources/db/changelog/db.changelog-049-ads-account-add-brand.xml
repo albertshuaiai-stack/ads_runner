@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="ads-account-001-add-brand" author="copilot">
+        <addColumn tableName="ADS_ACCOUNT">
+            <column name="BRAND" type="VARCHAR(128)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="ads-account-002-create-index" author="copilot">
+        <createIndex indexName="IDX_ADS_ACCOUNT_BRAND" tableName="ADS_ACCOUNT">
+            <column name="BRAND"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

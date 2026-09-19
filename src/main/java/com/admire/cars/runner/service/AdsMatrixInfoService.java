@@ -10,6 +10,10 @@ import com.admire.cars.runner.event.AdsAutoTaskRegistrationEvent;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.UserRepository;
+import com.admire.cars.runner.repository.ToolEmailRepository;
+import com.admire.cars.runner.repository.AdsRunningAuditRepository;
+import com.admire.cars.runner.entity.AdsRunningAudit;
+import java.time.LocalDate;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -33,16 +37,22 @@ public class AdsMatrixInfoService {
     private final AdsPlatformRepository adsPlatformRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ToolEmailRepository toolEmailRepository;
+    private final AdsRunningAuditRepository adsRunningAuditRepository;
 
     public AdsMatrixInfoService(
             AdsMatrixInfoRepository adsMatrixInfoRepository,
             AdsPlatformRepository adsPlatformRepository,
             UserRepository userRepository,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            ToolEmailRepository toolEmailRepository,
+            AdsRunningAuditRepository adsRunningAuditRepository) {
         this.adsMatrixInfoRepository = adsMatrixInfoRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
+        this.toolEmailRepository = toolEmailRepository;
+        this.adsRunningAuditRepository = adsRunningAuditRepository;
     }
 
     public AdsMatrixInfo create(AdsMatrixInfo adsMatrixInfo, Long currentUserId) {
@@ -192,15 +202,26 @@ public class AdsMatrixInfoService {
                 affiliateInfo.setPlatformName(affiliateInfo.getPlatformName().trim());
                 affiliateInfo.setAffiliteUrl(affiliateInfo.getAffiliteUrl() == null ? null : affiliateInfo.getAffiliteUrl().trim());
                 affiliateInfo.setRemarks(affiliateInfo.getRemarks() == null ? null : affiliateInfo.getRemarks().trim());
-                if (affiliateInfo.getPlatformName().length() > 32) {
-                    throw new IllegalArgumentException("affiliate platformName must be at most 32 characters");
+            // set and validate userName sourced from TOOL_EMAL when present
+            affiliateInfo.setUserName(affiliateInfo.getUserName() == null ? null : affiliateInfo.getUserName().trim());
+            if (affiliateInfo.getUserName() != null) {
+                if (affiliateInfo.getUserName().length() > 128) {
+                    throw new IllegalArgumentException("affiliate userName must be at most 128 characters");
                 }
-                if (affiliateInfo.getAffiliteUrl() != null && affiliateInfo.getAffiliteUrl().length() > 2056) {
-                    throw new IllegalArgumentException("affiliteUrl must be at most 2056 characters");
+                // require corresponding TOOL_EMAL entry if repository exists
+                if (toolEmailRepository == null || !toolEmailRepository.findByUserName(affiliateInfo.getUserName()).isPresent()) {
+                    throw new IllegalArgumentException("TOOL_EMAL not found by userName: " + affiliateInfo.getUserName());
                 }
-                if (affiliateInfo.getRemarks() != null && affiliateInfo.getRemarks().length() > 64) {
-                    throw new IllegalArgumentException("remarks must be at most 64 characters");
-                }
+            }
+            if (affiliateInfo.getPlatformName().length() > 32) {
+                throw new IllegalArgumentException("affiliate platformName must be at most 32 characters");
+            }
+            if (affiliateInfo.getAffiliteUrl() != null && affiliateInfo.getAffiliteUrl().length() > 2056) {
+                throw new IllegalArgumentException("affiliteUrl must be at most 2056 characters");
+            }
+            if (affiliateInfo.getRemarks() != null && affiliateInfo.getRemarks().length() > 64) {
+                throw new IllegalArgumentException("remarks must be at most 64 characters");
+            }
             }
         }
     }
@@ -273,6 +294,33 @@ public class AdsMatrixInfoService {
                 saved.getCampainCountry(),
                 null,
                 saved.getCampainName()));
+        // initialize ads running audit entries for today's date
+        initializeAdsRunningAudit(saved);
+    }
+
+    private void initializeAdsRunningAudit(AdsMatrixInfo saved) {
+        if (saved == null || saved.getAffiliateInfos() == null) return;
+        for (AdsMatrixAffiliateInfo affiliate : saved.getAffiliateInfos()) {
+            if (affiliate == null) continue;
+            String platform = affiliate.getPlatformName();
+            String email = affiliate.getUserName();
+            String brand = saved.getCampainName();
+            String adsOwner = saved.getAdsOwner();
+            if (!StringUtils.hasText(platform) || !StringUtils.hasText(email) || !StringUtils.hasText(brand) || !StringUtils.hasText(adsOwner)) continue;
+            LocalDateTime start = LocalDate.now().atStartOfDay();
+            LocalDateTime end = start.plusDays(1);
+            long cnt = adsRunningAuditRepository.countByPlatformIgnoreCaseAndEmailIgnoreCaseAndBrandIgnoreCaseAndAdsOwnerAndCreateDateBetween(
+                    platform.trim(), email.trim(), brand.trim(), adsOwner, start, end);
+            if (cnt == 0) {
+                AdsRunningAudit a = new AdsRunningAudit();
+                a.setBrand(brand.trim());
+                a.setPlatform(platform.trim());
+                a.setEmail(email.trim());
+                a.setAdsOwner(adsOwner);
+                a.setCreateDate(LocalDateTime.now());
+                adsRunningAuditRepository.save(a);
+            }
+        }
     }
 
     private void publishAutoTaskDelete(AdsMatrixInfo existing) {

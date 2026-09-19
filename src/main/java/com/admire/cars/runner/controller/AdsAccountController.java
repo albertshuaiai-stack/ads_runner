@@ -63,6 +63,7 @@ public class AdsAccountController {
             @RequestParam(required = false) String adsAccount,
             @RequestParam(required = false) String mccAccount,
             @RequestParam(required = false) String agencyPlatform,
+            @RequestParam(required = false) String brand,
             @RequestParam(required = false) String accountType,
             @RequestParam(required = false) String emailAddress,
             @RequestParam(required = false) String status,
@@ -76,6 +77,7 @@ public class AdsAccountController {
                 adsAccount,
                 mccAccount,
                 agencyPlatform,
+                brand,
                 accountType,
                 emailAddress,
                 status,
@@ -133,6 +135,13 @@ public class AdsAccountController {
     @GetMapping("/normal")
     public ResponseEntity<java.util.List<AdsAccount>> getNormalAccounts(HttpServletRequest request) {
         java.util.List<AdsAccount> list = adsAccountService.findByAccountTypeNot("MCC", getUserId(request));
+        return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/dropdown")
+    public ResponseEntity<java.util.List<String>> getDropdown(HttpServletRequest request) {
+        Long userId = getUserId(request);
+        java.util.List<String> list = adsAccountService.getAllAdsAccounts(userId);
         return ResponseEntity.ok(list);
     }
 

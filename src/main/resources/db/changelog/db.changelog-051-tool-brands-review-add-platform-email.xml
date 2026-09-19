@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="tool-brands-review-002-add-platform-email" author="copilot">
+        <addColumn tableName="TOOL_BRANDS_REVIEW">
+            <column name="PLATFORM" type="VARCHAR(128)"/>
+            <column name="EMAIL" type="VARCHAR(1024)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="tool-brands-review-003-create-indexes" author="copilot">
+        <createIndex indexName="IDX_TOOL_BRANDS_REVIEW_PLATFORM" tableName="TOOL_BRANDS_REVIEW">
+            <column name="PLATFORM"/>
+        </createIndex>
+        <createIndex indexName="IDX_TOOL_BRANDS_REVIEW_EMAIL" tableName="TOOL_BRANDS_REVIEW">
+            <column name="EMAIL"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

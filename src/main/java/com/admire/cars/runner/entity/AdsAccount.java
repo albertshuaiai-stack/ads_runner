@@ -49,6 +49,9 @@ public class AdsAccount {
     @Column(name = "ADS_OWNER", nullable = false, length = 32)
     private String adsOwner;
 
+    @Column(name = "BRAND", length = 128)
+    private String brand;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 
