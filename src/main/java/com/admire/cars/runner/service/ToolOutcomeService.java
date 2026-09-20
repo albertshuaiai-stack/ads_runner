@@ -4,6 +4,8 @@ import com.admire.cars.runner.entity.ToolOutcome;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.ToolOutcomeRepository;
 import com.admire.cars.runner.repository.AdsAccountRepository;
+import com.admire.cars.runner.repository.ToolIpRepository;
+import com.admire.cars.runner.repository.ToolCloudPhoneRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
@@ -27,11 +29,15 @@ public class ToolOutcomeService {
     private final ToolOutcomeRepository toolOutcomeRepository;
     private final UserRepository userRepository;
     private final AdsAccountRepository adsAccountRepository;
+    private final com.admire.cars.runner.repository.ToolIpRepository toolIpRepository;
+    private final com.admire.cars.runner.repository.ToolCloudPhoneRepository toolCloudPhoneRepository;
 
-    public ToolOutcomeService(ToolOutcomeRepository toolOutcomeRepository, AdsAccountRepository adsAccountRepository, UserRepository userRepository) {
+    public ToolOutcomeService(ToolOutcomeRepository toolOutcomeRepository, AdsAccountRepository adsAccountRepository, com.admire.cars.runner.repository.ToolIpRepository toolIpRepository, com.admire.cars.runner.repository.ToolCloudPhoneRepository toolCloudPhoneRepository, UserRepository userRepository) {
         this.toolOutcomeRepository = toolOutcomeRepository;
         this.userRepository = userRepository;
         this.adsAccountRepository = adsAccountRepository;
+        this.toolIpRepository = toolIpRepository;
+        this.toolCloudPhoneRepository = toolCloudPhoneRepository;
     }
 
     public ToolOutcome create(ToolOutcome toolOutcome, Long currentUserId) {
@@ -69,9 +75,10 @@ public class ToolOutcomeService {
                 predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
             }
             if (StringUtils.hasText(outcomeType)) {
-                predicates.add(criteriaBuilder.equal(
-                        criteriaBuilder.lower(root.get("outcomeType")),
-                        normalizeOutcomeType(outcomeType).toLowerCase(Locale.ROOT)));
+                com.admire.cars.runner.entity.OutcomeType ot = com.admire.cars.runner.entity.OutcomeType.fromString(outcomeType);
+                if (ot != null) {
+                    predicates.add(criteriaBuilder.equal(root.get("outcomeType"), ot));
+                }
             }
             if (payDateBegin != null) {
                 predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("payDate"), payDateBegin));
@@ -110,6 +117,15 @@ public class ToolOutcomeService {
         if (updateData.getRemarks() != null) {
             existing.setRemarks(updateData.getRemarks());
         }
+        if (updateData.getAdsAccount() != null) {
+            existing.setAdsAccount(updateData.getAdsAccount());
+        }
+        if (updateData.getIp() != null) {
+            existing.setIp(updateData.getIp());
+        }
+        if (updateData.getPhoneNumber() != null) {
+            existing.setPhoneNumber(updateData.getPhoneNumber());
+        }
 
         validateAndNormalize(existing);
         existing.setUpdateDate(LocalDateTime.now());
@@ -131,30 +147,25 @@ public class ToolOutcomeService {
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + toolOutcome.getAdsOwner()));
         toolOutcome.setAdsOwner(owner.getUserPhoneNumber());
 
-        toolOutcome.setOutcomeType(normalizeOutcomeType(toolOutcome.getOutcomeType()));
+        // outcomeType is now an enum on entity; assume DTO converted string to enum already
         toolOutcome.setCurrency(normalizeEnumLike(toolOutcome.getCurrency(), null));
         toolOutcome.setRemarks(trimToNull(toolOutcome.getRemarks()));
 
         toolOutcome.setAdsAccount(trimToNull(toolOutcome.getAdsAccount()));
+        toolOutcome.setPhoneNumber(trimToNull(toolOutcome.getPhoneNumber()));
+        toolOutcome.setIp(trimToNull(toolOutcome.getIp()));
 
         if (toolOutcome.getOutcomeAmount() != null && toolOutcome.getOutcomeAmount().signum() < 0) {
             throw new IllegalArgumentException("outcomeAmount must be greater than or equal to 0");
         }
 
-        validateAllowed(toolOutcome.getOutcomeType(),
-                "outcomeType",
-                "MEDIABY",
-                "IP PROXY",
-                "VPN",
-                "ADSPOWER BROWSER",
-                "SEMRUSH",
-                "OTHERS");
+        // outcomeType is an enum, no need to validate allowed values here. If provided, it must be one of OutcomeType.
         validateAllowed(toolOutcome.getCurrency(), "currency", "CNY", "USD");
 
-        // when MEDIABY, adsAccount is required and must exist in ADS_ACCOUNT
-        if ("MEDIABY".equals(toolOutcome.getOutcomeType())) {
+        // when MEDIA_BY, adsAccount is required and must exist in ADS_ACCOUNT
+        if (toolOutcome.getOutcomeType() == com.admire.cars.runner.entity.OutcomeType.MEDIA_BY) {
             if (!StringUtils.hasText(toolOutcome.getAdsAccount())) {
-                throw new IllegalArgumentException("adsAccount is required when outcomeType is MEDIABY");
+                throw new IllegalArgumentException("adsAccount is required when outcomeType is MEDIA_BY");
             }
             if (!adsAccountRepository.existsByAdsAccountIgnoreCase(toolOutcome.getAdsAccount().trim())) {
                 throw new IllegalArgumentException("ADS_ACCOUNT not found by adsAccount: " + toolOutcome.getAdsAccount());
@@ -162,27 +173,34 @@ public class ToolOutcomeService {
             toolOutcome.setAdsAccount(toolOutcome.getAdsAccount().trim());
         }
 
-        validateLength(toolOutcome.getOutcomeType(), "outcomeType", 64);
+        // when STATIC_IP, ip is required and must exist in TOOL_IP
+        if (toolOutcome.getOutcomeType() == com.admire.cars.runner.entity.OutcomeType.STATIC_IP) {
+            if (!StringUtils.hasText(toolOutcome.getIp())) {
+                throw new IllegalArgumentException("ip is required when outcomeType is STATIC_IP");
+            }
+            if (!toolIpRepository.existsByIpIgnoreCase(toolOutcome.getIp().trim())) {
+                throw new IllegalArgumentException("TOOL_IP not found by ip: " + toolOutcome.getIp());
+            }
+            toolOutcome.setIp(toolOutcome.getIp().trim());
+        }
+
+        // when CLOUD_PHONE, phoneNumber is required and must exist in TOOL_CLOUD_PHONE
+        if (toolOutcome.getOutcomeType() == com.admire.cars.runner.entity.OutcomeType.CLOUD_PHONE) {
+            if (!StringUtils.hasText(toolOutcome.getPhoneNumber())) {
+                throw new IllegalArgumentException("phoneNumber is required when outcomeType is CLOUD_PHONE");
+            }
+            if (!toolCloudPhoneRepository.existsByPhoneNumberIgnoreCase(toolOutcome.getPhoneNumber().trim())) {
+                throw new IllegalArgumentException("TOOL_CLOUD_PHONE not found by phoneNumber: " + toolOutcome.getPhoneNumber());
+            }
+            toolOutcome.setPhoneNumber(toolOutcome.getPhoneNumber().trim());
+        }
+
+        validateLength(toolOutcome.getOutcomeType() == null ? null : toolOutcome.getOutcomeType().getNormalized(), "outcomeType", 64);
         validateLength(toolOutcome.getCurrency(), "currency", 32);
         validateLength(toolOutcome.getRemarks(), "remarks", 128);
         validateLength(toolOutcome.getAdsAccount(), "adsAccount", 64);
-    }
-
-    private String normalizeOutcomeType(String value) {
-        String normalized = trimToNull(value);
-        if (normalized == null) {
-            return null;
-        }
-        String upper = normalized.toUpperCase(Locale.ROOT);
-        return switch (upper) {
-            case "MEDIABY", "MEDIA BY" -> "MEDIABY";
-            case "IP PROXY", "IP_PROXY" -> "IP PROXY";
-            case "VPN" -> "VPN";
-            case "ADSPOWER BROWSER", "ADSPOWER_BROWSER" -> "ADSPOWER BROWSER";
-            case "SEMRUSH" -> "SEMRUSH";
-            case "OTHERS", "OTHER" -> "OTHERS";
-            default -> upper;
-        };
+        validateLength(toolOutcome.getIp(), "ip", 64);
+        validateLength(toolOutcome.getPhoneNumber(), "phoneNumber", 64);
     }
 
     private String normalizeEnumLike(String value, String defaultValue) {

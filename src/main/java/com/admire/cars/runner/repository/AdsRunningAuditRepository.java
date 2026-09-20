@@ -12,4 +12,7 @@ public interface AdsRunningAuditRepository extends JpaRepository<AdsRunningAudit
 
     long countByPlatformIgnoreCaseAndEmailIgnoreCaseAndBrandIgnoreCaseAndAdsOwnerAndCreateDateBetween(
             String platform, String email, String brand, String adsOwner, LocalDateTime start, LocalDateTime end);
+
+    void deleteByPlatformIgnoreCaseAndEmailIgnoreCaseAndBrandIgnoreCaseAndAdsOwnerAndCreateDateBetween(
+            String platform, String email, String brand, String adsOwner, LocalDateTime start, LocalDateTime end);
 }

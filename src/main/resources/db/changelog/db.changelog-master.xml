@@ -119,6 +119,10 @@
     <include file="db/changelog/db.changelog-049-ads-account-add-brand.xml"/>
     <include file="db/changelog/db.changelog-050-tool-outcome-add-ads-account.xml"/>
 
-    <include file="db/changelog/db.changelog-052-ads-running-audit-table.xml"/>    <include file="db/changelog/db.changelog-051-ads-matrix-affiliate-add-user-name.xml"/>
+    <include file="db/changelog/db.changelog-052-ads-running-audit-table.xml"/>
+    <include file="db/changelog/db.changelog-051-ads-matrix-affiliate-add-user-name.xml"/>
+    <include file="db/changelog/db.changelog-053-tool-ip-rename.xml"/>
+    <include file="db/changelog/db.changelog-056-tool-ip-drop-ip-string.xml"/>
+    <include file="db/changelog/db.changelog-055-tool-outcome-normalize-types.xml"/>
 
 </databaseChangeLog>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                    https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="053-add-ip-copy-drop-ip_string" author="copilot">
+        <!-- 1) Add IP column if not exists -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="TOOL_IP" columnName="IP"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="TOOL_IP">
+            <column name="IP" type="varchar(64)"/>
+        </addColumn>
+
+        <!-- 2) Copy data from IP_STRING to IP if IP_STRING exists -->
+        <preConditions onFail="CONTINUE">
+            <columnExists tableName="TOOL_IP" columnName="IP_STRING"/>
+        </preConditions>
+        <update tableName="TOOL_IP">
+            <column name="IP" valueComputed="IP_STRING"/>
+            <where>IP IS NULL OR TRIM(IP) = ''</where>
+        </update>
+
+        <!-- 3) Make IP NOT NULL -->
+        <addNotNullConstraint tableName="TOOL_IP" columnName="IP" columnDataType="varchar(64)"/>
+
+        <!-- 4) Drop legacy IP_STRING column if exists -->
+        <preConditions onFail="CONTINUE">
+            <columnExists tableName="TOOL_IP" columnName="IP_STRING"/>
+        </preConditions>
+        <dropColumn tableName="TOOL_IP" columnName="IP_STRING"/>
+
+    </changeSet>
+
+</databaseChangeLog>

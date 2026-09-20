@@ -311,15 +311,18 @@ public class AdsMatrixInfoService {
             LocalDateTime end = start.plusDays(1);
             long cnt = adsRunningAuditRepository.countByPlatformIgnoreCaseAndEmailIgnoreCaseAndBrandIgnoreCaseAndAdsOwnerAndCreateDateBetween(
                     platform.trim(), email.trim(), brand.trim(), adsOwner, start, end);
-            if (cnt == 0) {
-                AdsRunningAudit a = new AdsRunningAudit();
-                a.setBrand(brand.trim());
-                a.setPlatform(platform.trim());
-                a.setEmail(email.trim());
-                a.setAdsOwner(adsOwner);
-                a.setCreateDate(LocalDateTime.now());
-                adsRunningAuditRepository.save(a);
+            if (cnt > 0) {
+                // remove existing duplicate entries for today before initializing
+                adsRunningAuditRepository.deleteByPlatformIgnoreCaseAndEmailIgnoreCaseAndBrandIgnoreCaseAndAdsOwnerAndCreateDateBetween(
+                        platform.trim(), email.trim(), brand.trim(), adsOwner, start, end);
             }
+            AdsRunningAudit a = new AdsRunningAudit();
+            a.setBrand(brand.trim());
+            a.setPlatform(platform.trim());
+            a.setEmail(email.trim());
+            a.setAdsOwner(adsOwner);
+            a.setCreateDate(LocalDateTime.now());
+            adsRunningAuditRepository.save(a);
         }
     }
 

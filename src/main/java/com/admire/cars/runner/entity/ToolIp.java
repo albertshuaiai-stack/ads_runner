@@ -1,7 +1,6 @@
 package com.admire.cars.runner.entity;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,50 +13,35 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "TOOL_OUTCOME")
+@Table(name = "TOOL_IP")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ToolOutcome {
+public class ToolIp {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ID")
     private Long id;
 
-    @Convert(converter = OutcomeTypeConverter.class)
-    @Column(name = "OUTCOME_TYPE", length = 64)
-    private com.admire.cars.runner.entity.OutcomeType outcomeType;
+    @Column(name = "IP", nullable = false, length = 64)
+    private String ip;
 
-    @Column(name = "OUTCOME_AMOUNT", precision = 19, scale = 4)
-    private BigDecimal outcomeAmount;
+    @Column(name = "START_DATE")
+    private LocalDateTime startDate;
 
-    @Column(name = "CURRENCY", length = 32)
-    private String currency;
-
-    @Column(name = "PAY_DATE")
-    private LocalDate payDate;
+    @Column(name = "EXPIRE_DATE")
+    private LocalDateTime expireDate;
 
     @Column(name = "REMARKS", length = 128)
     private String remarks;
 
-    @Column(name = "ADS_OWNER", nullable = false, length = 32)
+    @Column(name = "ADS_OWNER", nullable = false, length = 64)
     private String adsOwner;
-
-    @Column(name = "ADS_ACCOUNT", length = 64)
-    private String adsAccount;
-
-    @Column(name = "PHONE_NUMBER", length = 64)
-    private String phoneNumber;
-
-    @Column(name = "IP", length = 64)
-    private String ip;
 
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;

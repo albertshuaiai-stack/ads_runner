@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                    https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="056-tool-ip-add-ip-if-missing" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="TOOL_IP" columnName="IP"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="TOOL_IP">
+            <column name="IP" type="varchar(64)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="056-tool-ip-copy-ip-string-to-ip" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <columnExists tableName="TOOL_IP" columnName="IP"/>
+                <columnExists tableName="TOOL_IP" columnName="IP_STRING"/>
+            </and>
+        </preConditions>
+        <update tableName="TOOL_IP">
+            <column name="IP" valueComputed="IP_STRING"/>
+            <where>(IP IS NULL OR TRIM(IP) = '') AND IP_STRING IS NOT NULL AND TRIM(IP_STRING) <> ''</where>
+        </update>
+    </changeSet>
+
+    <changeSet id="056-tool-ip-apply-ip-not-null" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="TOOL_IP" columnName="IP"/>
+        </preConditions>
+        <addNotNullConstraint tableName="TOOL_IP" columnName="IP" columnDataType="varchar(64)"/>
+    </changeSet>
+
+    <changeSet id="056-tool-ip-drop-ip-string" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="TOOL_IP" columnName="IP_STRING"/>
+        </preConditions>
+        <dropColumn tableName="TOOL_IP" columnName="IP_STRING"/>
+    </changeSet>
+
+</databaseChangeLog>
