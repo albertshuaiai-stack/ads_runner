@@ -30,4 +30,8 @@ public interface ExchangeRateRepository extends JpaRepository<ExchangeRate, Long
             LocalDate effectiveDate);
 
     Optional<ExchangeRate> findTopByOrderByEffectiveDateDescCreateDateDescIdDesc();
+
+    Optional<ExchangeRate> findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(
+            String fromCurrency,
+            String toCurrency);
 }

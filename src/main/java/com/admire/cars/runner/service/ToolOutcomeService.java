@@ -10,6 +10,7 @@ import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,6 +93,34 @@ public class ToolOutcomeService {
                     : criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
         return toolOutcomeRepository.findAll(specification, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ToolOutcome> findForReport(
+            LocalDate payDateBegin,
+            LocalDate payDateEnd,
+            Long currentUserId) {
+        User currentUser = getCurrentUser(currentUserId);
+        boolean admin = isAdmin(currentUser);
+        Specification<ToolOutcome> specification = (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (!admin) {
+                predicates.add(criteriaBuilder.equal(root.get("adsOwner"), currentUser.getUserPhoneNumber()));
+            }
+            if (payDateBegin != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("payDate"), payDateBegin));
+            }
+            if (payDateEnd != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("payDate"), payDateEnd));
+            }
+            return predicates.isEmpty()
+                    ? criteriaBuilder.conjunction()
+                    : criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+        return toolOutcomeRepository.findAll(
+                specification,
+                Sort.by(Sort.Direction.ASC, "payDate").and(Sort.by(Sort.Direction.ASC, "id")));
     }
 
     public ToolOutcome update(Long id, ToolOutcome updateData, Long currentUserId) {

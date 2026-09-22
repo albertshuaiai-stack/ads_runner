@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,10 +36,26 @@ public class CurrencyExchangeService {
         if (amount == null) {
             return BigDecimal.ZERO;
         }
-        if (USD.equalsIgnoreCase(currency)) {
+        String normalizedCurrency = normalizeCurrency(currency);
+        if (USD.equalsIgnoreCase(normalizedCurrency)) {
             return amount;
         }
-        BigDecimal rate = resolveRate(currency, USD, asOf);
+        BigDecimal rate = resolveRate(normalizedCurrency, USD, asOf);
+        return amount.multiply(rate).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Converts the given amount to USD using the latest configured rate for the currency pair.
+     */
+    public BigDecimal toUsdUsingLatestRate(BigDecimal amount, String currency) {
+        if (amount == null) {
+            return BigDecimal.ZERO;
+        }
+        String normalizedCurrency = normalizeCurrency(currency);
+        if (USD.equalsIgnoreCase(normalizedCurrency)) {
+            return amount;
+        }
+        BigDecimal rate = resolveLatestRate(normalizedCurrency, USD);
         return amount.multiply(rate).setScale(4, RoundingMode.HALF_UP);
     }
 
@@ -52,6 +69,31 @@ public class CurrencyExchangeService {
                             + " on or before " + asOf));
             return exchangeRate.getRate();
         });
+    }
+
+    private BigDecimal resolveLatestRate(String fromCurrency, String toCurrency) {
+        String cacheKey = fromCurrency + "_" + toCurrency + "_LATEST";
+        return rateCache.computeIfAbsent(cacheKey, k -> {
+            ExchangeRate exchangeRate = exchangeRateRepository
+                    .findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(fromCurrency, toCurrency)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "No latest exchange rate configured for " + fromCurrency + " → " + toCurrency));
+            return exchangeRate.getRate();
+        });
+    }
+
+    private String normalizeCurrency(String currency) {
+        if (currency == null) {
+            return null;
+        }
+        String normalized = currency.trim().toUpperCase(Locale.ROOT);
+        if ("$".equals(normalized)) {
+            return USD;
+        }
+        if ("￥".equals(normalized) || "¥".equals(normalized)) {
+            return "CNY";
+        }
+        return normalized;
     }
 
     public ExchangeRate getLatestExchangeRate() {
