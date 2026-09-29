@@ -233,7 +233,7 @@ public class ShiftLinkService {
         // URL 去重：记录本次导入已使用的 fullUrl / track fullUrl used in this import for de-duplication
         java.util.Set<String> seenUrls = new java.util.HashSet<>();
         rowsByAdsType.keySet().forEach(adsType -> {
-            if (!"Normal".equals(adsType) && !"Matrix".equals(adsType)) {
+            if (!"Normal".equals(adsType) && !"Matrix".equals(adsType) && !"Tracker".equals(adsType)) {
                 throw new IllegalArgumentException("Invalid adsType in Excel: " + adsType);
             }
             List<ExcelRowData> rowsByAdsTypeList = rowsByAdsType.get(adsType);
@@ -432,7 +432,7 @@ public class ShiftLinkService {
             return false;
         }
         String normalized = value.trim().toUpperCase(Locale.ROOT);
-        return "NORMAL".equals(normalized) || "MATRIX".equals(normalized);
+        return "NORMAL".equals(normalized) || "MATRIX".equals(normalized) || "TRACKER".equals(normalized);
     }
 
     private String normalizeAdsType(String value) {
@@ -442,6 +442,9 @@ public class ShiftLinkService {
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         if ("NORMAL".equals(normalized)) {
             return "Normal";
+        }
+        if ("TRACKER".equals(normalized)) {
+            return "Tracker";
         }
         if ("MATRIX".equals(normalized)) {
             return "Matrix";
@@ -509,6 +512,8 @@ public class ShiftLinkService {
             String normalized = shiftLink.getAdsType().trim().toUpperCase();
             if ("NORMAL".equals(normalized)) {
                 shiftLink.setAdsType("Normal");
+            } else if ("TRACKER".equals(normalized)) {
+                shiftLink.setAdsType("Tracker");
             } else if ("MATRIX".equals(normalized)) {
                 shiftLink.setAdsType("Matrix");
             }
@@ -589,8 +594,8 @@ public class ShiftLinkService {
         }
 
         String normalizedAdsType = shiftLink.getAdsType().trim().toUpperCase();
-        if (!"NORMAL".equals(normalizedAdsType) && !"MATRIX".equals(normalizedAdsType)) {
-            throw new IllegalArgumentException("adsType must be Normal or Matrix");
+        if (!"NORMAL".equals(normalizedAdsType) && !"MATRIX".equals(normalizedAdsType) && !"TRACKER".equals(normalizedAdsType)) {
+            throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
         }
 
         if (shiftLink.getAdsName().length() > 32) {
@@ -654,7 +659,11 @@ public class ShiftLinkService {
                     .map(AdsMatrixInfo::getId)
                     .orElse(0L);
         }
-        throw new IllegalArgumentException("adsType must be Normal or Matrix");
+        // Tracker 类型没有对应的 campaign 配置表 / no ads info table for Tracker type
+        if ("TRACKER".equals(normalizedAdsType)) {
+            return 0L;
+        }
+        throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
     }
 
     private void validatePlatform(ShiftLink shiftLink) {

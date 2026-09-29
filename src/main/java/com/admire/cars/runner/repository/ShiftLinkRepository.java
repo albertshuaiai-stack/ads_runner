@@ -54,6 +54,19 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
             """)
     ShiftLink findLastShiftLink(String adsOwner, String adsName, String adsType);
 
+    // 按落地页找可用链接, 轮流取用量最少的一条, 只取 Tracker 类型(与旧 Normal/Matrix 脚本隔离)
+    // Pick Tracker links matching the landing page, least used first (round-robin)
+    @Query("""
+            select s from ShiftLink s
+            where upper(s.status) = upper(:status)
+              and s.adsType = 'Tracker'
+              and s.landingPageUrl is not null
+              and s.landingPageUrl <> ''
+              and (s.landingPageUrl = :url or :url like concat(s.landingPageUrl, '%'))
+            order by coalesce(s.displayTimes, 0) asc, s.id asc
+            """)
+    List<ShiftLink> findRotatingForLanding(String url, String status);
+
     List<ShiftLink> findByPlatformName(String platformName);
 
     Optional<ShiftLink> findByFullUrl(String fullUrl);

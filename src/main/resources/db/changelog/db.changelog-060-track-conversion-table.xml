@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="060-create-track-conversion" author="copilot">
+        <createTable tableName="TRACK_CONVERSION">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- 回传携带的点击标识, 用于归因 / click id carried back by the network -->
+            <column name="CLICK_ID" type="varchar(64)"/>
+            <column name="ORDER_NO" type="varchar(128)"/>
+            <column name="ADS_OWNER" type="varchar(32)"/>
+            <column name="SLUG" type="varchar(64)"/>
+            <column name="CAMPAIGN_NAME" type="varchar(128)"/>
+            <column name="SITE_ID" type="varchar(128)"/>
+            <column name="PLATFORM" type="varchar(64)"/>
+            <column name="ADVERTISER" type="varchar(128)"/>
+            <column name="ORDER_AMOUNT" type="decimal(19,2)"/>
+            <column name="COMMISSION_AMOUNT" type="decimal(19,2)"/>
+            <column name="STATUS" type="varchar(64)"/>
+            <!-- 未归因标记 / marks whether attribution succeeded -->
+            <column name="ATTRIBUTED" type="varchar(16)"/>
+            <column name="CONVERSION_TIME" type="varchar(32)"/>
+            <!-- 原始回传参数, 便于排查 / raw postback params for troubleshooting -->
+            <column name="RAW_PARAMS" type="varchar(2048)"/>
+            <column name="CREATE_DATE" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="TRACK_CONVERSION"
+                columnNames="ORDER_NO"
+                constraintName="UK_TRACK_CONVERSION_ORDER_NO"/>
+
+        <createIndex tableName="TRACK_CONVERSION" indexName="IDX_TRACK_CONVERSION_CLICK">
+            <column name="CLICK_ID"/>
+        </createIndex>
+
+        <createIndex tableName="TRACK_CONVERSION" indexName="IDX_TRACK_CONVERSION_OWNER">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

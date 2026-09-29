@@ -202,7 +202,10 @@ public class AdsTaskLogService {
         if ("matrix".equalsIgnoreCase(normalized)) {
             return Constant.ADS_TYPE_MATRIX;
         }
-        throw new IllegalArgumentException("adsType must be Normal or Matrix");
+        if ("tracker".equalsIgnoreCase(normalized)) {
+            return Constant.ADS_TYPE_TRACKER;
+        }
+        throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
     }
 
     private String normalizeQueryAdsType(String value) {
@@ -216,7 +219,10 @@ public class AdsTaskLogService {
         if ("matrix".equalsIgnoreCase(normalized)) {
             return Constant.ADS_TYPE_MATRIX;
         }
-        throw new IllegalArgumentException("adsType must be Normal or Matrix");
+        if ("tracker".equalsIgnoreCase(normalized)) {
+            return Constant.ADS_TYPE_TRACKER;
+        }
+        throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
     }
 
     private void validateLength(String value, String fieldName, int maxLength) {

@@ -23,5 +23,8 @@ public final class Constant {
 
     public static final String ADS_TYPE_MATRIX = "Matrix";
 
+    // Tracker 类型: 仅供按落地页路由的中转端点使用 / used only by the landing-page routing endpoint
+    public static final String ADS_TYPE_TRACKER = "Tracker";
+
 
 }

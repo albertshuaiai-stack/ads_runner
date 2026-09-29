@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="059-create-track-click" author="copilot">
+        <createTable tableName="TRACK_CLICK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- 点击唯一标识, 透传给联盟用于回传归因 / unique click id passed to network for attribution -->
+            <column name="CLICK_ID" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SLUG" type="varchar(64)"/>
+            <column name="ADS_OWNER" type="varchar(32)"/>
+            <column name="CAMPAIGN_NAME" type="varchar(128)"/>
+            <column name="SITE_ID" type="varchar(128)"/>
+            <column name="PLATFORM" type="varchar(64)"/>
+            <column name="ADVERTISER" type="varchar(128)"/>
+            <!-- 保留 Google 点击标识, 仅用于自身归因分析 / keep gclid for own attribution analysis -->
+            <column name="GCLID" type="varchar(512)"/>
+            <column name="TARGET_URL" type="varchar(1024)"/>
+            <column name="LANDING_PAGE_URL" type="varchar(1024)"/>
+            <column name="IP" type="varchar(64)"/>
+            <column name="USER_AGENT" type="varchar(512)"/>
+            <column name="REFERER" type="varchar(1024)"/>
+            <column name="DEVICE" type="varchar(32)"/>
+            <column name="COUNTRY" type="varchar(16)"/>
+            <column name="CLICK_TIME" type="datetime"/>
+            <column name="CREATE_DATE" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="TRACK_CLICK"
+                columnNames="CLICK_ID"
+                constraintName="UK_TRACK_CLICK_CLICK_ID"/>
+
+        <createIndex tableName="TRACK_CLICK" indexName="IDX_TRACK_CLICK_TIME">
+            <column name="CLICK_TIME"/>
+        </createIndex>
+
+        <createIndex tableName="TRACK_CLICK" indexName="IDX_TRACK_CLICK_OWNER">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

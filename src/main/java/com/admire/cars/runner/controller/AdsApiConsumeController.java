@@ -3,6 +3,7 @@ package com.admire.cars.runner.controller;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.AdsNormalPostBackService;
+import com.admire.cars.runner.service.TrackCampaignService;
 import com.admire.cars.runner.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -27,13 +28,45 @@ public class AdsApiConsumeController {
 
     private final AdsNormalPostBackService adsNormalPostBackService;
 
+    private final TrackCampaignService trackCampaignService;
+
     private final ObjectMapper objectMapper;
 
-    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService, AdsNormalPostBackService adsNormalPostBackService, ObjectMapper objectMapper) {
+    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService, AdsNormalPostBackService adsNormalPostBackService, TrackCampaignService trackCampaignService, ObjectMapper objectMapper) {
         this.userService = userService;
         this.adsApiConsumeService = adsApiConsumeService;
         this.adsNormalPostBackService = adsNormalPostBackService;
+        this.trackCampaignService = trackCampaignService;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 供 Google Ads 脚本获取追踪链接(Final URL) / resolve tracker url for ads scripts
+     * @param campaignName
+     * @param apiKeyParam
+     * @return
+     */
+    @GetMapping(value = "/track/url", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> resolveTrackerUrl(
+            @RequestParam(value = "campaign_name", required = false) String campaignName,
+            @RequestParam(value = "api_key", required = false) String apiKeyParam) {
+        try {
+            String apiKey = resolveApiKey(apiKeyParam);
+            log.info("resolveTrackerUrl campaignName: {}", campaignName);
+            String url = trackCampaignService.resolveTrackerUrl(campaignName, apiKey);
+            if (url == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("No running tracker campaign found for: " + campaignName);
+            }
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(url);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(e.getMessage());
+        }
     }
 
     /**

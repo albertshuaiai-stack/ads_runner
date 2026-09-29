@@ -125,4 +125,19 @@
     <include file="db/changelog/db.changelog-056-tool-ip-drop-ip-string.xml"/>
     <include file="db/changelog/db.changelog-055-tool-outcome-normalize-types.xml"/>
 
+    <!-- Create TRACK_CAMPAIGN table -->
+    <include file="db/changelog/db.changelog-057-track-campaign-table.xml"/>
+
+    <!-- Create RAN_SITE_ID_POOL table -->
+    <include file="db/changelog/db.changelog-058-ran-site-id-pool-table.xml"/>
+
+    <!-- Create TRACK_CLICK table -->
+    <include file="db/changelog/db.changelog-059-track-click-table.xml"/>
+
+    <!-- Create TRACK_CONVERSION table -->
+    <include file="db/changelog/db.changelog-060-track-conversion-table.xml"/>
+
+    <!-- Create TRACK_HEALTH_CHECK table -->
+    <include file="db/changelog/db.changelog-061-track-health-check-table.xml"/>
+
 </databaseChangeLog>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="058-create-ran-site-id-pool" author="copilot">
+        <createTable tableName="RAN_SITE_ID_POOL">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- 池编码, 供 TRACK_CAMPAIGN 引用 / pool code referenced by TRACK_CAMPAIGN -->
+            <column name="POOL_CODE" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- 联盟平台, 如 CJ / Rakuten / Impact / affiliate network -->
+            <column name="PLATFORM" type="varchar(64)"/>
+            <!-- 广告主, 如 Dell / PUMA / advertiser -->
+            <column name="ADVERTISER" type="varchar(128)"/>
+            <column name="SITE_ID" type="varchar(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="WEIGHT" type="INT"/>
+            <column name="DAILY_CAP" type="BIGINT"/>
+            <column name="USED_TODAY" type="BIGINT"/>
+            <column name="TOTAL_USED" type="BIGINT"/>
+            <column name="STATUS" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LAST_USED_AT" type="datetime"/>
+            <column name="REMARKS" type="varchar(128)"/>
+            <column name="CREATE_DATE" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="datetime"/>
+        </createTable>
+
+        <createIndex tableName="RAN_SITE_ID_POOL" indexName="IDX_RAN_SITE_POOL_CODE">
+            <column name="POOL_CODE"/>
+            <column name="STATUS"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

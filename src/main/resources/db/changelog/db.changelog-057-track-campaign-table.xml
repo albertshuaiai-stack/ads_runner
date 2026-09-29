@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="057-create-track-campaign" author="copilot">
+        <createTable tableName="TRACK_CAMPAIGN">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="SLUG" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CAMPAIGN_NAME" type="varchar(128)"/>
+            <column name="OFFER_URL_TEMPLATE" type="varchar(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANDING_PAGE_URL" type="varchar(1024)"/>
+            <column name="ALLOWED_LANDING_HOSTS" type="varchar(512)"/>
+            <column name="POOL_CODE" type="varchar(64)"/>
+            <column name="ROTATE_STRATEGY" type="varchar(32)"/>
+            <column name="FIXED_SITE_ID" type="varchar(128)"/>
+            <column name="STATUS" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMARKS" type="varchar(128)"/>
+            <column name="CREATE_DATE" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="datetime"/>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="TRACK_CAMPAIGN"
+                columnNames="SLUG"
+                constraintName="UK_TRACK_CAMPAIGN_SLUG"/>
+
+        <createIndex tableName="TRACK_CAMPAIGN" indexName="IDX_TRACK_CAMPAIGN_OWNER">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
