@@ -32,6 +32,7 @@ public class TrackRedirectController {
 
     private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
     private static final String HEADER_CF_IP_COUNTRY = "CF-IPCountry";
+    private static final String HEADER_REFERRER_POLICY = "Referrer-Policy";
 
     private final TrackRedirectService trackRedirectService;
 
@@ -40,6 +41,10 @@ public class TrackRedirectController {
     // 兜底地址, campaign 不可用时跳转 / fallback destination when campaign is unavailable
     @Value("${tracker.fallback-url:}")
     private String fallbackUrl;
+
+    // 跳转时下发的引荐策略, 默认不带 Referer / referrer policy on redirect, defaults to no referrer
+    @Value("${tracker.referrer-policy:no-referrer}")
+    private String referrerPolicy;
 
     public TrackRedirectController(
             TrackRedirectService trackRedirectService,
@@ -112,6 +117,11 @@ public class TrackRedirectController {
     private ResponseEntity<Void> redirectTo(String targetUrl) {
         HttpHeaders headers = new HttpHeaders();
         headers.setLocation(URI.create(targetUrl));
+        // 必须挂在 302 这一跳上, 浏览器跟随重定向时才会按该策略重算 Referer
+        // must ride on the 302 itself so the browser recomputes the referrer for the next hop
+        if (referrerPolicy != null && !referrerPolicy.isBlank()) {
+            headers.set(HEADER_REFERRER_POLICY, referrerPolicy.trim());
+        }
         return ResponseEntity.status(HttpStatus.FOUND)
                 .cacheControl(CacheControl.noStore())
                 .headers(headers)
