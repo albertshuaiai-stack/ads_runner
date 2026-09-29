@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CurrencyExchangeService {
 
     private static final String USD = "USD";
+    private static final int INVERSE_RATE_SCALE = 12;
 
     private final ExchangeRateRepository exchangeRateRepository;
 
@@ -62,24 +63,40 @@ public class CurrencyExchangeService {
     private BigDecimal resolveRate(String fromCurrency, String toCurrency, LocalDate asOf) {
         String cacheKey = fromCurrency + "_" + toCurrency + "_" + asOf;
         return rateCache.computeIfAbsent(cacheKey, k -> {
-            ExchangeRate exchangeRate = exchangeRateRepository
+            return exchangeRateRepository
                     .findLatestRate(fromCurrency, toCurrency, asOf)
+                    .map(ExchangeRate::getRate)
+                    .or(() -> exchangeRateRepository
+                            .findLatestRate(toCurrency, fromCurrency, asOf)
+                            .map(ExchangeRate::getRate)
+                            .map(rate -> invertRate(rate, toCurrency, fromCurrency)))
                     .orElseThrow(() -> new IllegalStateException(
                             "No exchange rate configured for " + fromCurrency + " → " + toCurrency
                             + " on or before " + asOf));
-            return exchangeRate.getRate();
         });
     }
 
     private BigDecimal resolveLatestRate(String fromCurrency, String toCurrency) {
         String cacheKey = fromCurrency + "_" + toCurrency + "_LATEST";
         return rateCache.computeIfAbsent(cacheKey, k -> {
-            ExchangeRate exchangeRate = exchangeRateRepository
+            return exchangeRateRepository
                     .findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(fromCurrency, toCurrency)
+                    .map(ExchangeRate::getRate)
+                    .or(() -> exchangeRateRepository
+                            .findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(toCurrency, fromCurrency)
+                            .map(ExchangeRate::getRate)
+                            .map(rate -> invertRate(rate, toCurrency, fromCurrency)))
                     .orElseThrow(() -> new IllegalStateException(
                             "No latest exchange rate configured for " + fromCurrency + " → " + toCurrency));
-            return exchangeRate.getRate();
         });
+    }
+
+    private BigDecimal invertRate(BigDecimal rate, String fromCurrency, String toCurrency) {
+        if (rate == null || BigDecimal.ZERO.compareTo(rate) == 0) {
+            throw new IllegalStateException(
+                    "Invalid exchange rate configured for " + fromCurrency + " → " + toCurrency + ": " + rate);
+        }
+        return BigDecimal.ONE.divide(rate, INVERSE_RATE_SCALE, RoundingMode.HALF_UP);
     }
 
     private String normalizeCurrency(String currency) {

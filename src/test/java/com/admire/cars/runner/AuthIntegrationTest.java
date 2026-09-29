@@ -1,12 +1,14 @@
 package com.admire.cars.runner;
 
 import com.admire.cars.runner.entity.User;
+import com.admire.cars.runner.entity.ToolEmail;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.ShiftLinkLogRepository;
+import com.admire.cars.runner.repository.ToolEmailRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import com.admire.cars.runner.security.PasswordCryptoService;
 import io.jsonwebtoken.Jwts;
@@ -77,6 +79,9 @@ public class AuthIntegrationTest {
 
     @Autowired
     private ShiftLinkLogRepository shiftLinkLogRepository;
+
+    @Autowired
+    private ToolEmailRepository toolEmailRepository;
 
     @Autowired
     private Scheduler scheduler;
@@ -955,6 +960,12 @@ public class AuthIntegrationTest {
                 .orElseThrow()
                 .getId();
 
+        ToolEmail toolEmail = new ToolEmail();
+        toolEmail.setUserName("shiftemail1");
+        toolEmail.setEmailAddress("shiftlink-email@example.com");
+        toolEmail.setAdsOwner("1777000001");
+        toolEmailRepository.save(toolEmail);
+
         webTestClient.post().uri("/api/shift-links")
                 .header("AMtoken", token)
                 .bodyValue(Map.of(
@@ -962,11 +973,13 @@ public class AuthIntegrationTest {
                         "adsName", "Shift Linked Campaign",
                         "platformName", "Shift Link Platform",
                         "fullUrl", "https://example.com/shift-linked",
-                        "status", "RUNNING"))
+                        "status", "RUNNING",
+                        "userName", "shiftemail1"))
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.data.adsOwner").isEqualTo("1777000001")
+                .jsonPath("$.data.userName").isEqualTo("shiftemail1")
                 .jsonPath("$.data.adsId").isEqualTo(expectedAdsId.intValue());
 
         webTestClient.post().uri("/api/shift-links")
@@ -976,11 +989,13 @@ public class AuthIntegrationTest {
                         "adsName", "Shift Missing Campaign",
                         "platformName", "Shift Link Platform",
                         "fullUrl", "https://example.com/shift-missing",
-                        "status", "RUNNING"))
+                        "status", "RUNNING",
+                        "userName", "shiftemail1"))
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody()
                 .jsonPath("$.data.adsOwner").isEqualTo("1777000001")
+                .jsonPath("$.data.userName").isEqualTo("shiftemail1")
                 .jsonPath("$.data.adsId").isEqualTo(0);
     }
 

@@ -40,6 +40,7 @@ public class ShiftLinkConsumeAsyncService {
         log.setDisplayTimes(nextDisplayTimes);
         log.setRemarks(shiftLink.getRemarks());
         log.setAdsOwner(shiftLink.getAdsOwner());
+        log.setUserName(shiftLink.getUserName());
         shiftLinkLogRepository.save(log);
 
     }

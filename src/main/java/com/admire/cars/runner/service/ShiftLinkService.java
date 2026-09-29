@@ -9,6 +9,7 @@ import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
+import com.admire.cars.runner.repository.ToolEmailRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.apache.commons.compress.utils.Lists;
@@ -48,18 +49,21 @@ public class ShiftLinkService {
     private final AdsPlatformRepository adsPlatformRepository;
     private final AdsNormalInfoRepository adsNormalInfoRepository;
     private final AdsMatrixInfoRepository adsMatrixInfoRepository;
+    private final ToolEmailRepository toolEmailRepository;
 
     public ShiftLinkService(
             ShiftLinkRepository shiftLinkRepository,
             UserRepository userRepository,
             AdsPlatformRepository adsPlatformRepository,
             AdsNormalInfoRepository adsNormalInfoRepository,
-            AdsMatrixInfoRepository adsMatrixInfoRepository) {
+            AdsMatrixInfoRepository adsMatrixInfoRepository,
+            ToolEmailRepository toolEmailRepository) {
         this.shiftLinkRepository = shiftLinkRepository;
         this.userRepository = userRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
         this.adsMatrixInfoRepository = adsMatrixInfoRepository;
+        this.toolEmailRepository = toolEmailRepository;
     }
 
     public ShiftLink createShiftLink(ShiftLink shiftLink, Long currentUserId) {
@@ -130,10 +134,11 @@ public class ShiftLinkService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ShiftLink> searchShiftLinks(String adsType, String adsName, String platformName, String status, String adsOwner, Long currentUserId, Pageable pageable) {
+    public Page<ShiftLink> searchShiftLinks(String adsType, String adsName, String platformName, String status, String adsOwner, String userName, Long currentUserId, Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
         boolean admin = isAdmin(currentUser);
         String scopedAdsOwner = admin ? adsOwner : currentUser.getUserPhoneNumber();
+        String scopedUserName = admin ? userName : null;
         Specification<ShiftLink> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -165,6 +170,11 @@ public class ShiftLinkService {
                 predicates.add(criteriaBuilder.like(
                         criteriaBuilder.lower(root.get("adsOwner")),
                         "%" + scopedAdsOwner.toLowerCase() + "%"));
+            }
+            if (StringUtils.hasText(scopedUserName)) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("userName")),
+                        "%" + scopedUserName.toLowerCase() + "%"));
             }
 
             return predicates.isEmpty()
@@ -267,6 +277,7 @@ public class ShiftLinkService {
                             shiftLink.setDisplayNumber(row.displayNumber() != null ? row.displayNumber() : 5L);
                             shiftLink.setRemarks(row.remarks());
                             shiftLink.setAdsOwner(owner.getUserPhoneNumber());
+                            shiftLink.setUserName(owner.getUserName());
                             shiftLink.setSeqNumber(sequenceNum.get() + 1);
                             sequenceNum.getAndSet(sequenceNum.get() + 1);
                             shiftLinkList.add(shiftLink);
@@ -500,11 +511,20 @@ public class ShiftLinkService {
                     .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));
             shiftLink.setAdsOwner(user.getUserPhoneNumber());
         } else if (StringUtils.hasText(shiftLink.getAdsOwner())) {
-            userRepository.findByUserPhoneNumber(shiftLink.getAdsOwner())
-                    .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + shiftLink.getAdsOwner()));
             shiftLink.setAdsOwner(shiftLink.getAdsOwner().trim());
         } else {
             throw new IllegalArgumentException("adsOwner is required");
+        }
+
+        if (StringUtils.hasText(shiftLink.getUserName())) {
+            String normalizedUserName = shiftLink.getUserName().trim();
+            toolEmailRepository.findByUserName(normalizedUserName)
+                    .orElseThrow(() -> new IllegalArgumentException("TOOL_EMAIL not found by userName: " + normalizedUserName));
+            shiftLink.setUserName(normalizedUserName);
+        } else {
+            User owner = userRepository.findByUserPhoneNumber(shiftLink.getAdsOwner())
+                    .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + shiftLink.getAdsOwner()));
+            shiftLink.setUserName(owner.getUserName());
         }
 
         // Normalize adsType
@@ -571,6 +591,9 @@ public class ShiftLinkService {
         if (updateData.getStatus() != null) {
             existing.setStatus(updateData.getStatus());
         }
+        if (updateData.getUserName() != null) {
+            existing.setUserName(updateData.getUserName());
+        }
 
         prepareForSave(existing, currentUserId);
         existing.setUpdateDate(LocalDateTime.now());
@@ -591,6 +614,9 @@ public class ShiftLinkService {
         }
         if (!StringUtils.hasText(shiftLink.getAdsOwner())) {
             throw new IllegalArgumentException("adsOwner is required");
+        }
+        if (!StringUtils.hasText(shiftLink.getUserName())) {
+            throw new IllegalArgumentException("userName is required");
         }
 
         String normalizedAdsType = shiftLink.getAdsType().trim().toUpperCase();
@@ -618,6 +644,9 @@ public class ShiftLinkService {
         }
         if (shiftLink.getAdsOwner().length() > 32) {
             throw new IllegalArgumentException("adsOwner must be at most 32 characters");
+        }
+        if (shiftLink.getUserName().length() > 32) {
+            throw new IllegalArgumentException("userName must be at most 32 characters");
         }
     }
 

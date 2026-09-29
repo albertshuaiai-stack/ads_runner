@@ -66,6 +66,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             shiftLink.setStatus(adsMatrixInfo.getStatus());
             shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
             shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
+            shiftLink.setUserName(adsMatrixAffiliateInfo.getUserName());
             updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
             shiftLinkRepository.save(shiftLink);
 

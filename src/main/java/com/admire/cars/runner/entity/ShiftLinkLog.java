@@ -48,6 +48,9 @@ public class ShiftLinkLog {
     @Column(name = "ADS_OWNER", nullable = false, length = 32)
     private String adsOwner;
 
+    @Column(name = "USER_NAME", length = 32)
+    private String userName;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 

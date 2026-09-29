@@ -124,6 +124,7 @@
     <include file="db/changelog/db.changelog-053-tool-ip-rename.xml"/>
     <include file="db/changelog/db.changelog-056-tool-ip-drop-ip-string.xml"/>
     <include file="db/changelog/db.changelog-055-tool-outcome-normalize-types.xml"/>
+    <include file="db/changelog/db.changelog-057-shift-link-add-user-name.xml"/>
 
     <!-- Create TRACK_CAMPAIGN table -->
     <include file="db/changelog/db.changelog-057-track-campaign-table.xml"/>

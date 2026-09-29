@@ -33,12 +33,14 @@ public class ShiftLinkLogService {
             String adsType,
             String platformName,
             String adsName,
+            String userName,
             Long currentUserId,
             Pageable pageable) {
         User currentUser = getCurrentUser(currentUserId);
         String normalizedAdsType = normalizeAdsType(adsType);
         String normalizedPlatformName = normalizeOptional(platformName);
         String normalizedAdsName = normalizeOptional(adsName);
+        String normalizedUserName = normalizeOptional(userName);
         boolean admin = isAdmin(currentUser);
 
         Specification<ShiftLinkLog> specification = (root, query, criteriaBuilder) -> {
@@ -54,6 +56,9 @@ public class ShiftLinkLogService {
             }
             if (normalizedAdsName != null) {
                 predicates.add(criteriaBuilder.equal(root.get("adsName"), normalizedAdsName));
+            }
+            if (normalizedUserName != null) {
+                predicates.add(criteriaBuilder.equal(root.get("userName"), normalizedUserName));
             }
             return predicates.isEmpty()
                     ? criteriaBuilder.conjunction()

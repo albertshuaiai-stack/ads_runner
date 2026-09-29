@@ -100,7 +100,7 @@ public class AdsHttpClientTool {
 
         AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
-        String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliteUrl is required");
+        String affiliateUrl = requireText(adsNormalInfo.getAffiliteUrl(), "affiliateUrl is required");
         final String landingPageUrl = requireText(adsNormalInfo.getLandingPageUrl(), "landingPageUrl is required");
         List<AdsTaskLog> adsTaskLogList = Lists.newArrayList();
         AdsTaskLog adsTaskLog = new AdsTaskLog();
@@ -113,6 +113,13 @@ public class AdsHttpClientTool {
                 ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
                 0L, userAgent, null);
         if (ipVerificationDto.isMatched()) {
+
+
+
+
+
+
+            /////////////////
             AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(enrichedAffiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
             URI requestUri = toRequestUri(enrichedAffiliateUrl, "affiliateUrl");
             try {
@@ -130,13 +137,14 @@ public class AdsHttpClientTool {
                         URI responseUri = response.request() != null && response.request().url() != null
                                 ? response.request().url().uri()
                                 : currentUri;
+                        log.warn("Apply Normal Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
                         adsTaskLog = new AdsTaskLog();
                         adsTaskLogList.add(adsTaskLog);
                         buildAdsTaskLog(adsTaskLog, adsNormalInfo,
                                 (null != ipVerificationDto) ? ipVerificationDto.getIp() : null,
                                 (null != ipVerificationDto) ? ipVerificationDto.getCountryCode() : null,
                                 (long)(hop + 1), userAgent, currentUri.toString());
-
+                        adsTaskLog.setPlatformName(adsNormalInfo.getPlatformName());
                         final long durationMillis = (System.currentTimeMillis() - startTime)/1000;
                         adsTaskLog.setDurationMillis(String.valueOf(durationMillis));
                         adsTaskLog.setStatusCode(String.valueOf(statusCode));

@@ -27,6 +27,7 @@ public class ShiftLinkLogController {
             @RequestParam(required = false) String adsType,
             @RequestParam(required = false) String platformName,
             @RequestParam(required = false) String adsName,
+            @RequestParam(required = false) String userName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -37,6 +38,7 @@ public class ShiftLinkLogController {
                 adsType,
                 platformName,
                 adsName,
+                userName,
                 userId,
                 PageRequest.of(
                         safePage,

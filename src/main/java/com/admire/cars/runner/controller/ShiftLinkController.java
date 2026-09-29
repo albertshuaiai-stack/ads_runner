@@ -71,6 +71,7 @@ public class ShiftLinkController {
             @RequestParam(required = false) String platformName,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String adsOwner,
+            @RequestParam(required = false) String userName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -83,6 +84,7 @@ public class ShiftLinkController {
                 platformName,
                 status,
                 adsOwner,
+                userName,
                 userId,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(links);
