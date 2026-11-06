@@ -126,19 +126,16 @@
     <include file="db/changelog/db.changelog-055-tool-outcome-normalize-types.xml"/>
     <include file="db/changelog/db.changelog-057-shift-link-add-user-name.xml"/>
 
-    <!-- Create TRACK_CAMPAIGN table -->
-    <include file="db/changelog/db.changelog-057-track-campaign-table.xml"/>
+    <!-- Create GMAIL_PLATFORM_LINK table -->
+    <include file="db/changelog/db.changelog-062-gmail-platform-link-table.xml"/>
 
-    <!-- Create RAN_SITE_ID_POOL table -->
-    <include file="db/changelog/db.changelog-058-ran-site-id-pool-table.xml"/>
+    <!-- Rename GMAIL_PLATFORM_LINK.LINK_PREFIX to MATCH_ID -->
+    <include file="db/changelog/db.changelog-063-gmail-platform-link-match-id.xml"/>
 
-    <!-- Create TRACK_CLICK table -->
-    <include file="db/changelog/db.changelog-059-track-click-table.xml"/>
+    <!-- Create MIDDLE_LINK table -->
+    <include file="db/changelog/db.changelog-064-middle-link-table.xml"/>
 
-    <!-- Create TRACK_CONVERSION table -->
-    <include file="db/changelog/db.changelog-060-track-conversion-table.xml"/>
-
-    <!-- Create TRACK_HEALTH_CHECK table -->
-    <include file="db/changelog/db.changelog-061-track-health-check-table.xml"/>
+    <!-- Create SHIFT_LINK_STAT table -->
+    <include file="db/changelog/db.changelog-065-shift-link-stat-table.xml"/>
 
 </databaseChangeLog>

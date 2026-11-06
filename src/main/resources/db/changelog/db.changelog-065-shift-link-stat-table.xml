@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Shift Link 历史聚合表：30 天自动清理前归档计数，保证统计不受影响
+         historical shift link aggregates: archived before the 30-day cleanup so stats stay intact -->
+    <changeSet id="shift-link-stat-001-create-table" author="copilot">
+        <createTable tableName="SHIFT_LINK_STAT">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LINK_COUNT" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SAMPLE_URL" type="VARCHAR(1024)"/>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="shift-link-stat-002-unique-index" author="copilot">
+        <addUniqueConstraint tableName="SHIFT_LINK_STAT"
+                             columnNames="ADS_OWNER, USER_NAME, PLATFORM_NAME, ADS_NAME"
+                             constraintName="UK_SHIFT_LINK_STAT_GROUP"/>
+    </changeSet>
+
+</databaseChangeLog>

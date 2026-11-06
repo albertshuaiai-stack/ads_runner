@@ -88,13 +88,10 @@ public class ShiftLinkLogService {
         if ("NORMAL".equals(normalized)) {
             return "Normal";
         }
-        if ("TRACKER".equals(normalized)) {
-            return "Tracker";
-        }
         if ("MATRIX".equals(normalized)) {
             return "Matrix";
         }
-        throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
+        throw new IllegalArgumentException("adsType must be Normal or Matrix");
     }
 
     private String normalizeOptional(String value) {

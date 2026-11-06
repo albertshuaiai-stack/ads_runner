@@ -2,6 +2,7 @@ package com.admire.cars.runner.job;
 
 import com.admire.cars.runner.repository.*;
 import com.admire.cars.runner.entity.HouseKeepingLog;
+import com.admire.cars.runner.entity.ShiftLinkStat;
 import org.quartz.DisallowConcurrentExecution;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @DisallowConcurrentExecution
 public class HousekeepingJob implements Job {
@@ -37,6 +39,9 @@ public class HousekeepingJob implements Job {
     @Autowired
     private HouseKeepingLogRepository houseKeepingLogRepository;
 
+    @Autowired
+    private ShiftLinkStatRepository shiftLinkStatRepository;
+
     @Value("${housekeeping.shift-link-log.retention-days:7}")
     private int shiftLinkLogRetentionDays;
 
@@ -45,6 +50,9 @@ public class HousekeepingJob implements Job {
 
     @Value("${housekeeping.matrix.shift-link.retention-days:1}")
     private int matrixShiftLinkRetentionDays;
+
+    @Value("${housekeeping.matrix.shift-link.absolute-retention-days:30}")
+    private int matrixShiftLinkAbsoluteRetentionDays;
 
     @Value("${housekeeping.ads-task-log.retention-days:1}")
     private int adsTaskLogRetentionDays;
@@ -104,16 +112,64 @@ public class HousekeepingJob implements Job {
 
     private long purgeNormalShiftLinks() {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(normalShiftLinkRetentionDays);
+        // 删除前先归档计数，保证统计不受影响 / archive counts before deletion so stats stay intact
+        archiveExpiredShiftLinks(cutoff, "Normal");
         long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeNormal(cutoff);
         log.info("HOUSEKEEPING_SHIFT_LINK_NORMAL_PURGED cutoff={} deletedCount={}", cutoff, deleted);
         return deleted;
     }
 
     private long purgeMatrixShiftLinks() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(matrixShiftLinkRetentionDays);
-        long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(cutoff);
-        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_PURGED cutoff={} deletedCount={}", cutoff, deleted);
+        LocalDateTime consumedCutoff = LocalDateTime.now().minusDays(matrixShiftLinkRetentionDays);
+        archiveExpiredShiftLinks(consumedCutoff, "Matrix");
+        long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(consumedCutoff);
+        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_PURGED cutoff={} deletedCount={}", consumedCutoff, deleted);
+
+        // 绝对清理：30 天后无论是否消耗完都删除 / absolute purge after 30 days regardless of consumption
+        LocalDateTime absoluteCutoff = LocalDateTime.now().minusDays(matrixShiftLinkAbsoluteRetentionDays);
+        archiveExpiredShiftLinks(absoluteCutoff, "Matrix");
+        deleted += shiftLinkRepository.deleteMatrixByCreateDateBefore(absoluteCutoff);
+        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_ABSOLUTE_PURGED cutoff={} deletedCount={}", absoluteCutoff, deleted);
         return deleted;
+    }
+
+    // 过期 Shift Link 计数归档进 SHIFT_LINK_STAT / archive expired shift link counts into SHIFT_LINK_STAT
+    private void archiveExpiredShiftLinks(LocalDateTime cutoff, String adsType) {
+        List<Object[]> rows = shiftLinkRepository.aggregateExpiredByAdsType(cutoff, adsType);
+        long archivedCount = 0L;
+        for (Object[] row : rows) {
+            String owner = row[0] == null ? null : String.valueOf(row[0]);
+            String userName = row[1] == null ? null : String.valueOf(row[1]);
+            String platformName = row[2] == null ? null : String.valueOf(row[2]);
+            String adsName = row[3] == null ? null : String.valueOf(row[3]);
+            long linkCount = row[4] instanceof Number number ? number.longValue() : 0L;
+            String sampleUrl = row[5] == null ? null : String.valueOf(row[5]);
+            if (owner == null || userName == null || platformName == null || adsName == null || linkCount <= 0) {
+                continue;
+            }
+
+            ShiftLinkStat stat = shiftLinkStatRepository
+                    .findByAdsOwnerAndUserNameAndPlatformNameAndAdsName(owner, userName, platformName, adsName)
+                    .orElseGet(() -> {
+                        ShiftLinkStat created = new ShiftLinkStat();
+                        created.setAdsOwner(owner);
+                        created.setUserName(userName);
+                        created.setPlatformName(platformName);
+                        created.setAdsName(adsName);
+                        created.setLinkCount(0L);
+                        return created;
+                    });
+            stat.setLinkCount(stat.getLinkCount() + linkCount);
+            if (stat.getSampleUrl() == null && sampleUrl != null) {
+                stat.setSampleUrl(sampleUrl.length() > 1024 ? sampleUrl.substring(0, 1024) : sampleUrl);
+            }
+            stat.setUpdateDate(LocalDateTime.now());
+            shiftLinkStatRepository.save(stat);
+            archivedCount += linkCount;
+        }
+        if (archivedCount > 0) {
+            log.info("HOUSEKEEPING_SHIFT_LINK_ARCHIVED adsType={} cutoff={} archivedCount={}", adsType, cutoff, archivedCount);
+        }
     }
 
     private long purgeAdsTaskLog() {

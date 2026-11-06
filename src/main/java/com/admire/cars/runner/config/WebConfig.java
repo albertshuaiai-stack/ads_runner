@@ -29,9 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/yp/postback",
                         "/api/pb/postback",
                         "/api/normal/ads",
-                        "/api/matrix/ads",
-                        "/api/track/postback",
-                        "/api/track/url");
+                        "/api/matrix/ads");
     }
 
     @Override

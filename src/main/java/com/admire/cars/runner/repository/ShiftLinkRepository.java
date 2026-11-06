@@ -55,19 +55,6 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
             """)
     ShiftLink findLastShiftLink(String adsOwner, String adsName, String adsType);
 
-    // 按落地页找可用链接, 轮流取用量最少的一条, 只取 Tracker 类型(与旧 Normal/Matrix 脚本隔离)
-    // Pick Tracker links matching the landing page, least used first (round-robin)
-    @Query("""
-            select s from ShiftLink s
-            where upper(s.status) = upper(:status)
-              and s.adsType = 'Tracker'
-              and s.landingPageUrl is not null
-              and s.landingPageUrl <> ''
-              and (s.landingPageUrl = :url or :url like concat(s.landingPageUrl, '%'))
-            order by coalesce(s.displayTimes, 0) asc, s.id asc
-            """)
-    List<ShiftLink> findRotatingForLanding(String url, String status);
-
     List<ShiftLink> findByPlatformName(String platformName);
 
     Optional<ShiftLink> findByFullUrl(String fullUrl);
@@ -81,6 +68,24 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
     List<ShiftLink> findByAdsOwnerAndAdsName(String adsOwner, String adsName);
 
     List<ShiftLink> findByAdsOwnerAndPlatformName(String adsOwner, String platformName);
+
+    // Gmail -> 平台 -> 商家 统计，max(fullUrl) 作为商家样例链接
+    // stats grouped by gmail, platform and merchant; max(fullUrl) as a sample link per merchant
+    @Query("select s.userName, s.platformName, s.adsName, count(s), max(s.fullUrl) from ShiftLink s group by s.userName, s.platformName, s.adsName")
+    List<Object[]> summarizeByGmailPlatformMerchant();
+
+    @Query("select s.userName, s.platformName, s.adsName, count(s), max(s.fullUrl) from ShiftLink s where s.adsOwner = :adsOwner group by s.userName, s.platformName, s.adsName")
+    List<Object[]> summarizeByGmailPlatformMerchantAndOwner(String adsOwner);
+
+    // 过期数据聚合：清理前归档 / aggregate expired rows before cleanup
+    @Query("select s.adsOwner, s.userName, s.platformName, s.adsName, count(s), max(s.fullUrl) from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = upper(:adsType) group by s.adsOwner, s.userName, s.platformName, s.adsName")
+    List<Object[]> aggregateExpiredByAdsType(LocalDateTime cutoff, String adsType);
+
+    // Matrix 绝对过期清理：不看消耗进度 / absolute matrix cleanup regardless of consumption
+    @Modifying
+    @Transactional
+    @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
+    int deleteMatrixByCreateDateBefore(LocalDateTime cutoff);
 
     @Modifying
     @Transactional
