@@ -74,7 +74,7 @@ public class AdsApiConsumeService {
 //                Comparator.nullsLast(Comparator.reverseOrder())));
 
         ShiftLink selectedLink = eligibleLinks.get(0);
-        String shiftLink = selectedLink.getFullUrl().replace(selectedLink.getLandingPageUrl(),"{lpurl}");
+        String shiftLink = buildTrackingTemplate(selectedLink);
         shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
 
         return shiftLink;
@@ -100,10 +100,28 @@ public class AdsApiConsumeService {
             throw new IllegalArgumentException("No available SHIFT_LINK found for normal ads");
         }
         ShiftLink selectedLink = eligibleLinks.get(0);
-        String shiftLink = selectedLink.getFullUrl().replace(selectedLink.getLandingPageUrl(),"{lpurl}");
+        String shiftLink = buildTrackingTemplate(selectedLink);
         shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
 
         return shiftLink;
+    }
+
+    // 生成跟踪模板: landingPageUrl 必须逐字符等于 fullUrl 中的落地页片段, 否则替换后缺少 {lpurl}, Google 会拒绝
+    // Build tracking template; only the first occurrence is replaced, and mismatches fail fast instead of returning a bad template
+    private String buildTrackingTemplate(ShiftLink selectedLink) {
+        String fullUrl = selectedLink.getFullUrl();
+        String landingPageUrl = selectedLink.getLandingPageUrl();
+        if (!StringUtils.hasText(landingPageUrl)) {
+            throw new IllegalArgumentException(
+                    "landingPageUrl is required for shift link id=" + selectedLink.getId());
+        }
+        int index = fullUrl.indexOf(landingPageUrl);
+        if (index < 0) {
+            throw new IllegalArgumentException(
+                    "landingPageUrl does not match fullUrl for shift link id=" + selectedLink.getId()
+                            + ", adsName=" + selectedLink.getAdsName());
+        }
+        return fullUrl.substring(0, index) + "{lpurl}" + fullUrl.substring(index + landingPageUrl.length());
     }
 
 }

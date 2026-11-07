@@ -22,6 +22,7 @@ public class MiddleLink {
     public static final String STATUS_RESOLVING = "RESOLVING";
     public static final String STATUS_DONE = "DONE";
     public static final String STATUS_FAILED = "FAILED";
+    public static final String STATUS_STOPPED = "STOPPED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

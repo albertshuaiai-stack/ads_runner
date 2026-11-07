@@ -82,6 +82,21 @@ public class MiddleLinkController {
         }
     }
 
+    // 手动停止解析 / stop resolving manually
+    @PostMapping("/{id}/stop")
+    public ResponseEntity<Map<String, Object>> stop(@PathVariable Long id, HttpServletRequest request) {
+        try {
+            MiddleLink stopped = service.stopResolve(id, getUserId(request));
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("success", true);
+            resp.put("message", "Resolve stopped");
+            resp.put("data", MiddleLinkDto.fromEntity(stopped));
+            return ResponseEntity.ok(resp);
+        } catch (IllegalArgumentException e) {
+            return badRequest(e);
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> delete(@PathVariable Long id, HttpServletRequest request) {
         try {

@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
 // Shift Link 历史聚合：30 天清理前归档计数，统计接口合并此表计算
 // historical shift link aggregates archived before the 30-day cleanup; stats merge this table
 @Entity
-@Table(name = "SHIFT_LINK_STAT")
+@Table(name = "SHIFT_LINK_STAT", uniqueConstraints = @UniqueConstraint(
+        name = "UK_SHIFT_LINK_STAT_GROUP",
+        columnNames = {"ADS_OWNER", "USER_NAME", "PLATFORM_NAME", "ADS_NAME"}))
 @Getter
 @Setter
 @NoArgsConstructor

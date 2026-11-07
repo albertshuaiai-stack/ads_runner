@@ -173,6 +173,17 @@ public class MiddleLinkService {
         return saved;
     }
 
+    // 手动停止解析 / stop resolving manually
+    public MiddleLink stopResolve(Long id, Long currentUserId) {
+        MiddleLink link = getOwned(id, currentUserId);
+        if (!MiddleLink.STATUS_RESOLVING.equals(link.getResolveStatus())) {
+            throw new IllegalArgumentException("This link is not resolving");
+        }
+        link.setResolveStatus(MiddleLink.STATUS_STOPPED);
+        link.setUpdateDate(LocalDateTime.now());
+        return middleLinkRepository.save(link);
+    }
+
     // 解析任务：时间窗内反复请求中间链接收集落地页 / resolve task: poll the middle link within the window
     private void resolveTask(Long middleLinkId, long windowSeconds, long intervalSeconds) {
         long deadline = System.currentTimeMillis() + windowSeconds * 1000L;
@@ -186,6 +197,11 @@ public class MiddleLinkService {
             String lastFailure = null;
 
             while (collected.size() < link.getTargetCount() && System.currentTimeMillis() < deadline) {
+                // 每轮检查停止标记 / check the stop flag every iteration
+                MiddleLink state = middleLinkRepository.findById(middleLinkId).orElse(null);
+                if (state == null || !MiddleLink.STATUS_RESOLVING.equals(state.getResolveStatus())) {
+                    break;
+                }
                 String landingUrl = null;
                 try {
                     landingUrl = resolveFinalUrl(link.getFullUrl());
@@ -229,7 +245,10 @@ public class MiddleLinkService {
             }
             fresh.setResolvedCount((long) collected.size());
             fresh.setResolvedUrls(String.join("\n", collected));
-            if (collected.isEmpty()) {
+            // 手动停止的保持 STOPPED，不覆盖状态 / keep STOPPED when stopped manually
+            if (MiddleLink.STATUS_STOPPED.equals(fresh.getResolveStatus())) {
+                fresh.setLastError("Stopped manually, resolved " + collected.size() + " of " + fresh.getTargetCount());
+            } else if (collected.isEmpty()) {
                 fresh.setResolveStatus(MiddleLink.STATUS_FAILED);
                 fresh.setLastError(lastFailure != null
                         ? truncate("Resolve failed: " + lastFailure, 1000)
@@ -279,7 +298,13 @@ public class MiddleLinkService {
         shiftLink.setAdsName(link.getBrandName());
         shiftLink.setPlatformName(platformName != null ? platformName : "Unknown");
         shiftLink.setFullUrl(landingUrl);
-        shiftLink.setLandingPageUrl(landingUrl);
+        // landingPageUrl 只保留 origin+path: 若与 fullUrl 完全相同, replace 后模板退化成 {lpurl}, 跟踪参数全部丢失
+        // keep only origin+path so the tracking template keeps the query string after {lpurl}
+        String landingBaseUrl = stripQueryAndFragment(landingUrl);
+        if (landingBaseUrl.equals(landingUrl)) {
+            log.warn("MiddleLink landing url has no query, tracking template keeps no params id={}", link.getId());
+        }
+        shiftLink.setLandingPageUrl(landingBaseUrl);
         shiftLink.setDisplayNumber(5L);
         shiftLink.setUserName(trimToNull(link.getUserName()));
         shiftLink.setAdsOwner(link.getAdsOwner());
@@ -292,6 +317,20 @@ public class MiddleLinkService {
             // 已存在等校验失败仅跳过 / skip validation failures like duplicates
             log.warn("MiddleLink archive to matrix skipped id={} error={}", link.getId(), e.getMessage());
         }
+    }
+
+    // 去掉 query 与 fragment, 得到落地页基础地址 / strip query and fragment to get the bare landing page
+    private static String stripQueryAndFragment(String url) {
+        int end = url.length();
+        int queryIndex = url.indexOf('?');
+        int fragmentIndex = url.indexOf('#');
+        if (queryIndex >= 0) {
+            end = Math.min(end, queryIndex);
+        }
+        if (fragmentIndex >= 0) {
+            end = Math.min(end, fragmentIndex);
+        }
+        return url.substring(0, end);
     }
 
     // 跟随 302 链取最终落地页 URL / follow the redirect chain to the final landing page url

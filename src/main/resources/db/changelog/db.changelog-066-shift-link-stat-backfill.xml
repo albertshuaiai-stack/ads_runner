@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 一次性回填：把现存 Shift Link 聚合进 SHIFT_LINK_STAT
+         one-time backfill: aggregate existing shift links into SHIFT_LINK_STAT -->
+    <changeSet id="shift-link-stat-003-backfill" author="copilot">
+        <sql>
+            INSERT INTO SHIFT_LINK_STAT (ADS_OWNER, USER_NAME, PLATFORM_NAME, ADS_NAME, LINK_COUNT, SAMPLE_URL, CREATE_DATE, UPDATE_DATE)
+            SELECT ADS_OWNER,
+                   COALESCE(USER_NAME, ''),
+                   COALESCE(PLATFORM_NAME, ''),
+                   COALESCE(ADS_NAME, ''),
+                   COUNT(*),
+                   LEFT(MAX(FULL_URL), 1024),
+                   CURRENT_TIMESTAMP,
+                   CURRENT_TIMESTAMP
+            FROM SHIFT_LINK
+            GROUP BY ADS_OWNER, COALESCE(USER_NAME, ''), COALESCE(PLATFORM_NAME, ''), COALESCE(ADS_NAME, '')
+            ON DUPLICATE KEY UPDATE LINK_COUNT = LINK_COUNT + VALUES(LINK_COUNT), UPDATE_DATE = CURRENT_TIMESTAMP
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

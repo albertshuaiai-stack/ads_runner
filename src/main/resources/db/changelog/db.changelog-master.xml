@@ -138,4 +138,10 @@
     <!-- Create SHIFT_LINK_STAT table -->
     <include file="db/changelog/db.changelog-065-shift-link-stat-table.xml"/>
 
+    <!-- Backfill SHIFT_LINK_STAT from existing SHIFT_LINK rows -->
+    <include file="db/changelog/db.changelog-066-shift-link-stat-backfill.xml"/>
+
+    <!-- Create SHIFT_LINK_SEEN_URL table -->
+    <include file="db/changelog/db.changelog-067-shift-link-seen-url-table.xml"/>
+
 </databaseChangeLog>

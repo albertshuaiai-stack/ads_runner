@@ -2,10 +2,11 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <!-- Properties -->
-    <property name="LOG_FILE" value="/log/application.log"/>
-    <property name="LOG_FILE_MAX_SIZE" value="10MB"/>
-    <property name="LOG_FILE_MAX_HISTORY" value="10"/>
+    <!-- 日志路径与保留策略，支持 LOG_FILE_NAME 等环境变量覆盖 / log path and retention, overridable via Spring properties -->
+    <springProperty scope="context" name="LOG_FILE" source="logging.file.name" defaultValue="logs/application.log"/>
+    <springProperty scope="context" name="LOG_FILE_MAX_SIZE" source="logging.logback.rollingpolicy.max-file-size" defaultValue="10MB"/>
+    <!-- 只保留 3 天日志 / keep logs for 3 days only -->
+    <springProperty scope="context" name="LOG_FILE_MAX_HISTORY" source="logging.logback.rollingpolicy.max-history" defaultValue="3"/>
 
     <!-- Console appender -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -26,14 +27,14 @@
             <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
             <maxFileSize>${LOG_FILE_MAX_SIZE}</maxFileSize>
             <maxHistory>${LOG_FILE_MAX_HISTORY}</maxHistory>
-            <totalSizeCap>100MB</totalSizeCap>
+            <totalSizeCap>50MB</totalSizeCap>
         </rollingPolicy>
     </appender>
 
-    <!-- Logger configuration -->
-    <logger name="com.admire.cars.runner" level="DEBUG"/>
+    <!-- INFO 级别避免逐请求 DEBUG 刷屏 / INFO level avoids per-request DEBUG log flooding -->
+    <logger name="com.admire.cars.runner" level="INFO"/>
     <logger name="org.springframework" level="INFO"/>
-    <logger name="org.springframework.web" level="DEBUG"/>
+    <logger name="org.springframework.web" level="INFO"/>
     <logger name="org.hibernate" level="INFO"/>
 
     <!-- Root logger -->

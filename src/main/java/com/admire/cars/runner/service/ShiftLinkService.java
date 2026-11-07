@@ -7,6 +7,8 @@ import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.entity.GmailPlatformLink;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.repository.ShiftLinkStatRepository;
+import com.admire.cars.runner.repository.ShiftLinkSeenUrlRepository;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
@@ -14,6 +16,7 @@ import com.admire.cars.runner.repository.ToolEmailRepository;
 import com.admire.cars.runner.repository.GmailPlatformLinkRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.Lists;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -42,11 +45,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional
 public class ShiftLinkService {
 
     private final ShiftLinkRepository shiftLinkRepository;
+    private final ShiftLinkStatRepository shiftLinkStatRepository;
+    private final ShiftLinkSeenUrlRepository shiftLinkSeenUrlRepository;
     private final UserRepository userRepository;
     private final AdsPlatformRepository adsPlatformRepository;
     private final AdsNormalInfoRepository adsNormalInfoRepository;
@@ -56,6 +62,8 @@ public class ShiftLinkService {
 
     public ShiftLinkService(
             ShiftLinkRepository shiftLinkRepository,
+            ShiftLinkStatRepository shiftLinkStatRepository,
+            ShiftLinkSeenUrlRepository shiftLinkSeenUrlRepository,
             UserRepository userRepository,
             AdsPlatformRepository adsPlatformRepository,
             AdsNormalInfoRepository adsNormalInfoRepository,
@@ -63,6 +71,8 @@ public class ShiftLinkService {
             ToolEmailRepository toolEmailRepository,
             GmailPlatformLinkRepository gmailPlatformLinkRepository) {
         this.shiftLinkRepository = shiftLinkRepository;
+        this.shiftLinkStatRepository = shiftLinkStatRepository;
+        this.shiftLinkSeenUrlRepository = shiftLinkSeenUrlRepository;
         this.userRepository = userRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
@@ -74,7 +84,52 @@ public class ShiftLinkService {
     public ShiftLink createShiftLink(ShiftLink shiftLink, Long currentUserId) {
         prepareForSave(shiftLink, currentUserId);
         ensureFullUrlNotDuplicated(shiftLink.getAdsOwner(), shiftLink.getFullUrl(), null);
-        return shiftLinkRepository.save(shiftLink);
+        ShiftLink saved = shiftLinkRepository.save(shiftLink);
+        // 创建时即记录统计，之后删除 Shift Link 不影响统计 / record stats at creation so later deletion never shrinks stats
+        recordShiftLinkStat(saved);
+        return saved;
+    }
+
+    // 按 owner+gmail+平台+商家 累计计数，重复 URL 不统计
+    // increment stats grouped by owner, gmail, platform and merchant; duplicate urls are not counted
+    private void recordShiftLinkStat(ShiftLink link) {
+        try {
+            if (!markUrlSeen(link.getAdsOwner(), link.getFullUrl())) {
+                return;
+            }
+            String sampleUrl = link.getFullUrl() != null && link.getFullUrl().length() > 1024
+                    ? link.getFullUrl().substring(0, 1024) : link.getFullUrl();
+            shiftLinkStatRepository.upsertIncrement(
+                    link.getAdsOwner(), nullToEmpty(link.getUserName()),
+                    nullToEmpty(link.getPlatformName()), nullToEmpty(link.getAdsName()), 1L, sampleUrl);
+        } catch (Exception e) {
+            // 统计失败不影响主流程 / stat failure must not break the main flow
+            log.warn("ShiftLink stat record failed id={} error={}", link.getId(), e.getMessage());
+        }
+    }
+
+    // 新 URL 返回 true，重复 URL 返回 false / true for a new url, false for a duplicate
+    private boolean markUrlSeen(String adsOwner, String fullUrl) {
+        return shiftLinkSeenUrlRepository.insertIgnore(adsOwner, urlHash(fullUrl)) > 0;
+    }
+
+    private static String urlHash(String url) {
+        String value = url == null ? "" : url.trim();
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return Integer.toHexString(value.hashCode());
+        }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     // URL 去重：同一 owner 下 fullUrl 不允许重复 / URL de-duplication within the same owner
@@ -294,6 +349,32 @@ public class ShiftLinkService {
                         });
                         shiftLinkRepository.saveAll(shiftLinkList);
                         insertedCount.addAndGet(shiftLinkList.size());
+                        // 批量记录统计，重复 URL 不统计 / batch stats, duplicate urls are not counted
+                        Map<String, Long> statCounts = new java.util.HashMap<>();
+                        for (ShiftLink saved : shiftLinkList) {
+                            try {
+                                if (!markUrlSeen(saved.getAdsOwner(), saved.getFullUrl())) {
+                                    continue;
+                                }
+                                String statKey = nullToEmpty(saved.getUserName()) + "|"
+                                        + nullToEmpty(saved.getPlatformName()) + "|" + nullToEmpty(saved.getAdsName());
+                                statCounts.merge(statKey, 1L, Long::sum);
+                            } catch (Exception e) {
+                                log.warn("ShiftLink bulk seen-url record failed error={}", e.getMessage());
+                            }
+                        }
+                        for (Map.Entry<String, Long> statEntry : statCounts.entrySet()) {
+                            String[] parts = statEntry.getKey().split("\\|", -1);
+                            ShiftLink sample = shiftLinkList.get(0);
+                            try {
+                                shiftLinkStatRepository.upsertIncrement(owner.getUserPhoneNumber(),
+                                        parts[0], parts[1], parts[2], statEntry.getValue(),
+                                        sample.getFullUrl() != null && sample.getFullUrl().length() > 1024
+                                                ? sample.getFullUrl().substring(0, 1024) : sample.getFullUrl());
+                            } catch (Exception e) {
+                                log.warn("ShiftLink bulk stat record failed error={}", e.getMessage());
+                            }
+                        }
             });
         });
         return new BulkUploadResult(rows.size(), insertedCount.get());

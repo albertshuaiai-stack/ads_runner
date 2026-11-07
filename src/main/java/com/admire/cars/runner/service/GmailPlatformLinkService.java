@@ -8,7 +8,6 @@ import com.admire.cars.runner.entity.ShiftLinkStat;
 import com.admire.cars.runner.entity.ToolAccount;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.GmailPlatformLinkRepository;
-import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.ShiftLinkStatRepository;
 import com.admire.cars.runner.repository.ToolAccountRepository;
 import com.admire.cars.runner.repository.ToolEmailRepository;
@@ -34,20 +33,17 @@ public class GmailPlatformLinkService {
 
     private final GmailPlatformLinkRepository repository;
     private final ToolEmailRepository toolEmailRepository;
-    private final ShiftLinkRepository shiftLinkRepository;
     private final ShiftLinkStatRepository shiftLinkStatRepository;
     private final ToolAccountRepository toolAccountRepository;
     private final UserRepository userRepository;
 
     public GmailPlatformLinkService(GmailPlatformLinkRepository repository,
                                     ToolEmailRepository toolEmailRepository,
-                                    ShiftLinkRepository shiftLinkRepository,
                                     ShiftLinkStatRepository shiftLinkStatRepository,
                                     ToolAccountRepository toolAccountRepository,
                                     UserRepository userRepository) {
         this.repository = repository;
         this.toolEmailRepository = toolEmailRepository;
-        this.shiftLinkRepository = shiftLinkRepository;
         this.shiftLinkStatRepository = shiftLinkStatRepository;
         this.toolAccountRepository = toolAccountRepository;
         this.userRepository = userRepository;
@@ -223,15 +219,13 @@ public class GmailPlatformLinkService {
     public GmailPlatformStatsResponse getStats(Long currentUserId) {
         User currentUser = getCurrentUser(currentUserId);
         boolean admin = isAdmin(currentUser);
-        List<Object[]> rows = new ArrayList<>(admin
-                ? shiftLinkRepository.summarizeByGmailPlatformMerchant()
-                : shiftLinkRepository.summarizeByGmailPlatformMerchantAndOwner(currentUser.getUserPhoneNumber()));
 
-        // 合并 30 天清理前归档的历史计数，保证统计不受影响
-        // merge archived counts so the 30-day cleanup never shrinks the stats
+        // 只读历史聚合表：创建时记录，删除 Shift Link 不影响统计
+        // read archived stats only: recorded at creation, deleting shift links never shrinks stats
         List<ShiftLinkStat> archivedStats = admin
                 ? shiftLinkStatRepository.findAll()
                 : shiftLinkStatRepository.findByAdsOwner(currentUser.getUserPhoneNumber());
+        List<Object[]> rows = new ArrayList<>();
         for (ShiftLinkStat archived : archivedStats) {
             rows.add(new Object[]{
                     archived.getUserName(),
@@ -241,6 +235,25 @@ public class GmailPlatformLinkService {
                     archived.getSampleUrl(),
             });
         }
+
+        // 防御性合并同组重复行 / defensive merge of duplicated group rows
+        Map<String, Object[]> mergedRows = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            long rowCount = row[3] instanceof Number number ? number.longValue() : 0L;
+            String mergeKey = String.valueOf(row[0]) + "|" + String.valueOf(row[1]) + "|" + String.valueOf(row[2]);
+            Object[] existing = mergedRows.get(mergeKey);
+            if (existing == null) {
+                mergedRows.put(mergeKey, new Object[]{row[0], row[1], row[2], rowCount, row[4]});
+            } else {
+                // 重复行不累加计数 / duplicate rows are not counted
+                long existingCount = existing[3] instanceof Number number ? number.longValue() : 0L;
+                existing[3] = Math.max(existingCount, rowCount);
+                if (existing[4] == null) {
+                    existing[4] = row[4];
+                }
+            }
+        }
+        rows = new ArrayList<>(mergedRows.values());
 
         // 返利账号状态表：userName|platform -> status / cash back account status map
         Map<String, String> accountStatusByKey = new LinkedHashMap<>();
