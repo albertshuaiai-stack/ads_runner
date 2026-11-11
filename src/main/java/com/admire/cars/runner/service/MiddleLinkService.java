@@ -30,6 +30,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 // 中间链接：上传归类存档 -> 限时解析落地页 -> 归档 Matrix
 // middle link: upload and classify -> resolve landing pages within a time window -> archive to Matrix
@@ -45,12 +47,29 @@ public class MiddleLinkService {
     private static final String RESOLVE_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+    // 首跳 200 时从 HTML 提取 meta refresh / JS 跳转 / extract meta refresh or js redirect from first-hop html
+    private static final long MAX_HTML_SNIFF_BYTES = 262144L;
+    private static final Pattern META_TAG = Pattern.compile("(?is)<meta\\b[^>]*>");
+    private static final Pattern CONTENT_ATTR = Pattern.compile("(?is)\\bcontent\\s*=\\s*['\"]([^'\"]*)['\"]");
+    private static final Pattern META_URL = Pattern.compile("(?i)\\burl\\s*=\\s*['\"]?([^'\"\\s;>]+)");
+    private static final Pattern JS_LOCATION_CALL = Pattern.compile(
+            "(?i)(?:window\\.|document\\.)?location\\.(?:replace|assign)\\s*\\(\\s*['\"]([^'\"]+)['\"]");
+    private static final Pattern JS_LOCATION_ASSIGN = Pattern.compile(
+            "(?i)(?:window\\.|document\\.)?location(?:\\.href)?\\s*=\\s*['\"]([^'\"]+)['\"]");
+
     private final MiddleLinkRepository middleLinkRepository;
     private final GmailPlatformLinkRepository gmailPlatformLinkRepository;
     private final AdsPlatformRepository adsPlatformRepository;
     private final UserRepository userRepository;
     private final ShiftLinkService shiftLinkService;
     private final ExecutorService resolveExecutor = Executors.newCachedThreadPool();
+    // 复用连接池，避免每轮解析新建 OkHttpClient / reuse the client instead of building one per request
+    private final OkHttpClient resolveClient = new OkHttpClient.Builder()
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build();
 
     public MiddleLinkService(MiddleLinkRepository middleLinkRepository,
                              GmailPlatformLinkRepository gmailPlatformLinkRepository,
@@ -64,8 +83,8 @@ public class MiddleLinkService {
         this.shiftLinkService = shiftLinkService;
     }
 
-    // 批量上传并按 Match ID 归类 / batch upload and classify by match id
-    public List<MiddleLink> batchCreate(String brandName, List<String> urls, Long currentUserId) {
+    // 批量上传并按 Match ID 归类，支持手动关键 ID 兜底 / batch upload and classify, with manual match id fallback
+    public List<MiddleLink> batchCreate(String brandName, List<String> urls, String matchId, Long currentUserId) {
         String brand = trimToNull(brandName);
         if (brand == null) {
             throw new IllegalArgumentException("brandName is required");
@@ -81,6 +100,17 @@ public class MiddleLinkService {
         User currentUser = getCurrentUser(currentUserId);
         String owner = currentUser.getUserPhoneNumber();
         List<GmailPlatformLink> rules = gmailPlatformLinkRepository.findByAdsOwner(owner);
+
+        String manualMatchId = trimToNull(matchId);
+        GmailPlatformLink manualRule = findRuleByMatchId(rules, manualMatchId);
+        if (manualMatchId != null && manualRule == null) {
+            log.warn("[MiddleLink] manual match id not found owner={} matchId={}", owner, manualMatchId);
+            throw new IllegalArgumentException("No Gmail Link Rule found for match id: " + manualMatchId);
+        }
+        if (manualRule != null) {
+            log.info("[MiddleLink] manual match id applied owner={} matchId={} gmail={} platform={}",
+                    owner, manualMatchId, manualRule.getUserName(), manualRule.getPlatformName());
+        }
 
         List<MiddleLink> created = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -105,13 +135,30 @@ public class MiddleLinkService {
             link.setTargetCount(24L);
 
             GmailPlatformLink matchedRule = GmailPlatformLinkService.matchRule(rules, url);
+            if (matchedRule == null) {
+                matchedRule = manualRule;
+            }
             if (matchedRule != null) {
                 link.setUserName(matchedRule.getUserName());
                 link.setPlatformName(matchedRule.getPlatformName());
+                link.setMatchId(matchedRule.getMatchId());
             }
             created.add(middleLinkRepository.save(link));
         }
         return created;
+    }
+
+    // 手动关键 ID 兜底：按规则表的 Match ID 精确查找 / fallback: find a rule by exact match id
+    private GmailPlatformLink findRuleByMatchId(List<GmailPlatformLink> rules, String matchId) {
+        if (!StringUtils.hasText(matchId) || rules == null) {
+            return null;
+        }
+        String normalized = matchId.trim();
+        return rules.stream()
+                .filter(rule -> StringUtils.hasText(rule.getMatchId())
+                        && rule.getMatchId().trim().equalsIgnoreCase(normalized))
+                .findFirst()
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -195,6 +242,7 @@ public class MiddleLinkService {
             Set<String> collected = new LinkedHashSet<>(parseLines(link.getResolvedUrls()));
             int consecutiveFailures = 0;
             String lastFailure = null;
+            String lastReason = null;
 
             while (collected.size() < link.getTargetCount() && System.currentTimeMillis() < deadline) {
                 // 每轮检查停止标记 / check the stop flag every iteration
@@ -202,17 +250,22 @@ public class MiddleLinkService {
                 if (state == null || !MiddleLink.STATUS_RESOLVING.equals(state.getResolveStatus())) {
                     break;
                 }
-                String landingUrl = null;
+                ResolveResult result;
                 try {
-                    landingUrl = resolveFinalUrl(link.getFullUrl());
+                    result = resolveFinalUrl(link.getFullUrl());
                 } catch (Exception e) {
                     lastFailure = e.getMessage();
-                    log.warn("MiddleLink resolve request failed id={} url={} error={}",
+                    result = ResolveResult.fail("Request error: " + e.getMessage());
+                    log.warn("[MiddleLink] resolve request failed id={} url={} error={}",
                             middleLinkId, truncate(link.getFullUrl(), 200), e.getMessage());
                 }
 
-                if (StringUtils.hasText(landingUrl) && !landingUrl.equals(link.getFullUrl()) && collected.add(landingUrl)) {
+                String landingUrl = result.url();
+                if (StringUtils.hasText(landingUrl)
+                        && !landingUrl.equals(link.getFullUrl())
+                        && collected.add(landingUrl)) {
                     consecutiveFailures = 0;
+                    lastReason = null;
                     archiveToMatrix(link, landingUrl);
                     MiddleLink fresh = middleLinkRepository.findById(middleLinkId).orElse(null);
                     if (fresh == null) {
@@ -222,13 +275,23 @@ public class MiddleLinkService {
                     fresh.setResolvedCount((long) collected.size());
                     fresh.setUpdateDate(LocalDateTime.now());
                     middleLinkRepository.save(fresh);
+                    log.info("[MiddleLink] resolve archived id={} count={}/{} url={}",
+                            middleLinkId, collected.size(), link.getTargetCount(), truncate(landingUrl, 200));
                 } else if (!StringUtils.hasText(landingUrl) || landingUrl.equals(link.getFullUrl())) {
+                    lastReason = result.reason() != null ? result.reason() : "Landing page equals the middle link url";
                     consecutiveFailures++;
+                    if (consecutiveFailures == 1 || consecutiveFailures % 10 == 0) {
+                        log.warn("[MiddleLink] resolve no landing id={} consecutiveFailures={} reason={}",
+                                middleLinkId, consecutiveFailures, lastReason);
+                    }
                     // 连续失败提前终止，避免空转整个时间窗 / abort early on persistent failures
                     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                        log.warn("MiddleLink resolve aborted id={} consecutiveFailures={}", middleLinkId, consecutiveFailures);
+                        log.warn("[MiddleLink] resolve aborted id={} consecutiveFailures={} reason={}",
+                                middleLinkId, consecutiveFailures, lastReason);
                         break;
                     }
+                } else {
+                    lastReason = "Duplicated landing page";
                 }
 
                 try {
@@ -252,7 +315,8 @@ public class MiddleLinkService {
                 fresh.setResolveStatus(MiddleLink.STATUS_FAILED);
                 fresh.setLastError(lastFailure != null
                         ? truncate("Resolve failed: " + lastFailure, 1000)
-                        : "No landing page resolved within the time window");
+                        : truncate("No landing page resolved: " + (lastReason != null
+                                ? lastReason : "no landing page within the time window"), 1000));
             } else {
                 fresh.setResolveStatus(MiddleLink.STATUS_DONE);
                 if (collected.size() < fresh.getTargetCount()) {
@@ -261,6 +325,9 @@ public class MiddleLinkService {
             }
             fresh.setUpdateDate(LocalDateTime.now());
             middleLinkRepository.save(fresh);
+            log.info("[MiddleLink] resolve finished id={} status={} collected={} target={} reason={}",
+                    middleLinkId, fresh.getResolveStatus(), collected.size(), fresh.getTargetCount(),
+                    lastFailure != null ? lastFailure : lastReason);
         } catch (Exception e) {
             log.error("MiddleLink resolve task failed id={} error={}", middleLinkId, e.getMessage(), e);
             middleLinkRepository.findById(middleLinkId).ifPresent(link -> {
@@ -334,14 +401,7 @@ public class MiddleLinkService {
     }
 
     // 跟随 302 链取最终落地页 URL / follow the redirect chain to the final landing page url
-    private String resolveFinalUrl(String startUrl) throws java.io.IOException {
-        OkHttpClient client = new OkHttpClient.Builder()
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .build();
-
+    private ResolveResult resolveFinalUrl(String startUrl) throws java.io.IOException {
         String current = sanitizeUriValue(startUrl);
         for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
             Request request = new Request.Builder()
@@ -351,27 +411,98 @@ public class MiddleLinkService {
                     .header("User-Agent", RESOLVE_USER_AGENT)
                     .get()
                     .build();
-            try (Response response = client.newCall(request).execute()) {
+            try (Response response = resolveClient.newCall(request).execute()) {
                 int statusCode = response.code();
                 if (statusCode >= 300 && statusCode < 400) {
                     String location = response.header("Location");
                     if (!StringUtils.hasText(location)) {
-                        return null;
+                        return ResolveResult.fail("HTTP " + statusCode + " without Location header at hop " + hop);
                     }
                     // 跳转目标常含 |、空格等非法字符，先清洗再解析 / redirect targets often contain | or spaces, sanitize first
-                    current = toUri(current).resolve(toUri(location.trim())).toString();
+                    String next = toUri(current).resolve(toUri(location.trim())).toString();
+                    if (next.equals(current)) {
+                        return ResolveResult.fail("Redirect loop at hop " + hop);
+                    }
+                    current = next;
                     continue;
                 }
                 // 跟随过至少一跳后到达商家站：200 正常，403 多为反爬拦截，URL 本身即落地页
                 // after at least one hop we are at the merchant site; 403 is bot protection, the url is the landing page
                 if (hop > 0) {
-                    return current;
+                    return ResolveResult.ok(current);
                 }
-                // 第一跳直接 200：中间链接本身即落地页 / first hop 2xx: the link itself is the landing page
-                return statusCode >= 200 && statusCode < 300 ? current : null;
+                if (statusCode >= 200 && statusCode < 300) {
+                    // 首跳 200 多为 JS / meta refresh 跳转页 / first hop 200 is often a js or meta refresh page
+                    String htmlRedirect = extractHtmlRedirect(response, current);
+                    if (StringUtils.hasText(htmlRedirect) && !htmlRedirect.equals(current)) {
+                        current = htmlRedirect;
+                        continue;
+                    }
+                    return new ResolveResult(current, "First hop HTTP 200 without redirect, url equals the middle link");
+                }
+                return ResolveResult.fail("First hop HTTP " + statusCode);
             }
         }
+        return ResolveResult.fail("Redirect chain exceeded " + MAX_REDIRECT_HOPS + " hops");
+    }
+
+    // 从首跳 HTML 提取 meta refresh / JS 跳转 / extract meta refresh or js redirect from first-hop html
+    private static String extractHtmlRedirect(Response response, String current) {
+        String body;
+        try {
+            body = response.peekBody(MAX_HTML_SNIFF_BYTES).string();
+        } catch (Exception e) {
+            return null;
+        }
+        if (!StringUtils.hasText(body)) {
+            return null;
+        }
+
+        Matcher meta = META_TAG.matcher(body);
+        while (meta.find()) {
+            String tag = meta.group();
+            if (!tag.toLowerCase().contains("refresh")) {
+                continue;
+            }
+            Matcher content = CONTENT_ATTR.matcher(tag);
+            Matcher url = content.find() ? META_URL.matcher(content.group(1)) : null;
+            if (url != null && url.find()) {
+                return resolveRelativeUrl(current, url.group(1).trim());
+            }
+        }
+
+        Matcher jsCall = JS_LOCATION_CALL.matcher(body);
+        if (jsCall.find()) {
+            return resolveRelativeUrl(current, jsCall.group(1).trim());
+        }
+        Matcher jsAssign = JS_LOCATION_ASSIGN.matcher(body);
+        if (jsAssign.find()) {
+            return resolveRelativeUrl(current, jsAssign.group(1).trim());
+        }
         return null;
+    }
+
+    private static String resolveRelativeUrl(String base, String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            String resolved = toUri(base).resolve(toUri(value)).toString();
+            return resolved.startsWith("http://") || resolved.startsWith("https://") ? resolved : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // 解析结果与失败原因 / resolve result and its failure reason
+    private record ResolveResult(String url, String reason) {
+        static ResolveResult ok(String url) {
+            return new ResolveResult(url, null);
+        }
+
+        static ResolveResult fail(String reason) {
+            return new ResolveResult(null, reason);
+        }
     }
 
     // 与 AdsHttpClientTool 相同的 URI 清洗：转义 |、空格、非法 % 等 / same URI sanitize as AdsHttpClientTool

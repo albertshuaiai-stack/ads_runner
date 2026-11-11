@@ -4,10 +4,12 @@ import com.admire.cars.runner.dto.GmailPlatformStatDto;
 import com.admire.cars.runner.dto.GmailPlatformStatsResponse;
 import com.admire.cars.runner.dto.MerchantRatingDto;
 import com.admire.cars.runner.entity.GmailPlatformLink;
+import com.admire.cars.runner.entity.ShiftLinkHistory;
 import com.admire.cars.runner.entity.ShiftLinkStat;
 import com.admire.cars.runner.entity.ToolAccount;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.GmailPlatformLinkRepository;
+import com.admire.cars.runner.repository.ShiftLinkHistoryRepository;
 import com.admire.cars.runner.repository.ShiftLinkStatRepository;
 import com.admire.cars.runner.repository.ToolAccountRepository;
 import com.admire.cars.runner.repository.ToolEmailRepository;
@@ -36,17 +38,20 @@ public class GmailPlatformLinkService {
     private final ShiftLinkStatRepository shiftLinkStatRepository;
     private final ToolAccountRepository toolAccountRepository;
     private final UserRepository userRepository;
+    private final ShiftLinkHistoryRepository shiftLinkHistoryRepository;
 
     public GmailPlatformLinkService(GmailPlatformLinkRepository repository,
                                     ToolEmailRepository toolEmailRepository,
                                     ShiftLinkStatRepository shiftLinkStatRepository,
                                     ToolAccountRepository toolAccountRepository,
-                                    UserRepository userRepository) {
+                                    UserRepository userRepository,
+                                    ShiftLinkHistoryRepository shiftLinkHistoryRepository) {
         this.repository = repository;
         this.toolEmailRepository = toolEmailRepository;
         this.shiftLinkStatRepository = shiftLinkStatRepository;
         this.toolAccountRepository = toolAccountRepository;
         this.userRepository = userRepository;
+        this.shiftLinkHistoryRepository = shiftLinkHistoryRepository;
     }
 
     public GmailPlatformLink create(GmailPlatformLink rule, Long currentUserId) {
@@ -240,7 +245,8 @@ public class GmailPlatformLinkService {
         Map<String, Object[]> mergedRows = new LinkedHashMap<>();
         for (Object[] row : rows) {
             long rowCount = row[3] instanceof Number number ? number.longValue() : 0L;
-            String mergeKey = String.valueOf(row[0]) + "|" + String.valueOf(row[1]) + "|" + String.valueOf(row[2]);
+            String mergeKey = (String.valueOf(row[0]).trim() + "|" + String.valueOf(row[1]).trim() + "|"
+                    + String.valueOf(row[2]).trim()).toLowerCase(java.util.Locale.ROOT);
             Object[] existing = mergedRows.get(mergeKey);
             if (existing == null) {
                 mergedRows.put(mergeKey, new Object[]{row[0], row[1], row[2], rowCount, row[4]});
@@ -251,6 +257,30 @@ public class GmailPlatformLinkService {
                 if (existing[4] == null) {
                     existing[4] = row[4];
                 }
+            }
+        }
+        // 手工录入的历史数据：链接数累加到同组，封号标记按 gmail+平台 汇总
+        // manually entered history: links add to the same group, banned flags aggregate per gmail+platform
+        List<ShiftLinkHistory> histories = admin
+                ? shiftLinkHistoryRepository.findAllByOrderByUserNameAscPlatformNameAscAdsNameAsc()
+                : shiftLinkHistoryRepository.findByAdsOwnerOrderByUserNameAscPlatformNameAscAdsNameAsc(
+                        currentUser.getUserPhoneNumber());
+        Map<String, Boolean> historyBannedByKey = new LinkedHashMap<>();
+        for (ShiftLinkHistory history : histories) {
+            String historyKey = accountKey(history.getUserName(), history.getPlatformName());
+            if (historyKey == null) {
+                continue;
+            }
+            historyBannedByKey.merge(historyKey, Boolean.TRUE.equals(history.getBanned()), Boolean::logicalOr);
+            long historyCount = history.getLinkCount() == null ? 0L : history.getLinkCount();
+            String mergeKey = historyKey + "|" + history.getAdsName().trim().toLowerCase(java.util.Locale.ROOT);
+            Object[] existing = mergedRows.get(mergeKey);
+            if (existing == null) {
+                mergedRows.put(mergeKey, new Object[]{history.getUserName(), history.getPlatformName(),
+                        history.getAdsName(), historyCount, null});
+            } else {
+                long existingCount = existing[3] instanceof Number number ? number.longValue() : 0L;
+                existing[3] = existingCount + historyCount;
             }
         }
         rows = new ArrayList<>(mergedRows.values());
@@ -266,6 +296,14 @@ public class GmailPlatformLinkService {
             String key = accountKey(account.getUserName(), account.getPlatformName());
             if (key != null) {
                 accountStatusByKey.put(key, trimToNull(account.getStatus()));
+            }
+        }
+        // 历史标记被封则视为 LOCKED；仅有历史且未封视为 RUNNING / history banned means LOCKED; history-only active means RUNNING
+        for (Map.Entry<String, Boolean> entry : historyBannedByKey.entrySet()) {
+            if (Boolean.TRUE.equals(entry.getValue())) {
+                accountStatusByKey.put(entry.getKey(), "LOCKED");
+            } else {
+                accountStatusByKey.putIfAbsent(entry.getKey(), "RUNNING");
             }
         }
 
@@ -288,8 +326,12 @@ public class GmailPlatformLinkService {
             stat.getMerchants().add(new GmailPlatformStatDto.MerchantStat(rowAdsName, rowLinkCount, merchantUrl));
 
             // 商家维度累计：推广账号封禁分布 / per-merchant ban distribution of promoting accounts
-            MerchantAccumulator merchant = merchantStats.computeIfAbsent(rowAdsName,
-                    k -> new MerchantAccumulator(merchantUrl));
+            MerchantAccumulator merchant = merchantStats.computeIfAbsent(
+                    rowAdsName.trim().toLowerCase(java.util.Locale.ROOT),
+                    k -> new MerchantAccumulator(rowAdsName, merchantUrl));
+            if (merchant.merchantUrl == null) {
+                merchant.merchantUrl = merchantUrl;
+            }
             merchant.linkCount += rowLinkCount;
             String status = accountStatusByKey.get(key);
             if (merchant.accountKeys.add(key)) {
@@ -317,7 +359,7 @@ public class GmailPlatformLinkService {
             String rating = total == 0 ? "UNKNOWN"
                     : acc.bannedAccounts == 0 ? "SAFE"
                     : acc.bannedAccounts == total ? "AVOID" : "CAUTION";
-            merchants.add(new MerchantRatingDto(entry.getKey(), acc.linkCount, total,
+            merchants.add(new MerchantRatingDto(acc.adsName, acc.linkCount, total,
                     acc.bannedAccounts, acc.activeAccounts, rating, acc.merchantUrl));
         }
         merchants.sort(Comparator.comparing((MerchantRatingDto m) -> ratingOrder(m.getRating()))
@@ -362,13 +404,15 @@ public class GmailPlatformLinkService {
 
     // 商家统计累加器 / per-merchant accumulator
     private static class MerchantAccumulator {
-        private final String merchantUrl;
+        private final String adsName;
+        private String merchantUrl;
         private long linkCount;
         private long bannedAccounts;
         private long activeAccounts;
         private final java.util.Set<String> accountKeys = new java.util.HashSet<>();
 
-        private MerchantAccumulator(String merchantUrl) {
+        private MerchantAccumulator(String adsName, String merchantUrl) {
+            this.adsName = adsName;
             this.merchantUrl = merchantUrl;
         }
     }

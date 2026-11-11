@@ -75,7 +75,8 @@ public class AdsApiConsumeService {
 
         ShiftLink selectedLink = eligibleLinks.get(0);
         String shiftLink = buildTrackingTemplate(selectedLink);
-        shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
+        // Matrix 消耗由真实点击数驱动, 拉取模板不再累加 displayTimes / clicks drive consumption, not fetches
+        shiftLinkConsumeAsyncService.recordLogOnly(selectedLink.getId());
 
         return shiftLink;
     }

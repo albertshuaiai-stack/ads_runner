@@ -284,7 +284,13 @@ public class IpProxyService {
         if (!StringUtils.hasText(proxyInfo)) {
             return Optional.empty();
         }
-        String[] userAndHost = proxyInfo.split("@", 2);
+        String normalized = proxyInfo.trim();
+        if (!normalized.contains("@")) {
+            // 兼容 host:port:user:password 冒号格式(iproyal 等导出格式), 否则每次任务都在此抛异常且无任何产出
+            // also accept host:port:user:password so existing proxy rows keep working
+            return parseColonSeparatedProxy(normalized);
+        }
+        String[] userAndHost = normalized.split("@", 2);
         if (userAndHost.length != 2) {
             throw new IllegalArgumentException("dynamicProxyInfo must use user:password@host:port format");
         }
@@ -307,6 +313,22 @@ public class IpProxyService {
         }
     }
 
+
+    // 解析 host:port:user:password, 密码段允许再含冒号 / parse colon format, password may contain colons
+    private Optional<ProxyConfiguration> parseColonSeparatedProxy(String proxyInfo) {
+        String[] parts = proxyInfo.split(":", 4);
+        if (parts.length != 4 || !StringUtils.hasText(parts[0]) || !StringUtils.hasText(parts[1])
+                || !StringUtils.hasText(parts[2]) || !StringUtils.hasText(parts[3])) {
+            throw new IllegalArgumentException(
+                    "dynamicProxyInfo must use user:password@host:port or host:port:user:password format");
+        }
+        try {
+            return Optional.of(new ProxyConfiguration(
+                    parts[2].trim(), parts[3].trim(), parts[0].trim(), Integer.parseInt(parts[1].trim())));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("dynamicProxyInfo port must be numeric", ex);
+        }
+    }
 
     /**
      * Build OkHttpClient

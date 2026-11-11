@@ -44,6 +44,11 @@ public class ShiftLink {
     @Column(name = "DISPLAY_TIMES")
     private Long displayTimes;
 
+    // 换入该链时 campaign 的累计点击数, 用于判断本次是否该换链
+    // campaign lifetime clicks recorded when this link became active
+    @Column(name = "CLICK_BASE")
+    private Long clickBase;
+
     @Column(name = "SEQ_NUMBER")
     private Long seqNumber;
 

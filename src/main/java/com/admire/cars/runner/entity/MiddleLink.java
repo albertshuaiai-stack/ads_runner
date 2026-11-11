@@ -36,6 +36,10 @@ public class MiddleLink {
     @Column(name = "BRAND_NAME", length = 128, nullable = false)
     private String brandName;
 
+    // 实际用于归类的关键 ID，含手动填写的兜底值 / match id used for classification, including manual fallback
+    @Column(name = "MATCH_ID", length = 128)
+    private String matchId;
+
     // 归类到的 Gmail userName，未归类为空 / classified gmail userName, null when unmatched
     @Column(name = "USER_NAME", length = 32)
     private String userName;

@@ -30,7 +30,8 @@ public class MiddleLinkController {
     @PostMapping("/batch")
     public ResponseEntity<Map<String, Object>> batchCreate(@RequestBody BatchCreateRequest body, HttpServletRequest request) {
         try {
-            List<MiddleLink> created = service.batchCreate(body.brandName(), body.urls(), getUserId(request));
+            List<MiddleLink> created = service.batchCreate(
+                    body.brandName(), body.urls(), body.matchId(), getUserId(request));
             long classified = created.stream().filter(link -> link.getUserName() != null).count();
             Map<String, Object> resp = new HashMap<>();
             resp.put("success", true);
@@ -131,7 +132,7 @@ public class MiddleLinkController {
         return (Long) uid;
     }
 
-    public record BatchCreateRequest(String brandName, List<String> urls) {
+    public record BatchCreateRequest(String brandName, List<String> urls, String matchId) {
     }
 
     public record ResolveRequest(Long targetCount, Long windowSeconds, Long intervalSeconds) {

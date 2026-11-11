@@ -4,7 +4,7 @@ import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
-import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.service.ShiftLinkService;
 import com.admire.cars.runner.util.AdsHttpClientTool;
 import com.admire.cars.runner.util.AdsHttpResponseDto;
 import org.quartz.JobDataMap;
@@ -27,7 +27,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     private AdsMatrixInfoRepository adsMatrixInfoRepository;
 
     @Autowired
-    private ShiftLinkRepository shiftLinkRepository;
+    private ShiftLinkService shiftLinkService;
 
 
     @Autowired
@@ -68,8 +68,16 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
             shiftLink.setUserName(adsMatrixAffiliateInfo.getUserName());
             updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
-            shiftLinkRepository.save(shiftLink);
-
+            // 走统一入口：URL 去重 + Gmail 归属兜底 + 统计 / unified entry: url dedupe, gmail fallback and stats
+            try {
+                ShiftLink saved = shiftLinkService.createShiftLink(shiftLink, null);
+                log.info("[MatrixJob] shift link archived adsId={} shiftLinkId={} gmail={} platform={} matchId={}",
+                        adsMatrixInfo.getId(), saved.getId(), saved.getUserName(), saved.getPlatformName(),
+                        adsMatrixAffiliateInfo.getMatchId());
+            } catch (IllegalArgumentException e) {
+                log.warn("[MatrixJob] shift link skipped adsId={} affiliateId={} reason={}",
+                        adsMatrixInfo.getId(), adsMatrixAffiliateInfo.getId(), e.getMessage());
+            }
         } else {
             updateMatrixFailedCounter(adsMatrixInfo.getId(), eventTime);
         }

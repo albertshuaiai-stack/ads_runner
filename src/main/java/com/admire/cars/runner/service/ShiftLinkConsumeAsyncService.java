@@ -44,4 +44,24 @@ public class ShiftLinkConsumeAsyncService {
         shiftLinkLogRepository.save(log);
 
     }
+
+    // Matrix 专用: 只写消耗日志, displayTimes 由 /api/track/report 的真实点击数驱动
+    // Matrix only: log the consume without incrementing, displayTimes comes from real click reports
+    @Async("adsAsyncExecutor")
+    @Transactional
+    public void recordLogOnly(Long shiftLinkId) {
+        ShiftLink shiftLink = shiftLinkRepository.findById(shiftLinkId)
+                .orElseThrow(() -> new IllegalArgumentException("SHIFT_LINK not found: " + shiftLinkId));
+
+        ShiftLinkLog log = new ShiftLinkLog();
+        log.setAdsType(shiftLink.getAdsType());
+        log.setPlatformName(shiftLink.getPlatformName());
+        log.setAdsName(shiftLink.getAdsName());
+        log.setFullUrl(shiftLink.getFullUrl());
+        log.setDisplayTimes(shiftLink.getDisplayTimes() == null ? 0L : shiftLink.getDisplayTimes());
+        log.setRemarks(shiftLink.getRemarks());
+        log.setAdsOwner(shiftLink.getAdsOwner());
+        log.setUserName(shiftLink.getUserName());
+        shiftLinkLogRepository.save(log);
+    }
 }

@@ -143,5 +143,11 @@
 
     <!-- Create SHIFT_LINK_SEEN_URL table -->
     <include file="db/changelog/db.changelog-067-shift-link-seen-url-table.xml"/>
+    <include file="db/changelog/db.changelog-068-middle-link-match-id.xml"/>
+    <include file="db/changelog/db.changelog-069-matrix-affiliate-match-id.xml"/>
+    <include file="db/changelog/db.changelog-070-shift-link-history-table.xml"/>
+
+    <!-- Add SHIFT_LINK CLICK_BASE for click driven rotation -->
+    <include file="db/changelog/db.changelog-069-shift-link-click-base.xml"/>
 
 </databaseChangeLog>

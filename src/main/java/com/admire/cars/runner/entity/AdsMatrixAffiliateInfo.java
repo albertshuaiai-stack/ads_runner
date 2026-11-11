@@ -43,6 +43,10 @@ public class AdsMatrixAffiliateInfo {
     @Column(name = "USER_NAME", length = 128)
     private String userName;
 
+    // 归属 Gmail / 平台所用的关键 ID，可手动填写 / match id used to classify gmail and platform, may be entered manually
+    @Column(name = "MATCH_ID", length = 128)
+    private String matchId;
+
     @Column(name = "AFFILITE_URL", length = 2056)
     private String affiliteUrl;
 

@@ -14,6 +14,7 @@ public class MiddleLinkDto {
     private Long id;
     private String fullUrl;
     private String brandName;
+    private String matchId;
     private String userName;
     private String platformName;
     private String resolveStatus;
@@ -31,6 +32,7 @@ public class MiddleLinkDto {
                 e.getId(),
                 e.getFullUrl(),
                 e.getBrandName(),
+                e.getMatchId(),
                 e.getUserName(),
                 e.getPlatformName(),
                 e.getResolveStatus(),

@@ -51,24 +51,35 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
             log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
             return;
         }
-        AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
-        if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
-            ShiftLink shiftLink = new ShiftLink();
-            shiftLink.setAdsId(adsNormalInfo.getId());
-            shiftLink.setAdsName(adsNormalInfo.getCampainName());
-            shiftLink.setAdsType(Constant.ADS_TYPE_NORMAL);
-            shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
-            shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
-            shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-            shiftLink.setDisplayNumber(1L);
-            shiftLink.setStatus(adsNormalInfo.getStatus());
-            shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
-            shiftLinkRepository.save(shiftLink);
+        try {
+            AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+            if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                ShiftLink shiftLink = new ShiftLink();
+                shiftLink.setAdsId(adsNormalInfo.getId());
+                shiftLink.setAdsName(adsNormalInfo.getCampainName());
+                shiftLink.setAdsType(Constant.ADS_TYPE_NORMAL);
+                shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
+                shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
+                shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
+                shiftLink.setDisplayNumber(1L);
+                shiftLink.setStatus(adsNormalInfo.getStatus());
+                shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
+                shiftLinkRepository.save(shiftLink);
 
-            adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
-            adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
-        } else {
+                adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
+                adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
+            } else {
+                adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
+                log.warn("NORMAL_AUTO_TASK_FAILED adsId={} campaign={} status={} error={}",
+                        adsId, adsNormalInfo.getCampainName(),
+                        adsHttpResponseDto.getStatus(), adsHttpResponseDto.getError());
+            }
+        } catch (Exception e) {
+            // 异常也必须计数, 否则页面成功/失败都是 0, 无法分辨任务是否在失败
+            // count exceptions too, otherwise both counters stay 0 and failures are invisible
             adsNormalInfo.setFailedCount(adsNormalInfo.getFailedCount() + 1);
+            log.error("NORMAL_AUTO_TASK_EXCEPTION adsId={} campaign={} error={}",
+                    adsId, adsNormalInfo.getCampainName(), e.getMessage(), e);
         }
         adsNormalInfoRepository.save(adsNormalInfo);
     }
