@@ -3,18 +3,22 @@ package com.admire.cars.runner.service;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+@Slf4j
 @Service
 public class AdsApiConsumeService {
 
     private static final String MATRIX_ADS_TYPE = "Matrix";
     private static final String NORMAL_ADS_TYPE = "Normal";
     private static final String RUNNING_STATUS = "RUNNING";
+    // 无可用链时回退裸落地页占位符, 避免最后一条链被过度点击 / bare landing page when no link is available
+    private static final String BARE_LANDING_TEMPLATE = "{lpurl}";
 
     private final UserService userService;
 
@@ -47,7 +51,10 @@ public class AdsApiConsumeService {
                 RUNNING_STATUS);
 
         if (eligibleLinks.isEmpty()) {
-            throw new IllegalArgumentException("No available SHIFT_LINK found for matrix ads");
+            // 链全部耗尽时回退裸落地页, 不再复用最后一条链 / all links exhausted, fall back to bare landing page
+            log.warn("no available matrix shift link campaign={} owner={}, fallback to bare lpurl",
+                    normalizedCampaignName, adsOwner);
+            return BARE_LANDING_TEMPLATE;
         }
 //
 //        // Step 1: Group by platformName -> Map<platformName, List<ShiftLink>>
@@ -98,11 +105,14 @@ public class AdsApiConsumeService {
                 NORMAL_ADS_TYPE,
                 RUNNING_STATUS);
         if (eligibleLinks.isEmpty()) {
-            throw new IllegalArgumentException("No available SHIFT_LINK found for normal ads");
+            log.warn("no available normal shift link campaign={} owner={}, fallback to bare lpurl",
+                    normalizedCampaignName, adsOwner);
+            return BARE_LANDING_TEMPLATE;
         }
         ShiftLink selectedLink = eligibleLinks.get(0);
         String shiftLink = buildTrackingTemplate(selectedLink);
-        shiftLinkConsumeAsyncService.recordConsume(selectedLink.getId());
+        // Normal 同样由真实点击驱动, 拉取模板不再累加 displayTimes / normal consumption is click driven too
+        shiftLinkConsumeAsyncService.recordLogOnly(selectedLink.getId());
 
         return shiftLink;
     }

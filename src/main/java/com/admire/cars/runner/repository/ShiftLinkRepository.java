@@ -41,8 +41,8 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
               and s.adsName = :adsName
               and s.adsType = :adsType
               and upper(s.status) = upper(:status)
-              and coalesce(s.displayTimes, 0) = 0
-             order by s.id DESC
+              and coalesce(s.displayTimes, 0) < coalesce(s.displayNumber, 0)
+              order by coalesce(s.seqNumber, 0) asc, s.id asc
             """)
     List<ShiftLink> findEligibleForNormalConsume(String adsOwner, String adsName, String adsType, String status);
 

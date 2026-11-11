@@ -96,7 +96,23 @@ public class AdsHttpClientTool {
      * @param adsNormalInfo
      * @return
      */
+    // 403/超时/IP 国家不匹配时重建代理连接重试, 每次重试出口 IP 可能变化
+    // retry with a fresh proxy connection on 403, timeout or country mismatch
     public AdsHttpResponseDto applyAffiliateAd(AdsNormalInfo adsNormalInfo) {
+        AdsHttpResponseDto last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            last = doApplyNormalAd(adsNormalInfo);
+            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last)) {
+                return last;
+            }
+            log.warn("normal affiliate retry campaign={} attempt={}/{} code={} error={}",
+                    adsNormalInfo.getCampainName(), attempt, MAX_ATTEMPTS, last.getCode(), last.getError());
+            sleepBeforeRetry();
+        }
+        return last;
+    }
+
+    private AdsHttpResponseDto doApplyNormalAd(AdsNormalInfo adsNormalInfo) {
 
         AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
@@ -227,6 +243,20 @@ public class AdsHttpClientTool {
      * @return
      */
     public AdsHttpResponseDto applyAffiliateAd(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
+        AdsHttpResponseDto last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            last = doApplyMatrixAd(matrixInfo, adsMatrixAffiliateInfo);
+            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last)) {
+                return last;
+            }
+            log.warn("matrix affiliate retry campaign={} attempt={}/{} code={} error={}",
+                    matrixInfo.getCampainName(), attempt, MAX_ATTEMPTS, last.getCode(), last.getError());
+            sleepBeforeRetry();
+        }
+        return last;
+    }
+
+    private AdsHttpResponseDto doApplyMatrixAd(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
         AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
         String affiliateUrl = requireText(adsMatrixAffiliateInfo.getAffiliteUrl(), "affiliateUrl is required");
@@ -508,7 +538,29 @@ public class AdsHttpClientTool {
 
 
     private boolean isLandingPage(final URI uri, final String landingPage) {
-        return uri != null && StringUtils.hasText(landingPage) && uri.toString().startsWith(landingPage);
+        if (uri == null || !StringUtils.hasText(landingPage)) {
+            return false;
+        }
+        return normalizeLandingUrl(uri.toString()).startsWith(normalizeLandingUrl(landingPage.trim()));
+    }
+
+    // 统一 origin 末尾斜杠: https://a.com 与 https://a.com/ 是同一落地页, 裸 startsWith 会误判
+    // Normalize the trailing slash of origin so https://a.com?x=1 matches https://a.com/
+    private String normalizeLandingUrl(String url) {
+        int schemeEnd = url.indexOf("://");
+        if (schemeEnd < 0) {
+            return url;
+        }
+        int authorityStart = schemeEnd + 3;
+        int pathStart = url.indexOf('/', authorityStart);
+        int queryStart = url.indexOf('?', authorityStart);
+        if (pathStart < 0 && queryStart >= 0) {
+            return url.substring(0, queryStart) + "/" + url.substring(queryStart);
+        }
+        if (pathStart < 0) {
+            return url + "/";
+        }
+        return url;
     }
 
     private String extractClientRedirectTarget(String responseBody) {
@@ -733,19 +785,50 @@ public class AdsHttpClientTool {
         return currentUri.resolve(targetUri);
     }
 
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MILLIS = 2000L;
+
+    // 只重试换出口 IP 可能改善的失败: 国家不匹配 / 403 / 超时; 其它失败(如落地页不匹配)直接返回
+    // retry only failures a new exit IP may fix; other failures return immediately
+    private boolean shouldRetry(AdsHttpResponseDto dto) {
+        if (dto == null) {
+            return false;
+        }
+        if (dto.getStatus() == null) {
+            return true;
+        }
+        if (dto.getCode() == 403) {
+            return true;
+        }
+        String error = dto.getError();
+        return error != null && (error.contains("timed out") || error.contains("timeout"));
+    }
+
+    private void sleepBeforeRetry() {
+        try {
+            Thread.sleep(RETRY_DELAY_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private Request buildRequest(AdsHttpRequestDto adsHttpRequestDto, String url) {
         String referLink = getRandomReferLink();
         log.info("Using referer link: {}, User-Agent:{}, user device:{}",
                 referLink, adsHttpRequestDto.getUserAgent(), adsHttpRequestDto.getDeviceType());
+        // 模拟真实浏览器导航请求: 去掉 X-Device-Type 自定义头, Accept/Sec-Fetch 与浏览器对齐, 降低被反爬识别概率
+        // mimic a real browser navigation; custom headers are removed to reduce bot detection
         return new Request.Builder()
                 .url(url)
-                .header("Accept", "text/html, application/json, text/plain, */*")
-                .header("Accept-Language", "en-US,en;q=0.9")
-                .header("Cache-Control", "no-cache")
-                .header("Pragma", "no-cache")
-                .header("Referer", referLink)
-                .header("X-Device-Type", adsHttpRequestDto.getDeviceType())
+                .header("Upgrade-Insecure-Requests", "1")
                 .header("User-Agent", adsHttpRequestDto.getUserAgent())
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "cross-site")
+                .header("Sec-Fetch-User", "?1")
+                .header("Referer", referLink)
+                .header("Accept-Language", "en-US,en;q=0.9")
                 .get()
                 .build();
     }

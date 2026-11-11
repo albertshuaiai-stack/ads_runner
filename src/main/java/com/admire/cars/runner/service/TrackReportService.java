@@ -14,6 +14,7 @@ import java.util.List;
 
 /**
  * 接收 Google Ads 报表点击数, 按"与上次换链时的点击基准比较"决定是否换链。
+ * Matrix 与 Normal 都按真实点击消耗, 与脚本拉取频率无关。
  * Rotate shift links by comparing lifetime clicks with the base recorded at the last switch.
  */
 @Service
@@ -21,6 +22,7 @@ public class TrackReportService {
 
     private static final Logger log = LoggerFactory.getLogger(TrackReportService.class);
     private static final String MATRIX_ADS_TYPE = "Matrix";
+    private static final String NORMAL_ADS_TYPE = "Normal";
     private static final String RUNNING_STATUS = "RUNNING";
 
     private final UserService userService;
@@ -45,7 +47,10 @@ public class TrackReportService {
                 continue;
             }
             long clicks = row.clicks() == null ? 0L : Math.max(row.clicks(), 0L);
-            if (redistribute(adsOwner, row.name().trim(), clicks)) {
+            String campaignName = row.name().trim();
+            boolean matrixChanged = redistribute(adsOwner, campaignName, clicks, MATRIX_ADS_TYPE);
+            boolean normalChanged = redistribute(adsOwner, campaignName, clicks, NORMAL_ADS_TYPE);
+            if (matrixChanged || normalChanged) {
                 updatedCampaigns++;
             }
         }
@@ -54,9 +59,9 @@ public class TrackReportService {
 
     // 只处理当前使用中的 link: clicks - clickBase 达到 displayNumber 就换下一条, 并把新基准记为当前 clicks
     // Only the active link is evaluated; rotation depends on clicks, never on how often the script runs
-    private boolean redistribute(String adsOwner, String campaignName, long clicks) {
+    private boolean redistribute(String adsOwner, String campaignName, long clicks, String adsType) {
         List<ShiftLink> links = shiftLinkRepository
-                .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(adsOwner, campaignName, MATRIX_ADS_TYPE)
+                .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(adsOwner, campaignName, adsType)
                 .stream()
                 .filter(link -> RUNNING_STATUS.equalsIgnoreCase(link.getStatus()))
                 .sorted(Comparator.comparing((ShiftLink link) ->
@@ -64,7 +69,6 @@ public class TrackReportService {
                         .thenComparing(ShiftLink::getId))
                 .toList();
         if (links.isEmpty()) {
-            log.info("click report ignored, no matrix shift link campaign={} owner={}", campaignName, adsOwner);
             return false;
         }
 
@@ -83,7 +87,8 @@ public class TrackReportService {
                 link.setClickBase(clicks);
                 link.setDisplayTimes(0L);
                 shiftLinkRepository.save(link);
-                log.info("click base initialized campaign={} linkId={} base={}", campaignName, link.getId(), clicks);
+                log.info("click base initialized type={} campaign={} linkId={} base={}",
+                        adsType, campaignName, link.getId(), clicks);
                 return true;
             }
 
@@ -96,10 +101,12 @@ public class TrackReportService {
                     next.setClickBase(clicks);
                     next.setDisplayTimes(0L);
                     shiftLinkRepository.save(next);
-                    log.info("shift link rotated campaign={} fromId={} toId={} newBase={}",
-                            campaignName, link.getId(), next.getId(), clicks);
+                    log.info("shift link rotated type={} campaign={} fromId={} toId={} newBase={}",
+                            adsType, campaignName, link.getId(), next.getId(), clicks);
                 } else {
-                    log.info("shift link exhausted campaign={} linkId={} no next link", campaignName, link.getId());
+                    // 最后一条也已耗尽, 后续 /api/*/ads 会回退裸落地页, 不再使用这条链
+                    log.warn("shift link exhausted type={} campaign={} linkId={} no next link, bare lpurl fallback",
+                            adsType, campaignName, link.getId());
                 }
                 return true;
             }
