@@ -10,6 +10,7 @@ import com.admire.cars.runner.repository.AdsNormalPostBackRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -117,7 +118,9 @@ public class PostBackAttributionService {
     @Transactional(readOnly = true)
     public Map<String, Object> stats(String adsOwnerParam, Long currentUserId) {
         String adsOwner = resolveAdsOwner(adsOwnerParam, currentUserId);
-        List<AdsNormalInfo> tasks = adsNormalInfoRepository.findByAdsOwnerOrderByIdDesc(adsOwner);
+        List<AdsNormalInfo> tasks = adsOwner == null
+                ? adsNormalInfoRepository.findAllByOrderByIdDesc()
+                : adsNormalInfoRepository.findByAdsOwnerOrderByIdDesc(adsOwner);
 
         Map<Long, Object[]> clickAgg = new HashMap<>();
         for (Object[] row : clickTrackRepository.aggregateByOwner(adsOwner)) {
@@ -136,6 +139,7 @@ public class PostBackAttributionService {
         long totalOrders = 0L;
         long totalIssued = 0L;
         long totalTracked = 0L;
+        long totalReported = 0L;
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalCommission = BigDecimal.ZERO;
 
@@ -153,6 +157,7 @@ public class PostBackAttributionService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("normalAdsId", task.getId());
             row.put("campainName", task.getCampainName());
+            row.put("advertiserId", extractQueryParam(task.getAffiliteUrl(), "a"));
             row.put("campainCountry", task.getCampainCountry());
             row.put("platformName", task.getPlatformName());
             row.put("status", task.getStatus());
@@ -171,8 +176,18 @@ public class PostBackAttributionService {
             totalOrders += orderCount;
             totalIssued += issued;
             totalTracked += tracked;
+            totalReported += reportedClicks == null ? 0L : reportedClicks;
             totalAmount = totalAmount.add(amount);
             totalCommission = totalCommission.add(commission);
+        }
+
+        // 全局口径含未归因订单, 不能只累加各任务 / include unmatched orders in global totals
+        List<Object[]> totals = postBackRepository.aggregateTotal(adsOwner);
+        if (!totals.isEmpty() && totals.get(0) != null) {
+            Object[] total = totals.get(0);
+            totalOrders = toLong(total[0]);
+            totalAmount = total[1] == null ? BigDecimal.ZERO : new BigDecimal(total[1].toString());
+            totalCommission = total[2] == null ? BigDecimal.ZERO : new BigDecimal(total[2].toString());
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -180,11 +195,71 @@ public class PostBackAttributionService {
         result.put("normalTaskCount", tasks.size());
         result.put("issuedClickIds", totalIssued);
         result.put("trackedClicks", totalTracked);
+        result.put("reportedClicks", totalReported);
         result.put("orderCount", totalOrders);
         result.put("unmatchedOrderCount", postBackRepository.countUnmatched(adsOwner));
         result.put("orderAmount", totalAmount);
         result.put("commission", totalCommission);
         result.put("tasks", rows);
+
+        List<Map<String, Object>> unmatchedByAdvertiser = new ArrayList<>();
+        for (Object[] row : postBackRepository.findUnmatchedGroupedByAdvertiser(adsOwner)) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("advertiserShopName", row[0]);
+            item.put("advertiserShopId", row[1]);
+            item.put("orderCount", toLong(row[2]));
+            item.put("orderAmount", row[3] == null ? BigDecimal.ZERO : new BigDecimal(row[3].toString()));
+            item.put("commission", row[4] == null ? BigDecimal.ZERO : new BigDecimal(row[4].toString()));
+            unmatchedByAdvertiser.add(item);
+        }
+        result.put("unmatchedByAdvertiser", unmatchedByAdvertiser);
+        return result;
+    }
+
+    // Click 区数据: 每个点击ID的账号/平台/品牌 + 命中次数 + 带来的订单数/金额/佣金
+    // Click tab: owner/platform/brand plus hit count and attributed orders for each click id
+    @Transactional(readOnly = true)
+    public Map<String, Object> clickSummary(String adsOwnerParam, Long currentUserId, int limit) {
+        String adsOwner = resolveAdsOwner(adsOwnerParam, currentUserId);
+        List<AdsClickTrack> tracks = clickTrackRepository.findRecent(
+                adsOwner, PageRequest.of(0, Math.min(Math.max(limit, 1), 2000)));
+
+        Map<String, Object[]> orderAgg = new HashMap<>();
+        for (Object[] row : postBackRepository.aggregateByClickId(adsOwner)) {
+            if (row[0] != null) {
+                orderAgg.put(row[0].toString(), row);
+            }
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        java.util.Set<String> owners = new java.util.TreeSet<>();
+        java.util.Set<String> platforms = new java.util.TreeSet<>();
+        java.util.Set<String> brands = new java.util.TreeSet<>();
+        for (AdsClickTrack track : tracks) {
+            Object[] agg = orderAgg.get(track.getClickId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("clickId", track.getClickId());
+            row.put("adsOwner", track.getAdsOwner());
+            row.put("platformName", track.getPlatformName());
+            row.put("campainName", track.getCampainName());
+            row.put("normalAdsId", track.getNormalAdsId());
+            row.put("createDate", track.getCreateDate());
+            row.put("clickCount", track.getClickCount() == null ? 0L : track.getClickCount());
+            row.put("orderCount", agg == null ? 0L : toLong(agg[1]));
+            row.put("orderAmount", agg == null || agg[2] == null ? BigDecimal.ZERO : new BigDecimal(agg[2].toString()));
+            row.put("commission", agg == null || agg[3] == null ? BigDecimal.ZERO : new BigDecimal(agg[3].toString()));
+            row.put("fullUrl", track.getFullUrl());
+            rows.add(row);
+            if (StringUtils.hasText(track.getAdsOwner())) owners.add(track.getAdsOwner());
+            if (StringUtils.hasText(track.getPlatformName())) platforms.add(track.getPlatformName());
+            if (StringUtils.hasText(track.getCampainName())) brands.add(track.getCampainName());
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("clicks", rows);
+        result.put("owners", new ArrayList<>(owners));
+        result.put("platforms", new ArrayList<>(platforms));
+        result.put("brands", new ArrayList<>(brands));
         return result;
     }
 
@@ -192,10 +267,23 @@ public class PostBackAttributionService {
     @Transactional(readOnly = true)
     public List<AdsClickTrack> clicks(String adsOwnerParam, Long normalAdsId, Long currentUserId) {
         String adsOwner = resolveAdsOwner(adsOwnerParam, currentUserId);
+        if (adsOwner == null) {
+            return clickTrackRepository.findRecent(null, PageRequest.of(0, 1000));
+        }
         if (normalAdsId != null) {
             return clickTrackRepository.findByAdsOwnerAndNormalAdsIdOrderByIdDesc(adsOwner, normalAdsId);
         }
         return clickTrackRepository.findByAdsOwnerOrderByIdDesc(adsOwner);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdsClickTrack> recentClicks(String adsOwner, int limit) {
+        return clickTrackRepository.findRecent(adsOwner, PageRequest.of(0, Math.max(limit, 1)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdsNormalPostBack> recentOrders(String adsOwner, int limit) {
+        return postBackRepository.findRecent(adsOwner, PageRequest.of(0, Math.max(limit, 1)));
     }
 
     // 某个点击ID有没有下单 / orders attributed to one click id
@@ -203,11 +291,11 @@ public class PostBackAttributionService {
     public Map<String, Object> clickDetail(String clickId, String adsOwnerParam, Long currentUserId) {
         String adsOwner = resolveAdsOwner(adsOwnerParam, currentUserId);
         AdsClickTrack track = clickTrackRepository.findByClickId(clickId.trim()).orElse(null);
-        if (track != null && !adsOwner.equals(track.getAdsOwner())) {
+        if (track != null && adsOwner != null && !adsOwner.equals(track.getAdsOwner())) {
             throw new IllegalArgumentException("Unauthorized: click id belongs to another owner");
         }
         List<AdsNormalPostBack> orders = postBackRepository
-                .findByAdsOwnerAndClickIdOrderByIdDesc(adsOwner, clickId.trim());
+                .findByClickIdWithOwner(adsOwner, clickId.trim());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("clickId", clickId.trim());
         result.put("click", track);
@@ -305,18 +393,34 @@ public class PostBackAttributionService {
                 return byId.get(0).getId();
             }
         }
-        String shopName = postBack.getAdvertiserShopName();
+        String shopName = normalizeName(postBack.getAdvertiserShopName());
         if (StringUtils.hasText(shopName)) {
-            String normalized = shopName.trim().toLowerCase();
             List<AdsNormalInfo> byName = tasks.stream()
-                    .filter(task -> task.getCampainName() != null
-                            && task.getCampainName().trim().toLowerCase().equals(normalized))
+                    .filter(task -> isNameMatch(normalizeName(task.getCampainName()), shopName))
                     .toList();
             if (byName.size() == 1) {
                 return byName.get(0).getId();
             }
         }
         return null;
+    }
+
+    // 商家名常带国家后缀或空格, 归一化后双向包含 / normalize advertiser names with country suffixes
+    private String normalizeName(String value) {
+        return value == null ? "" : value.toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+
+    private boolean isNameMatch(String campaign, String advertiser) {
+        if (campaign.isEmpty() || advertiser.isEmpty()) {
+            return false;
+        }
+        if (campaign.equals(advertiser)) {
+            return true;
+        }
+        if (campaign.length() < 4 || advertiser.length() < 4) {
+            return false;
+        }
+        return advertiser.contains(campaign) || campaign.contains(advertiser);
     }
 
     private String extractQueryParam(String url, String name) {
@@ -335,6 +439,9 @@ public class PostBackAttributionService {
             if (!isAdmin(current)) {
                 return current.getUserPhoneNumber();
             }
+            // admin 未指定 owner 时查全部, 与订单列表 All owners 口径一致
+            // admin without an explicit owner sees all owners, same as the order list
+            return StringUtils.hasText(adsOwnerParam) ? adsOwnerParam.trim() : null;
         }
         if (!StringUtils.hasText(adsOwnerParam)) {
             throw new IllegalArgumentException("adsOwner is required");
@@ -352,7 +459,11 @@ public class PostBackAttributionService {
     // 供写操作接口解析归属 / owner resolution for write endpoints
     @Transactional(readOnly = true)
     public String resolveOwnerForWrite(String adsOwnerParam, Long currentUserId) {
-        return resolveAdsOwner(adsOwnerParam, currentUserId);
+        String owner = resolveAdsOwner(adsOwnerParam, currentUserId);
+        if (!StringUtils.hasText(owner)) {
+            throw new IllegalArgumentException("adsOwner is required for this operation");
+        }
+        return owner;
     }
 
     private long toLong(Object value) {

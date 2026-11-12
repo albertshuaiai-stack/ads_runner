@@ -68,6 +68,20 @@ public class AdsNormalPostBackService {
         return adsNormalPostBackRepository.save(existing);
     }
 
+    // 后台 Post Back 页删除单条记录, 非 admin 只能删自己的 / delete one postback row
+    public void deleteById(Long id, Long currentUserId) {
+        AdsNormalPostBack postBack = adsNormalPostBackRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_POST_BACK not found: " + id));
+        if (currentUserId != null) {
+            User current = getCurrentUser(currentUserId);
+            if (!isAdmin(current) && !current.getUserPhoneNumber().equals(postBack.getAdsOwner())) {
+                throw new IllegalArgumentException("Unauthorized: you can only delete your own post backs");
+            }
+        }
+        adsNormalPostBackRepository.delete(postBack);
+        log.info("Deleted ADS_NORMAL_POST_BACK id={} orderNo={}", id, postBack.getOrderNo());
+    }
+
     @Transactional(readOnly = true)
     public AdsNormalPostBack getById(Long id, Long currentUserId) {
         AdsNormalPostBack adsNormalPostBack = adsNormalPostBackRepository.findById(id)

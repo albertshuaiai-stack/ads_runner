@@ -25,9 +25,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/users/register",
                         "/api/health/**",
                         "/api/auth/login",
-                        "/api/postback",
-                        "/api/yp/postback",
-                        "/api/pb/postback",
+                        // POST /api/postback* is released by AuthInterceptor; admin GET still requires a token
                         "/api/click",
                         "/api/normal/ads",
                         "/api/matrix/ads",

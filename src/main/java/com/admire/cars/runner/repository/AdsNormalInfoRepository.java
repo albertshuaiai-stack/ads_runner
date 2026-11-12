@@ -20,6 +20,8 @@ public interface AdsNormalInfoRepository extends JpaRepository<AdsNormalInfo, Lo
     // 后台已上架的 normaltask 列表 / listed normal tasks
     List<AdsNormalInfo> findByAdsOwnerOrderByIdDesc(String adsOwner);
 
+    List<AdsNormalInfo> findAllByOrderByIdDesc();
+
 
     @Modifying
     @Transactional
