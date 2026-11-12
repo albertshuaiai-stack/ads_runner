@@ -156,4 +156,7 @@
     <!-- Click id ledger and postback attribution to normal tasks -->
     <include file="db/changelog/db.changelog-072-click-attribution.xml"/>
 
+    <!-- Unique ADS_OWNER + ORDER_NO on ADS_NORMAL_POST_BACK -->
+    <include file="db/changelog/db.changelog-073-post-back-owner-order-unique.xml"/>
+
 </databaseChangeLog>

@@ -78,6 +78,12 @@ public class PostBackAttributionService {
             return;
         }
         AdsNormalPostBack postBack = found.get();
+        // 已精确归因(含人工绑定)的订单, 状态变更回调不再重算 / status callbacks must not redo a confirmed match
+        if (MATCHED.equals(postBack.getMatchStatus())) {
+            log.info("ATTRIBUTION_KEEP owner={} orderNo={} clickId={} rule={}",
+                    adsOwner, orderNo, postBack.getClickId(), postBack.getMatchRule());
+            return;
+        }
         applyMatch(postBack);
         postBackRepository.save(postBack);
         log.info("ATTRIBUTION_DONE owner={} orderNo={} clickId={} normalAdsId={} status={} rule={}",
@@ -281,6 +287,15 @@ public class PostBackAttributionService {
             }
         }
 
+        // campaign 累计点击, 与上面的链接级点击并列展示 / campaign lifetime clicks, shown next to link clicks
+        List<AdsNormalInfo> tasks = adsOwner == null
+                ? adsNormalInfoRepository.findAllByOrderByIdDesc()
+                : adsNormalInfoRepository.findByAdsOwnerOrderByIdDesc(adsOwner);
+        Map<Long, Long> clicksByTask = new HashMap<>();
+        for (AdsNormalInfo task : tasks) {
+            clicksByTask.put(task.getId(), task.getLastReportClicks() == null ? 0L : task.getLastReportClicks());
+        }
+
         Map<String, Object[]> orderAgg = new HashMap<>();
         for (Object[] row : postBackRepository.aggregateByClickId(adsOwner)) {
             if (row[0] != null) {
@@ -301,8 +316,10 @@ public class PostBackAttributionService {
             row.put("campainName", track.getCampainName());
             row.put("normalAdsId", track.getNormalAdsId());
             row.put("createDate", track.getCreateDate());
-            row.put("clicks", track.getShiftLinkId() == null
+            row.put("linkClicks", track.getShiftLinkId() == null
                     ? 0L : clicksByLinkId.getOrDefault(track.getShiftLinkId(), 0L));
+            row.put("campaignClicks", track.getNormalAdsId() == null
+                    ? 0L : clicksByTask.getOrDefault(track.getNormalAdsId(), 0L));
             row.put("trackedHits", track.getClickCount() == null ? 0L : track.getClickCount());
             row.put("shiftLinkId", track.getShiftLinkId());
             row.put("orderCount", agg == null ? 0L : toLong(agg[1]));
@@ -317,6 +334,7 @@ public class PostBackAttributionService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("clicks", rows);
+        result.put("campaignClicksTotal", clicksByTask.values().stream().mapToLong(Long::longValue).sum());
         result.put("owners", new ArrayList<>(owners));
         result.put("platforms", new ArrayList<>(platforms));
         result.put("brands", new ArrayList<>(brands));

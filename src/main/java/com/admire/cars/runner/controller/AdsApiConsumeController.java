@@ -138,8 +138,10 @@ public class AdsApiConsumeController {
         adsNormalPostBack.setStatus(status);
         // 后台 Global Postback 默认把点击ID放在 web_id/web_id2, 这里兼容常见别名
         // the Global Postback page sends the click id as web_id/web_id2; accept the common aliases too
-        adsNormalPostBack.setSubId(resolveSubId(subId, request, "sub_id", "web_id", "subid", "click_id", "clickid"));
-        adsNormalPostBack.setSubId2(resolveSubId(subId2, request, "sub_id2", "web_id2", "subid2"));
+        // 只收 BonusArrive 实际会用的参数名, 其它原始参数由 POSTBACK_RAW_PARAMS 记录
+        // only accept names BonusArrive actually sends; everything else is logged by POSTBACK_RAW_PARAMS
+        adsNormalPostBack.setSubId(resolveSubId(subId, request, "sub_id", "subid", "web_id"));
+        adsNormalPostBack.setSubId2(resolveSubId(subId2, request, "sub_id2", "subid2", "sub2id", "web_id2"));
         adsNormalPostBack.setClickTime(clickTime);
         adsNormalPostBack.setAffiliateSite("BonusArrive");
         return createPostBack(apiKeyParam, adsNormalPostBack);

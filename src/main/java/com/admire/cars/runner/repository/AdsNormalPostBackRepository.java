@@ -15,9 +15,14 @@ import java.util.Optional;
 @Repository
 public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPostBack, Long>, JpaSpecificationExecutor<AdsNormalPostBack> {
 
-    Optional<AdsNormalPostBack> findByAdsOwnerAndOrderNo(String adsOwner, String orderNo);
-
-    List<AdsNormalPostBack> findByAdsOwnerAndClickIdOrderByIdDesc(String adsOwner, String clickId);
+    // 显式 JPQL, 避免走派生查询的 PartTreeJpaQuery / JpqlQueryBuilder 构造路径
+    // explicit JPQL so this hot path does not depend on JpqlQueryBuilder internals
+    @Query("""
+            select p from AdsNormalPostBack p
+            where p.adsOwner = :adsOwner and p.orderNo = :orderNo
+            """)
+    Optional<AdsNormalPostBack> findByAdsOwnerAndOrderNo(@Param("adsOwner") String adsOwner,
+                                                         @Param("orderNo") String orderNo);
 
     // owner 为 null 表示不过滤(admin All owners) / null owner means no filter
     @Query("""

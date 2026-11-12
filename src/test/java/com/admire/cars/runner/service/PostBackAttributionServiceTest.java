@@ -154,6 +154,23 @@ class PostBackAttributionServiceTest {
     }
 
     @Test
+    void attribute_alreadyMatched_isNotRecomputed() {
+        AdsNormalPostBack postBack = postBack(null);
+        postBack.setMatchStatus("MATCHED");
+        postBack.setMatchRule("MANUAL_BIND");
+        postBack.setClickId(CLICK_ID);
+        postBack.setNormalAdsId(12L);
+        mockFound(postBack);
+
+        service.attribute(OWNER, ORDER_NO);
+
+        assertEquals("MATCHED", postBack.getMatchStatus());
+        assertEquals("MANUAL_BIND", postBack.getMatchRule());
+        assertEquals(CLICK_ID, postBack.getClickId());
+        assertEquals(12L, postBack.getNormalAdsId());
+    }
+
+    @Test
     void attribute_noCandidate_keepsUnmatched() {
         AdsNormalPostBack postBack = postBack("platform-click-9988");
         mockFound(postBack);

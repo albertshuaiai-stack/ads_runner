@@ -569,13 +569,15 @@ public class AdsHttpClientTool {
         }
         String enriched = affiliateUrL
                 .replace("{subid}", clickId)
+                .replace("(subid)", clickId)
                 .replace("{adid}", "n" + (normalAdsId == null ? 0L : normalAdsId));
-        if (affiliateUrL.contains("{subid}")) {
-            return enriched;
-        }
+        // 后台模板可能用 {subid} 或客服说的 (subid), 也可能把它放在 sub2id 上;
+        // 无论哪种都保证 SUBID1 的 subid= 带上同一个 UUID, 两个 sub 位回传哪个都能归因
+        // whatever placeholder/position the template uses, SUBID1 always carries the same click id
         Matcher subIdMatcher = Pattern.compile("([?&])subid=[^&#]*").matcher(enriched);
         if (subIdMatcher.find()) {
-            return subIdMatcher.replaceFirst(subIdMatcher.group(1) + "subid=" + clickId);
+            return subIdMatcher.replaceFirst(
+                    Matcher.quoteReplacement(subIdMatcher.group(1) + "subid=" + clickId));
         }
         return enriched + (enriched.contains("?") ? "&" : "?") + "subid=" + clickId;
     }

@@ -61,10 +61,19 @@ public class AdsNormalPostBackService {
         existing.setOrderTime(adsNormalPostBack.getOrderTime());
         existing.setOrderAmount(adsNormalPostBack.getOrderAmount());
         existing.setUserCommissionAmount(adsNormalPostBack.getUserCommissionAmount());
-        existing.setSubId(adsNormalPostBack.getSubId());
-        existing.setSubId2(adsNormalPostBack.getSubId2());
-        existing.setClickTime(adsNormalPostBack.getClickTime());
-        log.info("Updated existing ADS_NORMAL_POST_BACK: {}", existing.getId());
+        // 后续回调未带 sub_id 时保留原值, 否则已归因订单会被冲掉 / keep the stored sub ids when a later callback omits them
+        if (StringUtils.hasText(adsNormalPostBack.getSubId())) {
+            existing.setSubId(adsNormalPostBack.getSubId());
+        }
+        if (StringUtils.hasText(adsNormalPostBack.getSubId2())) {
+            existing.setSubId2(adsNormalPostBack.getSubId2());
+        }
+        if (StringUtils.hasText(adsNormalPostBack.getClickTime())) {
+            existing.setClickTime(adsNormalPostBack.getClickTime());
+        }
+        log.info("POSTBACK_UPDATED id={} orderNo={} status={} subId={} subId2={}",
+                existing.getId(), existing.getOrderNo(), existing.getStatus(),
+                existing.getSubId(), existing.getSubId2());
         return adsNormalPostBackRepository.save(existing);
     }
 

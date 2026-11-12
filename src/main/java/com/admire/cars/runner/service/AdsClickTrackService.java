@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -71,13 +70,5 @@ public class AdsClickTrackService {
             log.warn("CLICK_TRACK_UNKNOWN clickId={}", clickId.trim());
         }
         return found;
-    }
-
-    @Transactional(readOnly = true)
-    public List<AdsClickTrack> listByOwner(String adsOwner, Long normalAdsId) {
-        if (normalAdsId != null) {
-            return adsClickTrackRepository.findByAdsOwnerAndNormalAdsIdOrderByIdDesc(adsOwner, normalAdsId);
-        }
-        return adsClickTrackRepository.findByAdsOwnerOrderByIdDesc(adsOwner);
     }
 }
