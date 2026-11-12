@@ -40,6 +40,12 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
     @Autowired
     private AdsHttpClientTool adsHttpClientTool;
 
+    @Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
+
+    @Autowired
+    private com.admire.cars.runner.service.NormalShiftLinkQuotaService normalShiftLinkQuotaService;
+
     @Override
     protected void executeTask(JobExecutionContext context) {
         JobDataMap jobDataMap = context.getMergedJobDataMap();
@@ -49,6 +55,11 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         AdsNormalInfo adsNormalInfo = adsNormalInfoRepository.findById(adsId).orElse(null);
         if (adsNormalInfo == null) {
             log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
+            return;
+        }
+        // 每天基础额度 + 点击增量额度, 用完后跳过本轮生成 / skip generation once today's allowance is used up
+        if (!normalShiftLinkQuotaService.allowGeneration(adsNormalInfo)) {
+            log.info("NORMAL_AUTO_TASK_DAILY_LIMIT_SKIP adsId={} jobId={}", adsId, jobId);
             return;
         }
         try {
@@ -61,7 +72,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setPlatformName(adsNormalInfo.getPlatformName());
                 shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
                 shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-                shiftLink.setDisplayNumber(1L);
+                shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(Constant.ADS_TYPE_NORMAL));
                 shiftLink.setStatus(adsNormalInfo.getStatus());
                 shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
                 shiftLinkRepository.save(shiftLink);

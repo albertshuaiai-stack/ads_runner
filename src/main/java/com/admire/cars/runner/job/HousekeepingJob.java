@@ -26,6 +26,9 @@ public class HousekeepingJob implements Job {
     private ShiftLinkRepository shiftLinkRepository;
 
     @Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
+
+    @Autowired
     private AdsTaskLogRepository adsTaskLogRepository;
 
     @Autowired
@@ -116,7 +119,8 @@ public class HousekeepingJob implements Job {
 
     private long purgeMatrixShiftLinks() {
         LocalDateTime consumedCutoff = LocalDateTime.now().minusDays(matrixShiftLinkRetentionDays);
-        long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(consumedCutoff);
+        long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(consumedCutoff,
+                shiftLinkClickConfig.capacityFor("Matrix"));
         log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_PURGED cutoff={} deletedCount={}", consumedCutoff, deleted);
 
         // 绝对清理：30 天后无论是否消耗完都删除 / absolute purge after 30 days regardless of consumption

@@ -60,6 +60,9 @@ public class ShiftLinkService {
     private final ToolEmailRepository toolEmailRepository;
     private final GmailPlatformLinkRepository gmailPlatformLinkRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
+
     public ShiftLinkService(
             ShiftLinkRepository shiftLinkRepository,
             ShiftLinkStatRepository shiftLinkStatRepository,
@@ -337,7 +340,8 @@ public class ShiftLinkService {
                             shiftLink.setPlatformName(row.platformName());
                             shiftLink.setFullUrl(row.fullUrl());
                             shiftLink.setLandingPageUrl(row.landingPageUrl());
-                            shiftLink.setDisplayNumber(row.displayNumber() != null ? row.displayNumber() : 5L);
+                            shiftLink.setDisplayNumber(row.displayNumber() != null
+                                    ? row.displayNumber() : shiftLinkClickConfig.capacityFor(row.adsType()));
                             shiftLink.setRemarks(row.remarks());
                             shiftLink.setAdsOwner(owner.getUserPhoneNumber());
                             // 按链接前缀归类到 Gmail，未命中则用登录账号名 / classify gmail by link prefix, fallback to owner name
@@ -633,7 +637,7 @@ public class ShiftLinkService {
         }
 
         if (shiftLink.getDisplayNumber() == null) {
-            shiftLink.setDisplayNumber(5L);
+            shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(shiftLink.getAdsType()));
         }
         shiftLink.setDisplayTimes(0L);
 

@@ -4,6 +4,7 @@ import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
+import com.admire.cars.runner.service.MatrixShiftLinkQuotaService;
 import com.admire.cars.runner.service.ShiftLinkService;
 import com.admire.cars.runner.util.AdsHttpClientTool;
 import com.admire.cars.runner.util.AdsHttpResponseDto;
@@ -29,9 +30,14 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     @Autowired
     private ShiftLinkService shiftLinkService;
 
+    @Autowired
+    private MatrixShiftLinkQuotaService matrixShiftLinkQuotaService;
 
     @Autowired
     private AdsHttpClientTool adsHttpClientTool;
+
+    @Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
 
     @Override
     protected void executeTask(JobExecutionContext context) {
@@ -43,6 +49,11 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
         AdsMatrixInfo adsMatrixInfo = adsMatrixInfoRepository.findById(adsId).orElse(null);
         if (adsMatrixInfo == null) {
             log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
+            return;
+        }
+        // 先清理昨日链, 再判断今日配额 / purge stale links first, then check today's quota
+        if (!matrixShiftLinkQuotaService.allowGeneration(adsId, adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getCampainName())) {
+            log.info("MATRIX_AUTO_TASK_DAILY_LIMIT_SKIP adsId={} jobId={}", adsId, jobId);
             return;
         }
         List<AdsMatrixAffiliateInfo> adsMatrixAffiliateInfoList = adsMatrixInfo.getAffiliateInfos();
@@ -62,7 +73,7 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             shiftLink.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
             shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
             shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-            shiftLink.setDisplayNumber(1L);
+            shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(Constant.ADS_TYPE_MATRIX));
             shiftLink.setStatus(adsMatrixInfo.getStatus());
             shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
             shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());

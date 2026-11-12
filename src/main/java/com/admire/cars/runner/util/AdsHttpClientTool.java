@@ -206,6 +206,14 @@ public class AdsHttpClientTool {
                             adsTaskLog.setResponseUrl(location);
                             currentUri = nextUri;
                             continue;
+                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                            log.warn("Apply Normal Affiliate Ads. landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
+                            adsTaskLog.setPageType("normal");
+                            adsTaskLog.setRedirectType("none");
+                            adsTaskLog.setErrMsg("landing page returned " + statusCode + ", accepted by url match");
+                            adsTaskLog.setSuccess(true);
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                            break;
                         } else {
                             adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                             break;
@@ -213,7 +221,9 @@ public class AdsHttpClientTool {
 
                     }
                 }
-                if (!StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                // 只在跳转次数耗尽(未产生结果)时改写; 403 等已明确的失败保留原状态码, 否则重试判定拿不到 403
+                // only rewrite when hops are exhausted; keep explicit failures such as 403 so retry can see them
+                if (adsHttpResponseDto.getStatus() == null) {
                     adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Response URL does not match landing page prefix with max redirect times.");
                 }
                 // Redirect End
@@ -347,13 +357,21 @@ public class AdsHttpClientTool {
                             adsTaskLog.setResponseUrl(location);
                             currentUri = nextUri;
                             continue;
+                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                            log.warn("Apply Matrix Affiliate Ads. landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
+                            adsTaskLog.setErrMsg("landing page returned " + statusCode + ", accepted by url match");
+                            adsTaskLog.setSuccess(true);
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                            break;
                         } else {
                             adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                             break;
                         }
                     }
                 }
-                if (!StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                // 只在跳转次数耗尽(未产生结果)时改写; 403 等已明确的失败保留原状态码, 否则重试判定拿不到 403
+                // only rewrite when hops are exhausted; keep explicit failures such as 403 so retry can see them
+                if (adsHttpResponseDto.getStatus() == null) {
                     adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Response URL does not match landing page prefix with max redirect times.");
                 }
             } catch (IOException proxyIoException) {
@@ -483,6 +501,9 @@ public class AdsHttpClientTool {
                             URI nextUri = currentUri.resolve(location.trim());
                             currentUri = nextUri;
                             continue;
+                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                            log.warn("Affiliate test landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
+                            return new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
                         } else {
                             return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                         }
@@ -536,6 +557,13 @@ public class AdsHttpClientTool {
         return affiliateUrL.replace("{subid}", UUID.randomUUID().toString());
     }
 
+
+    // 已到达正确落地页但被商家反爬返回 403: 联盟跳转已完成、带点击参数的最终 URL 已拿到, 视为成功
+    // 只放宽这一种情况; 前缀不匹配或跳转中途的 403 仍算失败
+    // reached the expected landing page but the merchant blocked the bot; the final url is all we need
+    private boolean isBlockedLandingPage(int statusCode, URI responseUri, String landingPageUrl) {
+        return statusCode == 403 && isLandingPage(responseUri, landingPageUrl);
+    }
 
     private boolean isLandingPage(final URI uri, final String landingPage) {
         if (uri == null || !StringUtils.hasText(landingPage)) {

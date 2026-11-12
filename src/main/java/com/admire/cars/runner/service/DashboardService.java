@@ -39,6 +39,9 @@ public class DashboardService {
     private final ToolOutcomeService toolOutcomeService;
     private final CurrencyExchangeService currencyExchangeService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
+
     public DashboardService(
             ShiftLinkService shiftLinkService,
             ToolAccountService toolAccountService,
@@ -181,8 +184,9 @@ public class DashboardService {
                 .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
                 .map(entry -> {
                     List<ShiftLink> items = entry.getValue();
-                    long total = items.stream().mapToLong(link -> normalizeDisplayNumber(link.getDisplayNumber())).sum();
-                    long consumed = items.stream().mapToLong(link -> normalizeDisplayTimes(link.getDisplayTimes())).sum();
+                    long capacity = shiftLinkClickConfig.capacityFor("Normal");
+                    long total = capacity * items.size();
+                    long consumed = items.stream().mapToLong(link -> Math.min(normalizeDisplayTimes(link.getDisplayTimes()), capacity)).sum();
                     long remaining = Math.max(total - consumed, 0L);
                     String campaignName = appendSuffix(entry.getKey(), items.stream()
                             .map(ShiftLink::getPlatformName)
@@ -202,8 +206,9 @@ public class DashboardService {
                 .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
                 .map(entry -> {
                     List<ShiftLink> items = entry.getValue();
-                    long totalCapacity = items.stream().mapToLong(link -> normalizeDisplayNumber(link.getDisplayNumber())).sum();
-                    long consumed = items.stream().mapToLong(link -> normalizeDisplayTimes(link.getDisplayTimes())).sum();
+                    long capacity = shiftLinkClickConfig.capacityFor("Matrix");
+                    long totalCapacity = capacity * items.size();
+                    long consumed = items.stream().mapToLong(link -> Math.min(normalizeDisplayTimes(link.getDisplayTimes()), capacity)).sum();
                     long remaining = Math.max(totalCapacity - consumed, 0L);
                     String campaignName = appendSuffix(entry.getKey(), items.stream()
                             .map(ShiftLink::getRemarks)
@@ -229,10 +234,6 @@ public class DashboardService {
             return false;
         }
         return expected.equalsIgnoreCase(shiftLink.getAdsType().trim());
-    }
-
-    private long normalizeDisplayNumber(Long value) {
-        return value == null ? 0L : value;
     }
 
     private long normalizeDisplayTimes(Long value) {

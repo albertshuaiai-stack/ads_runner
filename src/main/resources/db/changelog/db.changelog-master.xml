@@ -150,4 +150,7 @@
     <!-- Add SHIFT_LINK CLICK_BASE for click driven rotation -->
     <include file="db/changelog/db.changelog-069-shift-link-click-base.xml"/>
 
+    <!-- Add ADS_NORMAL_INFO daily click quota columns -->
+    <include file="db/changelog/db.changelog-071-normal-click-quota.xml"/>
+
 </databaseChangeLog>

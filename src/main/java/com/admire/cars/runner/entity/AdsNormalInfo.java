@@ -66,6 +66,18 @@ public class AdsNormalInfo {
     @Column(name = "LAST_SUCCESS_DATE")
     private LocalDateTime lastSuccessDate;
 
+    // 每日额度所属日期 / calendar day the allowance belongs to
+    @Column(name = "QUOTA_DATE", length = 10)
+    private String quotaDate;
+
+    // 最近一次点击上报的累计点击数 / lifetime clicks from the latest report
+    @Column(name = "LAST_REPORT_CLICKS")
+    private Long lastReportClicks;
+
+    // 当天累计可生成条数: base + 每次点击增量 * multiplier / links allowed today
+    @Column(name = "DAILY_ALLOWANCE")
+    private Long dailyAllowance;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 

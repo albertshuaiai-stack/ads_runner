@@ -372,7 +372,8 @@ public class MiddleLinkService {
             log.warn("MiddleLink landing url has no query, tracking template keeps no params id={}", link.getId());
         }
         shiftLink.setLandingPageUrl(landingBaseUrl);
-        shiftLink.setDisplayNumber(5L);
+        // displayNumber 留空, 由 ShiftLinkService 按配置的 Matrix 点击阈值填充 / filled from config in ShiftLinkService
+        shiftLink.setDisplayNumber(null);
         shiftLink.setUserName(trimToNull(link.getUserName()));
         shiftLink.setAdsOwner(link.getAdsOwner());
         shiftLink.setRemarks(("from middle link #" + link.getId()).length() > 64
