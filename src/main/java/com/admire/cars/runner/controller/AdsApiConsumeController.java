@@ -13,9 +13,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -251,6 +254,21 @@ public class AdsApiConsumeController {
                 adsNormalPostBack.getSubId(), adsNormalPostBack.getSubId2(),
                 adsNormalPostBack.getClickTime(), adsNormalPostBack.getOrderTime(),
                 adsNormalPostBack.getOrderAmount(), adsNormalPostBack.getUserCommissionAmount());
+        // 打印平台发来的全部原始参数, 参数名或宏值有偏差时一眼可见 / log every raw callback parameter
+        try {
+            ServletRequestAttributes attributes =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest rawRequest = attributes.getRequest();
+                Map<String, String> rawParams = new LinkedHashMap<>();
+                rawRequest.getParameterMap().forEach((key, values) ->
+                        rawParams.put(key, String.join(",", values)));
+                log.info("POSTBACK_RAW_PARAMS site={} params={}",
+                        adsNormalPostBack.getAffiliateSite(), rawParams);
+            }
+        } catch (Exception e) {
+            log.warn("POSTBACK_RAW_PARAMS_FAILED error={}", e.getMessage());
+        }
         try {
             String apiKey = resolveApiKey(apiKeyParam);
             adsNormalPostBackService.create(adsNormalPostBack, apiKey);
