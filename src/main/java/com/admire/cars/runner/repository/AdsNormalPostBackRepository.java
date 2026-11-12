@@ -83,6 +83,35 @@ public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPost
             """)
     List<Object[]> aggregateByClickId(@Param("adsOwner") String adsOwner);
 
+    // 按联盟平台聚合, 支持后续接入更多平台 / aggregate by affiliate network
+    @Query("""
+            select p.affiliateSite, count(p), coalesce(sum(p.orderAmount), 0),
+                   coalesce(sum(p.userCommissionAmount), 0)
+            from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner)
+            group by p.affiliateSite
+            """)
+    List<Object[]> aggregateByPlatform(@Param("adsOwner") String adsOwner);
+
+    @Query("""
+            select count(p) from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner) and p.subId is not null
+            """)
+    long countWithSubId(@Param("adsOwner") String adsOwner);
+
+    @Query("""
+            select count(p) from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner) and p.matchStatus = 'MATCHED'
+            """)
+    long countMatched(@Param("adsOwner") String adsOwner);
+
+    @Query("""
+            select p.subId from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner) and p.subId is not null
+            order by p.id desc
+            """)
+    List<String> findRecentSubIds(@Param("adsOwner") String adsOwner, Pageable pageable);
+
     @Query(value = """
             select p from AdsNormalPostBack p
             where (:adsOwner is null or p.adsOwner = :adsOwner)

@@ -78,6 +78,7 @@ public class AdsPostBackController {
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> importCsv(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "platform", required = false) String platform,
             HttpServletRequest request) {
         Map<String, Object> body = new HashMap<>();
         if (file == null || file.isEmpty()) {
@@ -90,7 +91,7 @@ public class AdsPostBackController {
             }
             User user = userService.getUserById(userId);
             PostBackImportService.ImportResult result = postBackImportService
-                    .importCsvForOwner(user.getUserPhoneNumber(), file.getInputStream());
+                    .importCsvForOwner(user.getUserPhoneNumber(), platform, file.getInputStream());
             body.put("success", true);
             body.put("totalRows", result.totalRows());
             body.put("imported", result.imported());
@@ -194,7 +195,7 @@ public class AdsPostBackController {
         try {
             PageRequest pageable = PageRequest.of(0, Math.min(Math.max(size, 1), 5000));
             int matched = postBackAttributionService.reattribute(
-                    resolveOwnerForWrite(adsOwner, request), pageable);
+                    postBackAttributionService.resolveOwnerForRead(adsOwner, getUserIdOrNull(request)), pageable);
             return ResponseEntity.ok(Map.of("success", true, "matched", matched));
         } catch (IllegalArgumentException ex) {
             return badRequest(ex);

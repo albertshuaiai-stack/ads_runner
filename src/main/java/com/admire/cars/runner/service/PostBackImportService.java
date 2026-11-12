@@ -38,11 +38,13 @@ public class PostBackImportService {
         this.postBackAttributionService = postBackAttributionService;
     }
 
+    // platform 由页面选择, 历史 CSV 自身不带平台列 / platform is chosen on the page, bills have no such column
     @Transactional
-    public ImportResult importCsvForOwner(String adsOwner, InputStream input) throws IOException {
+    public ImportResult importCsvForOwner(String adsOwner, String platform, InputStream input) throws IOException {
         if (!StringUtils.hasText(adsOwner)) {
             throw new IllegalArgumentException("adsOwner is required");
         }
+        String affiliateSite = StringUtils.hasText(platform) ? platform.trim() : "BonusArrive";
 
         List<String> lines;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
@@ -65,7 +67,7 @@ public class PostBackImportService {
         int unmatched = 0;
         for (int i = 1; i < lines.size(); i++) {
             total++;
-            AdsNormalPostBack postBack = toPostBack(parseLine(lines.get(i)), header, adsOwner);
+            AdsNormalPostBack postBack = toPostBack(parseLine(lines.get(i)), header, adsOwner, affiliateSite);
             if (postBack == null) {
                 skipped++;
                 continue;
@@ -86,19 +88,20 @@ public class PostBackImportService {
             }
             imported++;
         }
-        log.info("POSTBACK_IMPORT_DONE owner={} total={} imported={} skipped={} matched={} partial={} unmatched={}",
-                adsOwner, total, imported, skipped, matched, partial, unmatched);
+        log.info("POSTBACK_IMPORT_DONE owner={} platform={} total={} imported={} skipped={} matched={} partial={} unmatched={}",
+                adsOwner, affiliateSite, total, imported, skipped, matched, partial, unmatched);
         return new ImportResult(total, imported, skipped, matched, partial, unmatched);
     }
 
-    private AdsNormalPostBack toPostBack(List<String> cells, Map<String, Integer> header, String adsOwner) {
+    private AdsNormalPostBack toPostBack(List<String> cells, Map<String, Integer> header,
+                                         String adsOwner, String affiliateSite) {
         String orderNo = get(cells, header, "orderid");
         if (!StringUtils.hasText(orderNo)) {
             return null;
         }
         AdsNormalPostBack postBack = new AdsNormalPostBack();
         postBack.setAdsOwner(adsOwner);
-        postBack.setAffiliateSite("BonusArrive");
+        postBack.setAffiliateSite(affiliateSite);
         postBack.setOrderNo(orderNo);
         postBack.setOrderTime(get(cells, header, "actiontime"));
         postBack.setStatus(get(cells, header, "status"));

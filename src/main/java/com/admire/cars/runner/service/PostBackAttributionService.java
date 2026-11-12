@@ -157,7 +157,7 @@ public class PostBackAttributionService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("normalAdsId", task.getId());
             row.put("campainName", task.getCampainName());
-            row.put("advertiserId", extractQueryParam(task.getAffiliteUrl(), "a"));
+            row.put("advertiserId", firstQueryParam(task.getAffiliteUrl(), "ad", "a", "advertiserid"));
             row.put("campainCountry", task.getCampainCountry());
             row.put("platformName", task.getPlatformName());
             row.put("status", task.getStatus());
@@ -213,6 +213,30 @@ public class PostBackAttributionService {
             unmatchedByAdvertiser.add(item);
         }
         result.put("unmatchedByAdvertiser", unmatchedByAdvertiser);
+
+        List<Map<String, Object>> byPlatform = new ArrayList<>();
+        java.util.Set<String> platformNames = new java.util.TreeSet<>();
+        for (Object[] row : postBackRepository.aggregateByPlatform(adsOwner)) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            String platform = row[0] == null ? "Unknown" : row[0].toString();
+            item.put("platform", platform);
+            item.put("orderCount", toLong(row[1]));
+            item.put("orderAmount", row[2] == null ? BigDecimal.ZERO : new BigDecimal(row[2].toString()));
+            item.put("commission", row[3] == null ? BigDecimal.ZERO : new BigDecimal(row[3].toString()));
+            byPlatform.add(item);
+            platformNames.add(platform);
+        }
+        result.put("byPlatform", byPlatform);
+        result.put("platforms", new ArrayList<>(platformNames));
+
+        // 归因链路自检, 直接定位卡在哪一环 / attribution health check
+        Map<String, Object> health = new LinkedHashMap<>();
+        health.put("clickTrackCount", clickTrackRepository.countByOwner(adsOwner));
+        health.put("orderCount", totalOrders);
+        health.put("withSubIdCount", postBackRepository.countWithSubId(adsOwner));
+        health.put("matchedCount", postBackRepository.countMatched(adsOwner));
+        health.put("recentSubIds", postBackRepository.findRecentSubIds(adsOwner, PageRequest.of(0, 5)));
+        result.put("attributionHealth", health);
         return result;
     }
 
@@ -386,8 +410,11 @@ public class PostBackAttributionService {
         }
         String shopId = postBack.getAdvertiserShopId();
         if (StringUtils.hasText(shopId)) {
+            // 联盟链接里商家参数名不统一: ad= / a= / advertiserId=
+            // affiliate links use different advertiser param names
             List<AdsNormalInfo> byId = tasks.stream()
-                    .filter(task -> shopId.trim().equals(extractQueryParam(task.getAffiliteUrl(), "a")))
+                    .filter(task -> shopId.trim().equals(
+                            firstQueryParam(task.getAffiliteUrl(), "ad", "a", "advertiserid")))
                     .toList();
             if (byId.size() == 1) {
                 return byId.get(0).getId();
@@ -423,6 +450,16 @@ public class PostBackAttributionService {
         return advertiser.contains(campaign) || campaign.contains(advertiser);
     }
 
+    private String firstQueryParam(String url, String... names) {
+        for (String name : names) {
+            String value = extractQueryParam(url, name);
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private String extractQueryParam(String url, String name) {
         if (!StringUtils.hasText(url)) {
             return null;
@@ -454,6 +491,12 @@ public class PostBackAttributionService {
                 && Arrays.stream(user.getUserRole().split(","))
                 .map(String::trim)
                 .anyMatch(role -> "admin".equalsIgnoreCase(role));
+    }
+
+    // 供跨账号批量操作解析归属, 允许返回 null 表示全部 / all-owner scope for batch operations
+    @Transactional(readOnly = true)
+    public String resolveOwnerForRead(String adsOwnerParam, Long currentUserId) {
+        return resolveAdsOwner(adsOwnerParam, currentUserId);
     }
 
     // 供写操作接口解析归属 / owner resolution for write endpoints

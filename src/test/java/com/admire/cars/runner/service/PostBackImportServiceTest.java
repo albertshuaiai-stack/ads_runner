@@ -50,7 +50,7 @@ class PostBackImportServiceTest {
         when(postBackRepository.findByAdsOwnerAndOrderNo(anyString(), anyString()))
                 .thenReturn(Optional.empty());
 
-        PostBackImportService.ImportResult result = service.importCsvForOwner(OWNER,
+        PostBackImportService.ImportResult result = service.importCsvForOwner(OWNER, "BonusArrive",
                 new ByteArrayInputStream(CSV.getBytes(StandardCharsets.UTF_8)));
 
         assertEquals(2, result.totalRows());
@@ -78,7 +78,7 @@ class PostBackImportServiceTest {
         when(postBackRepository.findByAdsOwnerAndOrderNo(OWNER, "22921.6889.2392436"))
                 .thenReturn(Optional.of(new AdsNormalPostBack()));
 
-        PostBackImportService.ImportResult result = service.importCsvForOwner(OWNER,
+        PostBackImportService.ImportResult result = service.importCsvForOwner(OWNER, "BonusArrive",
                 new ByteArrayInputStream(CSV.getBytes(StandardCharsets.UTF_8)));
 
         assertEquals(0, result.imported());

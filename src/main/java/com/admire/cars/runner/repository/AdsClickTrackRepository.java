@@ -34,4 +34,10 @@ public interface AdsClickTrackRepository extends JpaRepository<AdsClickTrack, Lo
             group by c.normalAdsId
             """)
     List<Object[]> aggregateByOwner(@Param("adsOwner") String adsOwner);
+
+    @Query("""
+            select count(c) from AdsClickTrack c
+            where (:adsOwner is null or c.adsOwner = :adsOwner)
+            """)
+    long countByOwner(@Param("adsOwner") String adsOwner);
 }

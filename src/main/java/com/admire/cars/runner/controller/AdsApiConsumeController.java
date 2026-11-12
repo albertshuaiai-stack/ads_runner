@@ -139,7 +139,6 @@ public class AdsApiConsumeController {
         adsNormalPostBack.setSubId2(resolveSubId(subId2, request, "sub_id2", "web_id2", "subid2"));
         adsNormalPostBack.setClickTime(clickTime);
         adsNormalPostBack.setAffiliateSite("BonusArrive");
-        log.info("postback with BonusArrive:{}", adsNormalPostBack);
         return createPostBack(apiKeyParam, adsNormalPostBack);
     }
 
@@ -244,6 +243,14 @@ public class AdsApiConsumeController {
 
 
     private ResponseEntity<Map<String, Object>> createPostBack(String apiKeyParam, AdsNormalPostBack adsNormalPostBack) {
+        // 记录联盟真正回传的原始字段, 便于核对 sub_id / click_id 对不对 / log the raw callback fields
+        log.info("POSTBACK_RECEIVED site={} orderNo={} status={} shopId={} shopName={} signId={} subId={} subId2={} clickTime={} orderTime={} amount={} commission={}",
+                adsNormalPostBack.getAffiliateSite(), adsNormalPostBack.getOrderNo(),
+                adsNormalPostBack.getStatus(), adsNormalPostBack.getAdvertiserShopId(),
+                adsNormalPostBack.getAdvertiserShopName(), adsNormalPostBack.getSignId(),
+                adsNormalPostBack.getSubId(), adsNormalPostBack.getSubId2(),
+                adsNormalPostBack.getClickTime(), adsNormalPostBack.getOrderTime(),
+                adsNormalPostBack.getOrderAmount(), adsNormalPostBack.getUserCommissionAmount());
         try {
             String apiKey = resolveApiKey(apiKeyParam);
             adsNormalPostBackService.create(adsNormalPostBack, apiKey);
