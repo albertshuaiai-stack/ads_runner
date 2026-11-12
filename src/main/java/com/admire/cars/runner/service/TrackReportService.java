@@ -1,7 +1,9 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.entity.User;
+import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * 接收 Google Ads 报表点击数, 与当前链的换链基准比较, 达到配置阈值就换下一条。
@@ -27,15 +32,18 @@ public class TrackReportService {
     private final ShiftLinkRepository shiftLinkRepository;
     private final ShiftLinkRotationHelper rotationHelper;
     private final NormalShiftLinkQuotaService normalQuotaService;
+    private final AdsNormalInfoRepository adsNormalInfoRepository;
 
     public TrackReportService(UserService userService,
                               ShiftLinkRepository shiftLinkRepository,
                               ShiftLinkRotationHelper rotationHelper,
-                              NormalShiftLinkQuotaService normalQuotaService) {
+                              NormalShiftLinkQuotaService normalQuotaService,
+                              AdsNormalInfoRepository adsNormalInfoRepository) {
         this.userService = userService;
         this.shiftLinkRepository = shiftLinkRepository;
         this.rotationHelper = rotationHelper;
         this.normalQuotaService = normalQuotaService;
+        this.adsNormalInfoRepository = adsNormalInfoRepository;
     }
 
     @Transactional
@@ -54,16 +62,39 @@ public class TrackReportService {
             }
             long clicks = row.clicks() == null ? 0L : Math.max(row.clicks(), 0L);
             String campaignName = row.name().trim();
-            log.info("click report row owner={} campaign={} clicks={}", adsOwner, campaignName, clicks);
+            log.info("click report row owner={} campaign={} clicks={} cost={} currency={}",
+                    adsOwner, campaignName, clicks, row.cost(), row.currency());
             boolean matrixChanged = redistribute(adsOwner, campaignName, clicks, MATRIX_ADS_TYPE);
             boolean normalChanged = redistribute(adsOwner, campaignName, clicks, NORMAL_ADS_TYPE);
             // 累计点击增量换算成当天 Normal 生成额度 / turn the click delta into today's normal allowance
             normalQuotaService.recordClicks(adsOwner, campaignName, clicks);
+            recordCost(adsOwner, campaignName, row.cost(), row.currency());
             if (matrixChanged || normalChanged) {
                 updatedCampaigns++;
             }
         }
         return updatedCampaigns;
+    }
+
+    // 记录 campaign 累计花费, 供 Post Back 计算投入产出; 旧脚本不带花费时保持原值
+    // Store lifetime ad cost for ROI stats; rows without cost (old scripts) keep the previous value
+    private void recordCost(String adsOwner, String campaignName, BigDecimal cost, String currency) {
+        if (cost == null || cost.signum() < 0) {
+            return;
+        }
+        Optional<AdsNormalInfo> found = adsNormalInfoRepository.findByCampainNameAndAdsOwner(campaignName, adsOwner);
+        if (found.isEmpty()) {
+            log.info("ad cost skipped, no normal campaign owner={} campaign={} cost={}", adsOwner, campaignName, cost);
+            return;
+        }
+        AdsNormalInfo ads = found.get();
+        String normalizedCurrency = StringUtils.hasText(currency)
+                ? currency.trim().toUpperCase(Locale.ROOT) : ads.getCostCurrency();
+        ads.setLastReportCost(cost);
+        ads.setCostCurrency(normalizedCurrency);
+        adsNormalInfoRepository.save(ads);
+        log.info("ad cost recorded adsId={} owner={} campaign={} cost={} currency={}",
+                ads.getId(), adsOwner, campaignName, cost, normalizedCurrency);
     }
 
     // 只处理当前在用的链: clicks - clickBase 达到阈值就换下一条, 并把新基准记为当前 clicks
@@ -119,6 +150,7 @@ public class TrackReportService {
         return false;
     }
 
-    public record CampaignClicks(String name, Long clicks) {
+    // cost: 累计花费(账户币种), currency: 账户币种代码 / lifetime cost in account currency and its code
+    public record CampaignClicks(String name, Long clicks, BigDecimal cost, String currency) {
     }
 }

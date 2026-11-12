@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +63,12 @@ public class AdsHttpClientTool {
     private static final Pattern META_REFRESH_PATTERN = Pattern.compile(
             "(?is)<meta[^>]+http-equiv\\s*=\\s*['\"]?refresh['\"]?[^>]+content\\s*=\\s*['\"][^'\"]*url\\s*=\\s*([^'\"\\s>]+)");
     private static final Pattern REFRESH_HEADER_PATTERN = Pattern.compile("(?i)\\burl\\s*=\\s*(.+)$");
+    // location.href=变量, 变量取自 document.getElementById("x").value (如 AppsFlyer OneLink 页)
+    // location.href=<variable> where the variable is read from a hidden element, e.g. AppsFlyer OneLink pages
+    private static final Pattern JS_VARIABLE_REDIRECT_PATTERN = Pattern.compile(
+            "(?is)(?:window|document|top|self)\\s*\\.\\s*location(?:\\.href)?\\s*=\\s*([A-Za-z_$][\\w$]*)\\s*(?=[;},)\\s])");
+    private static final Pattern INPUT_TAG_PATTERN = Pattern.compile("(?is)<input\\b[^>]*>");
+    private static final Pattern VALUE_ATTR_PATTERN = Pattern.compile("(?is)\\bvalue\\s*=\\s*(['\"])(.*?)\\1");
     private static final Pattern SEARCH_PARAM_REDIRECT_PATTERN = Pattern.compile(
             "(?is)searchParams\\.get\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)");
     private static final Pattern PRIORITY_SEARCH_PARAM_REDIRECT_PATTERN = Pattern.compile(
@@ -636,6 +643,10 @@ public class AdsHttpClientTool {
         if (StringUtils.hasText(target)) {
             return target;
         }
+        target = extractElementValueRedirectTarget(responseBody);
+        if (StringUtils.hasText(target)) {
+            return target;
+        }
         target = findPatternMatch(SCRIPT_URL_ASSIGNMENT_PATTERN, responseBody);
         if (StringUtils.hasText(target) && looksLikeRedirectTarget(target)) {
             return target;
@@ -643,6 +654,44 @@ public class AdsHttpClientTool {
         target = extractSearchParamRedirectTarget(responseBody, currentUri);
         if (StringUtils.hasText(target)) {
             return target;
+        }
+        return null;
+    }
+
+    // 解析 location.href=变量 -> getElementById(id).value -> <input id=id value=...>, 只接受 http(s) 目标
+    // resolve location.href=<var> through getElementById(id).value to the element value; http(s) targets only
+    private String extractElementValueRedirectTarget(String responseBody) {
+        Matcher assignment = JS_VARIABLE_REDIRECT_PATTERN.matcher(responseBody);
+        while (assignment.find()) {
+            String variable = assignment.group(1);
+            Matcher source = Pattern.compile("(?is)\\b" + Pattern.quote(variable)
+                    + "\\s*=\\s*document\\s*\\.\\s*getElementById\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)\\s*\\.\\s*value").matcher(responseBody);
+            if (!source.find()) {
+                continue;
+            }
+            String value = findInputValueById(responseBody, source.group(1));
+            if (value == null) {
+                continue;
+            }
+            value = value.replace("&amp;", "&").trim();
+            String lower = value.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("http://") || lower.startsWith("https://")) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String findInputValueById(String responseBody, String id) {
+        Pattern idAttr = Pattern.compile("(?is)\\bid\\s*=\\s*(['\"])" + Pattern.quote(id) + "\\1");
+        Matcher tag = INPUT_TAG_PATTERN.matcher(responseBody);
+        while (tag.find()) {
+            String input = tag.group();
+            if (!idAttr.matcher(input).find()) {
+                continue;
+            }
+            Matcher value = VALUE_ATTR_PATTERN.matcher(input);
+            return value.find() ? value.group(2) : null;
         }
         return null;
     }
@@ -687,6 +736,9 @@ public class AdsHttpClientTool {
         }
         if (findPatternMatch(META_REFRESH_PATTERN, responseBody) != null) {
             return "meta_refresh";
+        }
+        if (extractElementValueRedirectTarget(responseBody) != null) {
+            return "javascript_element";
         }
         if (findPatternMatch(SCRIPT_URL_ASSIGNMENT_PATTERN, responseBody) != null) {
             return "javascript";

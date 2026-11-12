@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -77,6 +78,14 @@ public class AdsNormalInfo {
     // 当天累计可生成条数: base + 每次点击增量 * multiplier / links allowed today
     @Column(name = "DAILY_ALLOWANCE")
     private Long dailyAllowance;
+
+    // 最近一次上报的 Google Ads 累计花费(账户币种) / lifetime ad cost from the latest report, in account currency
+    @Column(name = "LAST_REPORT_COST", precision = 18, scale = 4)
+    private BigDecimal lastReportCost;
+
+    // Google Ads 账户币种 / Google Ads account currency code
+    @Column(name = "COST_CURRENCY", length = 8)
+    private String costCurrency;
 
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;

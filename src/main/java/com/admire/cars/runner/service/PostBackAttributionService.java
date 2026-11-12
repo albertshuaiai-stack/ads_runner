@@ -3,11 +3,13 @@ package com.admire.cars.runner.service;
 import com.admire.cars.runner.entity.AdsClickTrack;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
+import com.admire.cars.runner.entity.ExchangeRate;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.AdsClickTrackRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalPostBackRepository;
+import com.admire.cars.runner.repository.ExchangeRateRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,8 @@ public class PostBackAttributionService {
     public static final String MATCHED = "MATCHED";
     public static final String PARTIAL = "PARTIAL";
     public static final String UNMATCHED = "UNMATCHED";
+    // 联盟佣金按 USD 计 / affiliate commission is in USD
+    private static final String USD = "USD";
 
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
@@ -52,17 +56,20 @@ public class PostBackAttributionService {
     private final AdsNormalInfoRepository adsNormalInfoRepository;
     private final ShiftLinkRepository shiftLinkRepository;
     private final UserRepository userRepository;
+    private final ExchangeRateRepository exchangeRateRepository;
 
     public PostBackAttributionService(AdsNormalPostBackRepository postBackRepository,
                                       AdsClickTrackRepository clickTrackRepository,
                                       AdsNormalInfoRepository adsNormalInfoRepository,
                                       ShiftLinkRepository shiftLinkRepository,
-                                      UserRepository userRepository) {
+                                      UserRepository userRepository,
+                                      ExchangeRateRepository exchangeRateRepository) {
         this.postBackRepository = postBackRepository;
         this.clickTrackRepository = clickTrackRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
         this.shiftLinkRepository = shiftLinkRepository;
         this.userRepository = userRepository;
+        this.exchangeRateRepository = exchangeRateRepository;
     }
 
     // 回调落库后立即归因 / called right after a postback is saved
@@ -167,6 +174,8 @@ public class PostBackAttributionService {
         long totalReported = 0L;
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalCommission = BigDecimal.ZERO;
+        BigDecimal totalCostUsd = BigDecimal.ZERO;
+        int unconvertedCostTasks = 0;
 
         for (AdsNormalInfo task : tasks) {
             Object[] clicks = clickAgg.get(task.getId());
@@ -196,7 +205,23 @@ public class PostBackAttributionService {
             row.put("conversionRate", reportedClicks == null || reportedClicks <= 0 || orderCount == 0
                     ? null : BigDecimal.valueOf(orderCount)
                     .divide(BigDecimal.valueOf(reportedClicks), 6, java.math.RoundingMode.HALF_UP));
+
+            // 广告花费按当日汇率折算成 USD, 与佣金(USD)同口径计算投入产出
+            // Convert ad cost to USD with today's rate so it is comparable with USD commission
+            BigDecimal adCost = task.getLastReportCost();
+            BigDecimal adCostUsd = convertCostToUsd(task, adCost);
+            row.put("adCost", adCost);
+            row.put("costCurrency", task.getCostCurrency());
+            row.put("adCostUsd", adCostUsd);
+            row.put("profitUsd", adCostUsd == null ? null : commission.subtract(adCostUsd));
+            row.put("roas", ratio(commission, adCostUsd));
             rows.add(row);
+
+            if (adCostUsd != null) {
+                totalCostUsd = totalCostUsd.add(adCostUsd);
+            } else if (adCost != null && adCost.signum() > 0) {
+                unconvertedCostTasks++;
+            }
 
             totalOrders += orderCount;
             totalIssued += issued;
@@ -225,6 +250,13 @@ public class PostBackAttributionService {
         result.put("unmatchedOrderCount", postBackRepository.countUnmatched(adsOwner));
         result.put("orderAmount", totalAmount);
         result.put("commission", totalCommission);
+        // 总投入产出: 佣金口径含未归因订单, 花费为全部 Normal 任务之和
+        // Totals: commission includes unmatched orders, cost sums all normal tasks
+        result.put("adCostUsd", totalCostUsd);
+        result.put("profitUsd", totalCommission.subtract(totalCostUsd));
+        result.put("roas", ratio(totalCommission, totalCostUsd));
+        result.put("unconvertedCostTasks", unconvertedCostTasks);
+        result.put("usdCnyRate", latestUsdCnyRate());
         result.put("tasks", rows);
 
         List<Map<String, Object>> unmatchedByAdvertiser = new ArrayList<>();
@@ -565,5 +597,57 @@ public class PostBackAttributionService {
 
     private long toLong(Object value) {
         return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    // 花费折算 USD: USD 原样返回, 其他币种取最新汇率(正向或反向), 缺汇率返回 null
+    // Convert cost to USD with the latest stored rate (direct or inverse); null when no rate exists
+    private BigDecimal convertCostToUsd(AdsNormalInfo task, BigDecimal cost) {
+        if (cost == null) {
+            return null;
+        }
+        String currency = StringUtils.hasText(task.getCostCurrency())
+                ? task.getCostCurrency().trim().toUpperCase(java.util.Locale.ROOT) : USD;
+        if (USD.equals(currency)) {
+            return cost;
+        }
+        BigDecimal rate = usdRateOf(currency);
+        if (rate == null) {
+            log.warn("ad cost not converted, no exchange rate adsId={} campaign={} currency={} cost={}",
+                    task.getId(), task.getCampainName(), currency, cost);
+            return null;
+        }
+        return cost.multiply(rate).setScale(4, java.math.RoundingMode.HALF_UP);
+    }
+
+    // 1 单位 currency 折合多少 USD / how many USD one unit of currency is worth
+    private BigDecimal usdRateOf(String currency) {
+        Optional<BigDecimal> direct = exchangeRateRepository
+                .findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(currency, USD)
+                .map(ExchangeRate::getRate)
+                .filter(rate -> rate.signum() > 0);
+        if (direct.isPresent()) {
+            return direct.get();
+        }
+        return exchangeRateRepository
+                .findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(USD, currency)
+                .map(ExchangeRate::getRate)
+                .filter(rate -> rate.signum() > 0)
+                .map(rate -> BigDecimal.ONE.divide(rate, 12, java.math.RoundingMode.HALF_UP))
+                .orElse(null);
+    }
+
+    // 页面展示用的最新 USD→CNY 汇率 / latest USD to CNY rate for display
+    private BigDecimal latestUsdCnyRate() {
+        return exchangeRateRepository
+                .findTopByFromCurrencyAndToCurrencyOrderByEffectiveDateDescCreateDateDescIdDesc(USD, "CNY")
+                .map(ExchangeRate::getRate)
+                .orElse(null);
+    }
+
+    private BigDecimal ratio(BigDecimal numerator, BigDecimal denominator) {
+        if (numerator == null || denominator == null || denominator.signum() <= 0) {
+            return null;
+        }
+        return numerator.divide(denominator, 6, java.math.RoundingMode.HALF_UP);
     }
 }
