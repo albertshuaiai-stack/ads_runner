@@ -194,9 +194,15 @@ public class AdsPostBackController {
             HttpServletRequest request) {
         try {
             PageRequest pageable = PageRequest.of(0, Math.min(Math.max(size, 1), 5000));
-            int matched = postBackAttributionService.reattribute(
+            PostBackAttributionService.RerunResult result = postBackAttributionService.reattribute(
                     postBackAttributionService.resolveOwnerForRead(adsOwner, getUserIdOrNull(request)), pageable);
-            return ResponseEntity.ok(Map.of("success", true, "matched", matched));
+            Map<String, Object> body = new HashMap<>();
+            body.put("success", true);
+            body.put("scanned", result.scanned());
+            body.put("matched", result.matched());
+            body.put("partial", result.partial());
+            body.put("changed", result.changed());
+            return ResponseEntity.ok(body);
         } catch (IllegalArgumentException ex) {
             return badRequest(ex);
         }

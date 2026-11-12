@@ -6,6 +6,7 @@ import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.repository.AdsClickTrackRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalPostBackRepository;
+import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,8 @@ class PostBackAttributionServiceTest {
     @Mock
     private AdsNormalInfoRepository adsNormalInfoRepository;
     @Mock
+    private ShiftLinkRepository shiftLinkRepository;
+    @Mock
     private UserRepository userRepository;
 
     private PostBackAttributionService service;
@@ -42,7 +45,7 @@ class PostBackAttributionServiceTest {
     @BeforeEach
     void setUp() {
         service = new PostBackAttributionService(postBackRepository, clickTrackRepository,
-                adsNormalInfoRepository, userRepository);
+                adsNormalInfoRepository, shiftLinkRepository, userRepository);
     }
 
     private AdsNormalPostBack postBack(String subId) {

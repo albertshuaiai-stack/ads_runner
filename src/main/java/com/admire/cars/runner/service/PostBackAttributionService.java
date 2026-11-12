@@ -3,10 +3,12 @@ package com.admire.cars.runner.service;
 import com.admire.cars.runner.entity.AdsClickTrack;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
+import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.AdsClickTrackRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalPostBackRepository;
+import com.admire.cars.runner.repository.ShiftLinkRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -48,15 +50,18 @@ public class PostBackAttributionService {
     private final AdsNormalPostBackRepository postBackRepository;
     private final AdsClickTrackRepository clickTrackRepository;
     private final AdsNormalInfoRepository adsNormalInfoRepository;
+    private final ShiftLinkRepository shiftLinkRepository;
     private final UserRepository userRepository;
 
     public PostBackAttributionService(AdsNormalPostBackRepository postBackRepository,
                                       AdsClickTrackRepository clickTrackRepository,
                                       AdsNormalInfoRepository adsNormalInfoRepository,
+                                      ShiftLinkRepository shiftLinkRepository,
                                       UserRepository userRepository) {
         this.postBackRepository = postBackRepository;
         this.clickTrackRepository = clickTrackRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
+        this.shiftLinkRepository = shiftLinkRepository;
         this.userRepository = userRepository;
     }
 
@@ -80,20 +85,34 @@ public class PostBackAttributionService {
                 postBack.getMatchStatus(), postBack.getMatchRule());
     }
 
+    public record RerunResult(int scanned, int matched, int partial, int changed) {
+    }
+
     // 后期补录点击台账后重跑未归因订单 / re-run unmatched orders after click ids are backfilled
     @Transactional
-    public int reattribute(String adsOwner, Pageable pageable) {
+    public RerunResult reattribute(String adsOwner, Pageable pageable) {
         Page<AdsNormalPostBack> page = postBackRepository.findReattributable(adsOwner, pageable);
         int matched = 0;
+        int partial = 0;
+        int changed = 0;
         for (AdsNormalPostBack postBack : page.getContent()) {
+            String before = postBack.getMatchStatus();
             applyMatch(postBack);
             postBackRepository.save(postBack);
             if (MATCHED.equals(postBack.getMatchStatus())) {
                 matched++;
+            } else if (PARTIAL.equals(postBack.getMatchStatus())) {
+                partial++;
+            }
+            if (!java.util.Objects.equals(before, postBack.getMatchStatus())) {
+                changed++;
+                log.info("ATTRIBUTION_RERUN_CHANGED orderNo={} from={} to={} rule={}",
+                        postBack.getOrderNo(), before, postBack.getMatchStatus(), postBack.getMatchRule());
             }
         }
-        log.info("ATTRIBUTION_RERUN owner={} scanned={} matched={}", adsOwner, page.getNumberOfElements(), matched);
-        return matched;
+        log.info("ATTRIBUTION_RERUN owner={} scanned={} matched={} partial={} changed={}",
+                adsOwner, page.getNumberOfElements(), matched, partial, changed);
+        return new RerunResult(page.getNumberOfElements(), matched, partial, changed);
     }
 
     // 平台未回传 clickId 时人工绑定 / manual binding when the network does not echo our click id
@@ -248,6 +267,20 @@ public class PostBackAttributionService {
         List<AdsClickTrack> tracks = clickTrackRepository.findRecent(
                 adsOwner, PageRequest.of(0, Math.min(Math.max(limit, 1), 2000)));
 
+        // 真实点击数来自 ShiftLink.DISPLAY_TIMES(Google Ads 上报驱动), 不是 /api/click 的命中数
+        // real clicks come from ShiftLink.DISPLAY_TIMES driven by Google Ads reports
+        List<Long> linkIds = tracks.stream()
+                .map(AdsClickTrack::getShiftLinkId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, Long> clicksByLinkId = new HashMap<>();
+        if (!linkIds.isEmpty()) {
+            for (ShiftLink link : shiftLinkRepository.findAllById(linkIds)) {
+                clicksByLinkId.put(link.getId(), link.getDisplayTimes() == null ? 0L : link.getDisplayTimes());
+            }
+        }
+
         Map<String, Object[]> orderAgg = new HashMap<>();
         for (Object[] row : postBackRepository.aggregateByClickId(adsOwner)) {
             if (row[0] != null) {
@@ -268,7 +301,10 @@ public class PostBackAttributionService {
             row.put("campainName", track.getCampainName());
             row.put("normalAdsId", track.getNormalAdsId());
             row.put("createDate", track.getCreateDate());
-            row.put("clickCount", track.getClickCount() == null ? 0L : track.getClickCount());
+            row.put("clicks", track.getShiftLinkId() == null
+                    ? 0L : clicksByLinkId.getOrDefault(track.getShiftLinkId(), 0L));
+            row.put("trackedHits", track.getClickCount() == null ? 0L : track.getClickCount());
+            row.put("shiftLinkId", track.getShiftLinkId());
             row.put("orderCount", agg == null ? 0L : toLong(agg[1]));
             row.put("orderAmount", agg == null || agg[2] == null ? BigDecimal.ZERO : new BigDecimal(agg[2].toString()));
             row.put("commission", agg == null || agg[3] == null ? BigDecimal.ZERO : new BigDecimal(agg[3].toString()));
