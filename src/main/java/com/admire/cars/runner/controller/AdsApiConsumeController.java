@@ -3,8 +3,10 @@ package com.admire.cars.runner.controller;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.AdsNormalPostBackService;
+import com.admire.cars.runner.service.PostBackAttributionService;
 import com.admire.cars.runner.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,12 +29,18 @@ public class AdsApiConsumeController {
 
     private final AdsNormalPostBackService adsNormalPostBackService;
 
+    private final PostBackAttributionService postBackAttributionService;
+
     private final ObjectMapper objectMapper;
 
-    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService, AdsNormalPostBackService adsNormalPostBackService, ObjectMapper objectMapper) {
+    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService,
+                                   AdsNormalPostBackService adsNormalPostBackService,
+                                   PostBackAttributionService postBackAttributionService,
+                                   ObjectMapper objectMapper) {
         this.userService = userService;
         this.adsApiConsumeService = adsApiConsumeService;
         this.adsNormalPostBackService = adsNormalPostBackService;
+        this.postBackAttributionService = postBackAttributionService;
         this.objectMapper = objectMapper;
     }
 
@@ -114,7 +122,8 @@ public class AdsApiConsumeController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "sub_id", required = false) String subId,
             @RequestParam(value = "sub_id2", required = false) String subId2,
-            @RequestParam(value = "click_time", required = false) String clickTime) {
+            @RequestParam(value = "click_time", required = false) String clickTime,
+            HttpServletRequest request) {
         AdsNormalPostBack adsNormalPostBack = new AdsNormalPostBack();
         adsNormalPostBack.setAdvertiserShopId(advertiserShopId);
         adsNormalPostBack.setAdvertiserShopName(advertiserShopName);
@@ -124,8 +133,10 @@ public class AdsApiConsumeController {
         adsNormalPostBack.setOrderAmount(parseBigDecimal(orderAmount,"order_amount"));
         adsNormalPostBack.setUserCommissionAmount(parseBigDecimal(userCommissionAmount,"user_commission_amount"));
         adsNormalPostBack.setStatus(status);
-        adsNormalPostBack.setSubId(subId);
-        adsNormalPostBack.setSubId2(subId2);
+        // 后台 Global Postback 默认把点击ID放在 web_id/web_id2, 这里兼容常见别名
+        // the Global Postback page sends the click id as web_id/web_id2; accept the common aliases too
+        adsNormalPostBack.setSubId(resolveSubId(subId, request, "sub_id", "web_id", "subid", "click_id", "clickid"));
+        adsNormalPostBack.setSubId2(resolveSubId(subId2, request, "sub_id2", "web_id2", "subid2"));
         adsNormalPostBack.setClickTime(clickTime);
         adsNormalPostBack.setAffiliateSite("BonusArrive");
         log.info("postback with BonusArrive:{}", adsNormalPostBack);
@@ -188,7 +199,6 @@ public class AdsApiConsumeController {
 
     /**
      * Post back for Yeahpromos
-     * @param apiKeyParam
      * @param advertId
      * @param id
      * @param saleComm
@@ -237,6 +247,13 @@ public class AdsApiConsumeController {
         try {
             String apiKey = resolveApiKey(apiKeyParam);
             adsNormalPostBackService.create(adsNormalPostBack, apiKey);
+            try {
+                postBackAttributionService.attribute(adsNormalPostBack.getAdsOwner(), adsNormalPostBack.getOrderNo());
+            } catch (Exception e) {
+                // 归因失败不能让联盟平台重试回调 / attribution failure must not make the network retry the postback
+                log.error("POSTBACK_ATTRIBUTION_FAILED orderNo={} error={}",
+                        adsNormalPostBack.getOrderNo(), e.getMessage(), e);
+            }
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "post received.");
@@ -254,6 +271,21 @@ public class AdsApiConsumeController {
             return apiKeyParam.trim();
         }
         throw new IllegalArgumentException("api_key is required");
+    }
+
+    private String resolveSubId(String primary, HttpServletRequest request, String... aliases) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+        if (request != null) {
+            for (String alias : aliases) {
+                String value = request.getParameter(alias);
+                if (StringUtils.hasText(value)) {
+                    return value.trim();
+                }
+            }
+        }
+        return null;
     }
 
 

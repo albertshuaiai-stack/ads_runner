@@ -8,14 +8,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface AdsNormalInfoRepository extends JpaRepository<AdsNormalInfo, Long>, JpaSpecificationExecutor<AdsNormalInfo> {
     Long countByAdsOwner(String adsOwner);
-    
+
     Optional<AdsNormalInfo> findByCampainNameAndAdsOwner(String campainName, String adsOwner);
+
+    // 后台已上架的 normaltask 列表 / listed normal tasks
+    List<AdsNormalInfo> findByAdsOwnerOrderByIdDesc(String adsOwner);
 
 
     @Modifying

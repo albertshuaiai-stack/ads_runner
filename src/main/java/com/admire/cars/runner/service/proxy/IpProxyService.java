@@ -336,9 +336,13 @@ public class IpProxyService {
      * @return
      */
     public OkHttpClient buildOkHttpClient(String dynamicProxyInfo) {
+        // readTimeout 只限制单次读, 代理慢速滴数据时整次请求可无限挂起, 卡死 Quartz 线程且该任务因 @DisallowConcurrentExecution 永不再触发
+        // callTimeout bounds the whole call so a stalled proxy can never hang a scheduler thread forever
         OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .connectTimeout(adsConfig.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS)
-                .readTimeout(adsConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS);
+                .readTimeout(adsConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS)
+                .writeTimeout(adsConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS)
+                .callTimeout(adsConfig.getConnectTimeoutMillis() + adsConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS);
 
         if (dynamicProxyInfo == null || !StringUtils.hasText(dynamicProxyInfo)) {
             return builder.build();

@@ -2,20 +2,16 @@ package com.admire.cars.runner.job;
 
 import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
-import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.entity.AdsNormalInfo;
-import com.admire.cars.runner.entity.AdsTaskLog;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
-import com.admire.cars.runner.repository.AdsTaskLogRepository;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.service.AdsClickTrackService;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
 import com.admire.cars.runner.util.AdsHttpClientTool;
-import com.admire.cars.runner.util.AdsHttpRequestDto;
 import com.admire.cars.runner.util.AdsHttpResponseDto;
 import okhttp3.OkHttpClient;
-import org.apache.commons.compress.utils.Lists;
 import org.quartz.JobDataMap;
 import org.quartz.JobExecutionContext;
 import org.slf4j.Logger;
@@ -39,6 +35,9 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
 
     @Autowired
     private AdsHttpClientTool adsHttpClientTool;
+
+    @Autowired
+    private AdsClickTrackService adsClickTrackService;
 
     @Autowired
     private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
@@ -75,7 +74,11 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(Constant.ADS_TYPE_NORMAL));
                 shiftLink.setStatus(adsNormalInfo.getStatus());
                 shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
-                shiftLinkRepository.save(shiftLink);
+                ShiftLink savedLink = shiftLinkRepository.save(shiftLink);
+
+                // 把本次的点击ID与 normaltask 绑定, 供后续 postback 归因 / bind this click id to the normal task
+                adsClickTrackService.recordIssued(adsHttpResponseDto.getClickId(), adsNormalInfo,
+                        savedLink, adsHttpResponseDto.getRequestUrl());
 
                 adsNormalInfo.setSuccessCount(adsNormalInfo.getSuccessCount() + 1);
                 adsNormalInfo.setLastSuccessDate(LocalDateTime.now());
@@ -94,7 +97,6 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
         }
         adsNormalInfoRepository.save(adsNormalInfo);
     }
-
 
 
 

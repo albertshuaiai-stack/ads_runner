@@ -49,10 +49,12 @@ public class TrackReportService {
         int updatedCampaigns = 0;
         for (CampaignClicks row : rows) {
             if (row == null || !StringUtils.hasText(row.name())) {
+                log.warn("click report row skipped owner={} row={}", adsOwner, row);
                 continue;
             }
             long clicks = row.clicks() == null ? 0L : Math.max(row.clicks(), 0L);
             String campaignName = row.name().trim();
+            log.info("click report row owner={} campaign={} clicks={}", adsOwner, campaignName, clicks);
             boolean matrixChanged = redistribute(adsOwner, campaignName, clicks, MATRIX_ADS_TYPE);
             boolean normalChanged = redistribute(adsOwner, campaignName, clicks, NORMAL_ADS_TYPE);
             // 累计点击增量换算成当天 Normal 生成额度 / turn the click delta into today's normal allowance

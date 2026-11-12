@@ -124,7 +124,8 @@ public class AdsHttpClientTool {
         final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
         //Verify Http client IP region
         IpVerificationDto ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsNormalInfo.getCampainCountry());
-        String enrichedAffiliateUrl = enrichAffiliateUrl(affiliateUrl);
+        String clickId = UUID.randomUUID().toString();
+        String enrichedAffiliateUrl = enrichAffiliateUrlForNormal(affiliateUrl, clickId, adsNormalInfo.getId());
         buildAdsTaskLog(adsTaskLog, adsNormalInfo,
                 ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
                 0L, userAgent, null);
@@ -241,6 +242,9 @@ public class AdsHttpClientTool {
         } else {
             adsTaskLog.setErrMsg("IP verification failed: expected country " + adsNormalInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
         }
+        // 无论成功失败都带回本次点击ID, 成功时才由 Job 落台账 / always return the click id, persisted only on success
+        adsHttpResponseDto.setClickId(clickId);
+        adsHttpResponseDto.setRequestUrl(enrichedAffiliateUrl);
         adsTaskLogRepository.saveAll(adsTaskLogList);
         return adsHttpResponseDto;
     }
@@ -555,6 +559,25 @@ public class AdsHttpClientTool {
             throw new IllegalArgumentException("affiliateUrL is required");
         }
         return affiliateUrL.replace("{subid}", UUID.randomUUID().toString());
+    }
+
+    // 后台模板可能没写 {subid} 占位符, 这时覆盖或补上 subid 参数, 保证每次请求都有唯一点击ID
+    // the admin template may omit {subid}; overwrite or append the param so every request carries a unique click id
+    private String enrichAffiliateUrlForNormal(String affiliateUrL, String clickId, Long normalAdsId) {
+        if (!StringUtils.hasText(affiliateUrL)) {
+            throw new IllegalArgumentException("affiliateUrL is required");
+        }
+        String enriched = affiliateUrL
+                .replace("{subid}", clickId)
+                .replace("{adid}", "n" + (normalAdsId == null ? 0L : normalAdsId));
+        if (affiliateUrL.contains("{subid}")) {
+            return enriched;
+        }
+        Matcher subIdMatcher = Pattern.compile("([?&])subid=[^&#]*").matcher(enriched);
+        if (subIdMatcher.find()) {
+            return subIdMatcher.replaceFirst(subIdMatcher.group(1) + "subid=" + clickId);
+        }
+        return enriched + (enriched.contains("?") ? "&" : "?") + "subid=" + clickId;
     }
 
 

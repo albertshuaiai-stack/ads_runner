@@ -153,4 +153,7 @@
     <!-- Add ADS_NORMAL_INFO daily click quota columns -->
     <include file="db/changelog/db.changelog-071-normal-click-quota.xml"/>
 
+    <!-- Click id ledger and postback attribution to normal tasks -->
+    <include file="db/changelog/db.changelog-072-click-attribution.xml"/>
+
 </databaseChangeLog>

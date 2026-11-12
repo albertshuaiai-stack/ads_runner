@@ -44,13 +44,28 @@ public class AdsNormalPostBackService {
         adsNormalPostBack.setAdsOwner(adsOwner);
         validateAndNormalize(adsNormalPostBack);
 
-        adsNormalPostBackRepository.findByAdsOwnerAndOrderNo(adsOwner, adsNormalPostBack.getOrderNo())
-                .ifPresent(existing -> {
-                    existing.setStatus(adsNormalPostBack.getStatus());
-                    adsNormalPostBack.setId(existing.getId());
-                    log.info("Updated existing ADS_NORMAL_POST_BACK: {}", existing.getId());
-                });
-        return adsNormalPostBackRepository.save(adsNormalPostBack);
+        var existingOpt = adsNormalPostBackRepository
+                .findByAdsOwnerAndOrderNo(adsOwner, adsNormalPostBack.getOrderNo());
+        if (existingOpt.isEmpty()) {
+            return adsNormalPostBackRepository.save(adsNormalPostBack);
+        }
+        // 状态变更回调也要刷新业务字段: 首条 pending 常缺 sub_id, 不刷新会永久归因失败, 且不能清掉归因结果
+        // refresh business fields on status updates; a pending postback without sub_id stays unattributed,
+        // and saving the incoming entity would also wipe the attribution columns
+        AdsNormalPostBack existing = existingOpt.get();
+        existing.setStatus(adsNormalPostBack.getStatus());
+        existing.setAffiliateSite(adsNormalPostBack.getAffiliateSite());
+        existing.setAdvertiserShopId(adsNormalPostBack.getAdvertiserShopId());
+        existing.setAdvertiserShopName(adsNormalPostBack.getAdvertiserShopName());
+        existing.setSignId(adsNormalPostBack.getSignId());
+        existing.setOrderTime(adsNormalPostBack.getOrderTime());
+        existing.setOrderAmount(adsNormalPostBack.getOrderAmount());
+        existing.setUserCommissionAmount(adsNormalPostBack.getUserCommissionAmount());
+        existing.setSubId(adsNormalPostBack.getSubId());
+        existing.setSubId2(adsNormalPostBack.getSubId2());
+        existing.setClickTime(adsNormalPostBack.getClickTime());
+        log.info("Updated existing ADS_NORMAL_POST_BACK: {}", existing.getId());
+        return adsNormalPostBackRepository.save(existing);
     }
 
     @Transactional(readOnly = true)
