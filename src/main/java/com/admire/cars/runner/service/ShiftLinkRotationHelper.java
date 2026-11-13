@@ -16,8 +16,6 @@ import java.util.Optional;
 @Component
 public class ShiftLinkRotationHelper {
 
-    private static final String RUNNING_STATUS = "RUNNING";
-
     // 按生成先后排序, id 自增即生成顺序 / creation order, the auto-increment id follows creation
     private static final Comparator<ShiftLink> BY_CREATION = Comparator.comparing(ShiftLink::getId);
 
@@ -34,13 +32,13 @@ public class ShiftLinkRotationHelper {
         return shiftLinkClickConfig.capacityFor(adsType);
     }
 
-    // 该 campaign 下运行中的链 / running links of the campaign
-    public List<ShiftLink> loadRunning(String adsOwner, String campaignName, String adsType) {
+    // 该 campaign 的全部链(不看状态): 停不停投由任务(AdsNormalInfo/AdsMatrixInfo)控制, 链级状态无意义
+    // All links of the campaign regardless of status; pausing is controlled at the ads task level, not here
+    public List<ShiftLink> loadPool(String adsOwner, String campaignName, String adsType) {
         return shiftLinkRepository
                 .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(adsOwner, campaignName, adsType)
                 .stream()
                 .filter(link -> link.getId() != null)
-                .filter(link -> RUNNING_STATUS.equalsIgnoreCase(link.getStatus()))
                 .toList();
     }
 

@@ -100,7 +100,7 @@ public class TrackReportService {
     // 在用的链 clicks - clickBase 达到阈值就换成最新未用过的链, 新链基准记为当前 clicks; 与脚本拉取频率无关
     // When the active link reaches the threshold, switch to the newest unused link; independent of fetch frequency
     private boolean redistribute(String adsOwner, String campaignName, long clicks, String adsType) {
-        List<ShiftLink> links = rotationHelper.loadRunning(adsOwner, campaignName, adsType);
+        List<ShiftLink> links = rotationHelper.loadPool(adsOwner, campaignName, adsType);
         if (links.isEmpty()) {
             return false;
         }

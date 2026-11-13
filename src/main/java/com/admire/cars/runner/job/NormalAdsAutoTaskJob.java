@@ -78,7 +78,8 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
                 shiftLink.setLandingPageUrl(adsNormalInfo.getLandingPageUrl());
                 shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
                 shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(Constant.ADS_TYPE_NORMAL));
-                shiftLink.setStatus(adsNormalInfo.getStatus());
+                // 链接状态固定 RUNNING, 停不停投由任务控制 / link status is always RUNNING; the ads task decides pausing
+                shiftLink.setStatus("RUNNING");
                 shiftLink.setAdsOwner(adsNormalInfo.getAdsOwner());
                 ShiftLink savedLink = shiftLinkRepository.save(shiftLink);
 

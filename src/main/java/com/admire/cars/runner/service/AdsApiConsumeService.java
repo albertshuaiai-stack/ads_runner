@@ -55,7 +55,7 @@ public class AdsApiConsumeService {
         String normalizedCampaignName = campaignName.trim();
         String adsOwner = user.getUserPhoneNumber();
 
-        List<ShiftLink> links = rotationHelper.loadRunning(adsOwner, normalizedCampaignName, adsType);
+        List<ShiftLink> links = rotationHelper.loadPool(adsOwner, normalizedCampaignName, adsType);
         Optional<ShiftLink> selected = rotationHelper.selectForTemplate(links, rotationHelper.capacity(adsType));
         if (selected.isEmpty()) {
             // 链全部用完时回退裸落地页, 不再复用最后一条链 / all links exhausted, fall back to bare landing page

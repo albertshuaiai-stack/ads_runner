@@ -80,7 +80,8 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
             shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
             shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(Constant.ADS_TYPE_MATRIX));
-            shiftLink.setStatus(adsMatrixInfo.getStatus());
+            // 链接状态固定 RUNNING, 停不停投由任务控制 / link status is always RUNNING; the ads task decides pausing
+            shiftLink.setStatus("RUNNING");
             shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
             shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
             shiftLink.setUserName(adsMatrixAffiliateInfo.getUserName());
