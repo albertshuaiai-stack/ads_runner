@@ -579,14 +579,31 @@ public class AdsHttpClientTool {
                 .replace("(subid)", clickId)
                 .replace("{adid}", "n" + (normalAdsId == null ? 0L : normalAdsId));
         // 后台模板可能用 {subid} 或客服说的 (subid), 也可能把它放在 sub2id 上;
-        // 无论哪种都保证 SUBID1 的 subid= 带上同一个 UUID, 两个 sub 位回传哪个都能归因
+        // 无论哪种都保证 SUBID1 的 subid= 带上同一个 UUID
         // whatever placeholder/position the template uses, SUBID1 always carries the same click id
         Matcher subIdMatcher = Pattern.compile("([?&])subid=[^&#]*").matcher(enriched);
+        String result;
         if (subIdMatcher.find()) {
-            return subIdMatcher.replaceFirst(
+            result = subIdMatcher.replaceFirst(
                     Matcher.quoteReplacement(subIdMatcher.group(1) + "subid=" + clickId));
+        } else {
+            result = enriched + (enriched.contains("?") ? "&" : "?") + "subid=" + clickId;
         }
-        return enriched + (enriched.contains("?") ? "&" : "?") + "subid=" + clickId;
+        // 部分 offer 回传只带 sub_id2 不带 sub_id(如 Fresh CA/New Balance Canada),
+        // 把同一个 clickId 冗余写进空的 sub2id 位; 已有业务值(如 {adid} 的 n<taskId>)不动
+        // some offers echo only sub_id2; mirror the click id into an empty sub2id slot, keep real values intact
+        Matcher sub2IdMatcher = Pattern.compile("([?&])(sub2id|sub_id2|subid2)=([^&#]*)", Pattern.CASE_INSENSITIVE)
+                .matcher(result);
+        if (sub2IdMatcher.find()) {
+            String value = sub2IdMatcher.group(3);
+            if (!StringUtils.hasText(value)
+                    || "{subid}".equalsIgnoreCase(value.trim())
+                    || "{subid2}".equalsIgnoreCase(value.trim())) {
+                result = sub2IdMatcher.replaceFirst(
+                        Matcher.quoteReplacement(sub2IdMatcher.group(1) + sub2IdMatcher.group(2) + "=" + clickId));
+            }
+        }
+        return result;
     }
 
 

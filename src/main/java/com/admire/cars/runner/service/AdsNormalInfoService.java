@@ -30,6 +30,10 @@ public class AdsNormalInfoService {
     private static final Pattern SUBID_PARAM_PATTERN =
             Pattern.compile("[?&](?:subid|sub_id)=([^&]*)", Pattern.CASE_INSENSITIVE);
 
+    // sub2id 家族: sub2id / sub_id2 / subid2 / the sub2id family of param spellings
+    private static final Pattern SUB2ID_PARAM_PATTERN =
+            Pattern.compile("[?&](?:sub2id|sub_id2|subid2)=([^&]*)", Pattern.CASE_INSENSITIVE);
+
     private final AdsNormalInfoRepository adsNormalInfoRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -207,18 +211,57 @@ public class AdsNormalInfoService {
                 firstValue = url.substring(matcher.start(1), matcher.end(1));
             }
         }
+        String normalized;
         if (spans.isEmpty()) {
             String appended = url + (url.contains("?") ? "&" : "?") + "subid={subid}";
+            normalized = appended.length() <= 128 ? appended : url;
+        } else {
+            StringBuilder rebuilt = new StringBuilder(url);
+            // 从后往前删多余的 subid= 参数, 再把第一处统一成小写 subid={subid} / drop duplicates, then normalize the first to lowercase subid={subid}
+            for (int i = spans.size() - 1; i >= 1; i--) {
+                rebuilt.delete(spans.get(i)[0], spans.get(i)[1]);
+            }
+            String normalizedToken = url.charAt(spans.get(0)[0]) + "subid={subid}";
+            rebuilt.replace(spans.get(0)[0], spans.get(0)[1], normalizedToken);
+            String result = rebuilt.toString();
+            normalized = result.length() <= 128 ? result : url;
+        }
+        return ensureSub2IdPlaceholder(normalized);
+    }
+
+    // sub2id 冗余位: 空/占位符的统一成 sub2id={subid}(运行时填同一个 clickId), 没有 sub2id 的补上;
+    // 有业务值(如 {adid} 任务标记)的不动
+    // Mirror slot: normalize empty/placeholder sub2id into sub2id={subid} and append when absent; real values stay
+    static String ensureSub2IdPlaceholder(String url) {
+        if (!StringUtils.hasText(url)) {
+            return url;
+        }
+        Matcher matcher = SUB2ID_PARAM_PATTERN.matcher(url);
+        List<int[]> spans = new ArrayList<>();
+        String firstValue = null;
+        while (matcher.find()) {
+            spans.add(new int[]{matcher.start(), matcher.end(), matcher.start(1), matcher.end(1)});
+            if (firstValue == null) {
+                firstValue = url.substring(matcher.start(1), matcher.end(1));
+            }
+        }
+        if (spans.isEmpty()) {
+            String appended = url + (url.contains("?") ? "&" : "?") + "sub2id={subid}";
             return appended.length() <= 128 ? appended : url;
         }
-        boolean changed = !"{subid}".equalsIgnoreCase(firstValue == null ? "" : firstValue.trim());
         StringBuilder rebuilt = new StringBuilder(url);
-        // 从后往前删多余的 subid= 参数, 再把第一处统一成小写 subid={subid} / drop duplicates, then normalize the first to lowercase subid={subid}
+        // 从后往前删多余的 sub2id= 参数 / drop duplicates from the tail
         for (int i = spans.size() - 1; i >= 1; i--) {
             rebuilt.delete(spans.get(i)[0], spans.get(i)[1]);
         }
-        String normalizedToken = url.charAt(spans.get(0)[0]) + "subid={subid}";
-        rebuilt.replace(spans.get(0)[0], spans.get(0)[1], normalizedToken);
+        String value = firstValue == null ? "" : firstValue.trim();
+        boolean blank = value.isEmpty()
+                || "{subid}".equalsIgnoreCase(value)
+                || "{subid2}".equalsIgnoreCase(value);
+        if (blank) {
+            String normalizedToken = url.charAt(spans.get(0)[0]) + "sub2id={subid}";
+            rebuilt.replace(spans.get(0)[0], spans.get(0)[1], normalizedToken);
+        }
         String normalized = rebuilt.toString();
         return normalized.length() <= 128 ? normalized : url;
     }

@@ -46,4 +46,34 @@ class NormalAdsAutoTaskJobTest {
         assertTrue(placeholder.contains("subid=" + clickId));
         assertTrue(placeholder.contains("sub_id2=n7"));
     }
+
+    // 空的 sub2id 写入同一个 clickId, 有业务值(如 n<taskId>)的不动
+    // an empty sub2id is mirrored with the same click id; real values stay untouched
+    @Test
+    void enrichAffiliateUrlForNormal_fillsEmptySub2idWithSameClickId() throws Exception {
+        AdsHttpClientTool tool = new AdsHttpClientTool();
+        Method method = AdsHttpClientTool.class.getDeclaredMethod(
+                "enrichAffiliateUrlForNormal", String.class, String.class, Long.class);
+        method.setAccessible(true);
+        String clickId = "11111111-2222-3333-4444-555555555555";
+
+        String filled = (String) method.invoke(tool,
+                "https://www.bonusarrive.com/link?ad=137072&c=4216&subid={subid}&sub2id=&url=", clickId, 9L);
+        assertTrue(filled.contains("subid=" + clickId));
+        assertTrue(filled.contains("sub2id=" + clickId));
+        assertTrue(filled.endsWith("&url="));
+
+        String aliasFilled = (String) method.invoke(tool,
+                "https://www.bonusarrive.com/link?ad=1&subid={subid}&sub_id2=", clickId, 9L);
+        assertTrue(aliasFilled.contains("sub_id2=" + clickId));
+
+        String kept = (String) method.invoke(tool,
+                "https://www.bonusarrive.com/link?ad=1&subid={subid}&sub2id=n9", clickId, 9L);
+        assertTrue(kept.contains("sub2id=n9"));
+        assertFalse(kept.contains("sub2id=" + clickId));
+
+        String absent = (String) method.invoke(tool,
+                "https://www.bonusarrive.com/link?ad=1&subid={subid}", clickId, 9L);
+        assertFalse(absent.contains("sub2id="));
+    }
 }
