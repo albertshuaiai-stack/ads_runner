@@ -302,8 +302,21 @@ public class PostBackAttributionService {
     @Transactional(readOnly = true)
     public Map<String, Object> clickSummary(String adsOwnerParam, Long currentUserId, int limit) {
         String adsOwner = resolveAdsOwner(adsOwnerParam, currentUserId);
-        List<AdsClickTrack> tracks = clickTrackRepository.findRecent(
-                adsOwner, PageRequest.of(0, Math.min(Math.max(limit, 1), 2000)));
+        PageRequest page = PageRequest.of(0, Math.min(Math.max(limit, 1), 2000));
+        // 已轮到的链 + 最新生成的链, 去重后按 id 倒序; 只取最新的会全是排队未用的链, 点击恒为 0
+        // Reached links plus newest links; newest alone are all still queued and always show 0 clicks
+        Map<Long, AdsClickTrack> merged = new LinkedHashMap<>();
+        List<AdsClickTrack> reached = clickTrackRepository.findReached(adsOwner, page);
+        for (AdsClickTrack track : reached) {
+            merged.put(track.getId(), track);
+        }
+        for (AdsClickTrack track : clickTrackRepository.findRecent(adsOwner, page)) {
+            merged.putIfAbsent(track.getId(), track);
+        }
+        List<AdsClickTrack> tracks = merged.values().stream()
+                .sorted(java.util.Comparator.comparing(AdsClickTrack::getId).reversed())
+                .toList();
+        log.info("click summary owner={} reached={} total={}", adsOwner, reached.size(), tracks.size());
 
         // 真实点击数来自 ShiftLink.DISPLAY_TIMES(Google Ads 上报驱动), 不是 /api/click 的命中数
         // real clicks come from ShiftLink.DISPLAY_TIMES driven by Google Ads reports
@@ -366,6 +379,7 @@ public class PostBackAttributionService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("clicks", rows);
+        result.put("reachedLinks", reached.size());
         result.put("campaignClicksTotal", clicksByTask.values().stream().mapToLong(Long::longValue).sum());
         result.put("owners", new ArrayList<>(owners));
         result.put("platforms", new ArrayList<>(platforms));

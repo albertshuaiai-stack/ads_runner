@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1",
+        "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop",
@@ -1902,13 +1902,14 @@ public class AuthIntegrationTest {
                 .exchange()
                 .expectStatus().isCreated();
 
+        // fullUrl 必须包含 landingPageUrl, 取模板时替换成 {lpurl} / fullUrl must contain landingPageUrl for the template
         webTestClient.post().uri("/api/shift-links")
                 .header("AMtoken", token)
                 .bodyValue(Map.of(
                         "adsType", "Matrix",
                         "adsName", "Summer Sale Matrix",
                         "platformName", "Consume Platform",
-                        "fullUrl", "https://example.com/matrix-shift-1",
+                        "fullUrl", "https://example.com/matrix-shift-1?url=https://example.com/matrix-landing-1",
                         "landingPageUrl", "https://example.com/matrix-landing-1",
                         "displayNumber", 2,
                         "seqNumber", 1,
@@ -1922,7 +1923,7 @@ public class AuthIntegrationTest {
                         "adsType", "Matrix",
                         "adsName", "Summer Sale Matrix",
                         "platformName", "Consume Platform",
-                        "fullUrl", "https://example.com/matrix-shift-2",
+                        "fullUrl", "https://example.com/matrix-shift-2?url=https://example.com/matrix-landing-2",
                         "landingPageUrl", "https://example.com/matrix-landing-2",
                         "displayNumber", 2,
                         "seqNumber", 2,
@@ -1936,7 +1937,7 @@ public class AuthIntegrationTest {
                         "adsType", "Normal",
                         "adsName", "Summer Sale",
                         "platformName", "Consume Platform",
-                        "fullUrl", "https://example.com/normal-shift-1",
+                        "fullUrl", "https://example.com/normal-shift-1?url=https://example.com/normal-landing-1",
                         "landingPageUrl", "https://example.com/normal-landing-1",
                         "displayNumber", 2,
                         "status", "RUNNING"))
@@ -1954,48 +1955,22 @@ public class AuthIntegrationTest {
                 .returnResult()
                 .getResponseBody();
 
-        org.junit.jupiter.api.Assertions.assertNotNull(normalUrl);
+        org.junit.jupiter.api.Assertions.assertEquals("https://example.com/normal-shift-1?url={lpurl}", normalUrl);
 
-        var matrixResponse = webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
-                        .queryParam("campaign_name", "Summer Sale Matrix")
-                        .queryParam("api_key", apiKey)
-                        .build())
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class)
-                .returnResult();
-
-        String firstMatrixUrl = matrixResponse.getResponseBody();
-        java.util.Set<String> allowedMatrixUrls = java.util.Set.of(
-                "https://example.com/matrix-shift-1",
-                "https://example.com/matrix-shift-2");
-        org.junit.jupiter.api.Assertions.assertTrue(allowedMatrixUrls.contains(firstMatrixUrl));
-
-        waitForCondition(() -> shiftLinkRepository
-                .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc("19912345678", "Summer Sale Matrix", "Matrix")
-                .stream()
-                .mapToLong(link -> link.getDisplayTimes() == null ? 0L : link.getDisplayTimes())
-                .sum() == 1L);
-
-        var secondMatrixResponse = webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
-                        .queryParam("campaign_name", "Summer Sale Matrix")
-                        .queryParam("api_key", apiKey)
-                        .build())
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class)
-                .returnResult();
-
-        String secondMatrixUrl = secondMatrixResponse.getResponseBody();
-        org.junit.jupiter.api.Assertions.assertTrue(allowedMatrixUrls.contains(secondMatrixUrl));
-
-        waitForCondition(() -> shiftLinkRepository
-                .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc("19912345678", "Summer Sale Matrix", "Matrix")
-                .stream()
-                .mapToLong(link -> link.getDisplayTimes() == null ? 0L : link.getDisplayTimes())
-                .sum() == 2L);
+        // 拉取模板不消耗点击, 两次拉取都返回第一条 / fetching never consumes, both fetches return the first link
+        for (int i = 0; i < 2; i++) {
+            String matrixUrl = webTestClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
+                            .queryParam("campaign_name", "Summer Sale Matrix")
+                            .queryParam("api_key", apiKey)
+                            .build())
+                    .exchange()
+                    .expectStatus().isOk()
+                    .expectBody(String.class)
+                    .returnResult()
+                    .getResponseBody();
+            org.junit.jupiter.api.Assertions.assertEquals("https://example.com/matrix-shift-1?url={lpurl}", matrixUrl);
+        }
 
         var currentScopedLinks = shiftLinkRepository
                 .findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc("19912345678", "Summer Sale Matrix", "Matrix");
@@ -2003,7 +1978,7 @@ public class AuthIntegrationTest {
         long totalDisplayTimes = currentScopedLinks.stream()
                 .mapToLong(link -> link.getDisplayTimes() == null ? 0L : link.getDisplayTimes())
                 .sum();
-        org.junit.jupiter.api.Assertions.assertEquals(2L, totalDisplayTimes);
+        org.junit.jupiter.api.Assertions.assertEquals(0L, totalDisplayTimes);
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/normal/ads")
@@ -2198,7 +2173,8 @@ public class AuthIntegrationTest {
                     "http://localhost:" + port + "/landing?ranMID=41274&utm_source=rakuten",
                     shiftLink.getFullUrl());
             org.junit.jupiter.api.Assertions.assertTrue(landingUserAgent.get() != null && landingUserAgent.get().contains("Mozilla/5.0"));
-            org.junit.jupiter.api.Assertions.assertEquals("Desktop", landingDeviceType.get());
+            // 为降低反爬识别, 请求已不再携带 X-Device-Type 自定义头 / the custom header is no longer sent to avoid bot detection
+            org.junit.jupiter.api.Assertions.assertNull(landingDeviceType.get());
         } finally {
             server.stop(0);
         }
