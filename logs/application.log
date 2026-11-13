@@ -4452,3 +4452,409 @@ Caused by: java.lang.IllegalArgumentException: landingPageUrl is required
 2026-11-13 13:17:37 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
 2026-11-13 13:17:37 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
 2026-11-13 13:17:37 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.
+2026-11-13 14:21:29 [main] INFO  c.u.j.c.BootstrapSpringApplicationListener - Found Environment: org.springframework.boot.web.context.servlet.ApplicationServletEnvironment
+2026-11-13 14:21:29 [main] INFO  c.a.cars.runner.AuthIntegrationTest - Starting AuthIntegrationTest using Java 17.0.19 with PID 98160 (started by markqi in g:\TestTool\ads_runner)
+2026-11-13 14:21:29 [main] INFO  c.a.cars.runner.AuthIntegrationTest - No active profile set, falling back to 1 default profile: "default"
+2026-11-13 14:21:30 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-13 14:21:31 [main] INFO  o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 249 ms. Found 40 JPA repository interfaces.
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EnableEncryptablePropertiesBeanFactoryPostProcessor - Post-processing PropertySource instances
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Skipping PropertySource configurationProperties [class org.springframework.boot.context.properties.source.ConfigurationPropertySourcesPropertySource
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Converting PropertySource Inlined Test Properties [org.springframework.core.env.MapPropertySource] to EncryptableMapPropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Skipping PropertySource servletConfigInitParams [class org.springframework.core.env.PropertySource$StubPropertySource
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Skipping PropertySource servletContextInitParams [class org.springframework.core.env.PropertySource$StubPropertySource
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Converting PropertySource systemProperties [org.springframework.core.env.PropertiesPropertySource] to EncryptableMapPropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Converting PropertySource systemEnvironment [org.springframework.boot.support.SystemEnvironmentPropertySourceEnvironmentPostProcessor$OriginAwareSystemEnvironmentPropertySource] to EncryptableSystemEnvironmentPropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Converting PropertySource random [org.springframework.boot.env.RandomValuePropertySource] to EncryptablePropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Converting PropertySource Config resource 'class path resource [application.properties]' via location 'optional:classpath:/' [org.springframework.boot.env.OriginTrackedMapPropertySource] to EncryptableMapPropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.EncryptablePropertySourceConverter - Converting PropertySource applicationInfo [org.springframework.boot.ApplicationInfoPropertySource] to EncryptableMapPropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EnableEncryptablePropertiesBeanFactoryPostProcessor - Re-initializing EncryptableSystemEnvironmentPropertySourceWrapper map delegation
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EncryptableSystemEnvironmentPropertySourceWrapperGetSourceWrapperEnvironmentListener - Attempting to bootstrap EncryptableSystemEnvironmentPropertySourceWrapper
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EncryptableSystemEnvironmentPropertySourceWrapperGetSourceWrapperEnvironmentListener - EncryptableSystemEnvironmentPropertySourceWrapper found! Bootstrapping...
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EnableEncryptablePropertiesBeanFactoryPostProcessor - EncryptableSystemEnvironmentPropertySourceWrapper map delegation re-initialized
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EnableEncryptablePropertiesBeanFactoryPostProcessor - Re-initializing Logging System
+2026-11-13 14:21:31 [main] INFO  c.u.j.f.DefaultLazyPropertyFilter - Property Filter custom Bean not found with name 'encryptablePropertyFilter'. Initializing Default Property Filter
+2026-11-13 14:21:31 [main] INFO  c.u.j.r.DefaultLazyPropertyResolver - Property Resolver custom Bean not found with name 'encryptablePropertyResolver'. Initializing Default Property Resolver
+2026-11-13 14:21:31 [main] INFO  c.u.j.d.DefaultLazyPropertyDetector - Property Detector custom Bean not found with name 'encryptablePropertyDetector'. Initializing Default Property Detector
+2026-11-13 14:21:31 [main] INFO  c.u.j.c.EnableEncryptablePropertiesBeanFactoryPostProcessor - Logging System re-initialized by LoggingApplicationListener
+2026-11-13 14:21:32 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat initialized with port 0 (http)
+2026-11-13 14:21:32 [main] INFO  o.s.b.w.c.s.WebApplicationContextInitializer - Root WebApplicationContext: initialization completed in 2825 ms
+2026-11-13 14:21:32 [main] INFO  org.hibernate.orm.jpa - HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-11-13 14:21:32 [main] INFO  org.hibernate.orm.core - HHH000001: Hibernate ORM core version 7.4.1.Final
+2026-11-13 14:21:33 [main] INFO  o.s.o.j.p.SpringPersistenceUnitInfo - No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-13 14:21:33 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Starting...
+2026-11-13 14:21:33 [main] INFO  com.zaxxer.hikari.pool.HikariPool - HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:testdb user=SA
+2026-11-13 14:21:33 [main] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Start completed.
+2026-11-13 14:21:33 [main] WARN  org.hibernate.orm.deprecation - HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-11-13 14:21:33 [main] INFO  o.hibernate.orm.connections.pooling - HHH10001005: Database info:
+	Database JDBC URL [jdbc:h2:mem:testdb]
+	Database driver: H2 JDBC Driver
+	Database dialect: H2Dialect
+	Database version: 2.4.240
+	Default catalog/schema: TESTDB/PUBLIC
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: 100
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-13 14:21:34 [main] INFO  org.hibernate.orm.core - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-13 14:21:34 [main] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-13 14:21:35 [main] INFO  o.s.d.j.r.q.QueryEnhancerFactories - Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-13 14:21:37 [main] INFO  c.a.c.r.c.CurrencyExchangeRateSchedulerConfig - CURRENCY_EXCHANGE_RATE_TRIGGER_REGISTERED cron='0 0 4 * * ?' timezone=UTC
+2026-11-13 14:21:37 [main] INFO  c.a.c.r.c.HousekeepingSchedulerConfig - HOUSEKEEPING_TRIGGER_REGISTERED cron='0 0 4 * * ?' timezone=UTC
+2026-11-13 14:21:37 [main] INFO  o.s.s.q.SchedulerFactoryBean$LocalSchedulerFactory - Using default implementation for ThreadExecutor
+2026-11-13 14:21:37 [main] INFO  o.quartz.core.SchedulerSignalerImpl - Initialized Scheduler Signaller of type: class org.quartz.core.SchedulerSignalerImpl
+2026-11-13 14:21:37 [main] INFO  org.quartz.core.QuartzScheduler - Quartz Scheduler v2.5.2 created.
+2026-11-13 14:21:37 [main] INFO  org.quartz.simpl.RAMJobStore - RAMJobStore initialized.
+2026-11-13 14:21:37 [main] INFO  org.quartz.core.QuartzScheduler - Scheduler meta-data: Quartz Scheduler (v2.5.2) 'quartzScheduler' with instanceId 'NON_CLUSTERED'
+  Scheduler class: 'org.quartz.core.QuartzScheduler' - running locally.
+  NOT STARTED.
+  Currently in standby mode.
+  Number of jobs executed: 0
+  Using thread pool 'org.quartz.simpl.SimpleThreadPool' - with 10 threads.
+  Using job-store 'org.quartz.simpl.RAMJobStore' - which does not support persistence. and is not clustered.
+
+2026-11-13 14:21:37 [main] INFO  o.s.s.q.SchedulerFactoryBean$LocalSchedulerFactory - Quartz scheduler 'quartzScheduler' initialized from an externally provided properties instance.
+2026-11-13 14:21:37 [main] INFO  o.s.s.q.SchedulerFactoryBean$LocalSchedulerFactory - Quartz scheduler version: 2.5.2
+2026-11-13 14:21:37 [main] INFO  org.quartz.core.QuartzScheduler - JobFactory set to: com.admire.cars.runner.config.QuartzJobFactoryConfig$AutowiringSpringBeanJobFactory@21d53cfd
+2026-11-13 14:21:38 [main] WARN  o.s.b.j.a.JpaBaseConfiguration$JpaWebConfiguration - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-11-13 14:21:39 [main] INFO  o.s.boot.tomcat.TomcatWebServer - Tomcat started on port 9259 (http) with context path '/'
+2026-11-13 14:21:39 [main] INFO  o.s.s.quartz.SchedulerFactoryBean - Starting Quartz Scheduler now
+2026-11-13 14:21:39 [main] INFO  org.quartz.core.QuartzScheduler - Scheduler quartzScheduler_$_NON_CLUSTERED started.
+2026-11-13 14:21:39 [main] INFO  c.a.cars.runner.AuthIntegrationTest - Started AuthIntegrationTest in 9.851 seconds (process running for 11.032)
+2026-11-13 14:21:39 [http-nio-auto-1-exec-1] INFO  o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2026-11-13 14:21:39 [http-nio-auto-1-exec-1] INFO  o.s.web.servlet.DispatcherServlet - Completed initialization in 1 ms
+2026-11-13 14:21:40 [ads-auto-task-1] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign intervalMinutes=5 adsType=Normal nextFireTime=Fri Nov 13 14:21:40 CST 2026 finalFireTime=null
+2026-11-13 14:21:40 [quartzScheduler_Worker-1] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign start=2026-11-13T06:21:40.337550300Z adsType=Normal adsOwner=8899000001 adsId=1
+2026-11-13 14:21:40 [quartzScheduler_Worker-1] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=1 adsOwner=8899000001 campaign=Quartz Normal Campaign dayStart=2026-11-13T00:00 generatedToday=0 allowance=20 allowed=true
+2026-11-13 14:21:40 [quartzScheduler_Worker-1] ERROR c.a.c.r.job.NormalAdsAutoTaskJob - NORMAL_AUTO_TASK_EXCEPTION adsId=1 campaign=Quartz Normal Campaign error=affiliateUrl is required
+java.lang.IllegalArgumentException: affiliateUrl is required
+	at com.admire.cars.runner.util.AdsHttpClientTool.requireText(AdsHttpClientTool.java:1033)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyNormalAd(AdsHttpClientTool.java:126)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:111)
+	at com.admire.cars.runner.job.NormalAdsAutoTaskJob.executeTask(NormalAdsAutoTaskJob.java:71)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+2026-11-13 14:21:40 [ads-auto-task-2] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=8899000001-Matrix jobId=1-8899000001-US-Matrix-Quartz-Matrix-Campaign intervalMinutes=7 adsType=Matrix nextFireTime=Fri Nov 13 14:21:40 CST 2026 finalFireTime=null
+2026-11-13 14:21:40 [quartzScheduler_Worker-2] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=8899000001-Matrix jobId=1-8899000001-US-Matrix-Quartz-Matrix-Campaign start=2026-11-13T06:21:40.375578900Z adsType=Matrix adsOwner=8899000001 adsId=1
+2026-11-13 14:21:40 [quartzScheduler_Worker-1] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign end=2026-11-13T06:21:40.404160800Z
+2026-11-13 14:21:40 [ads-auto-task-3] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign intervalMinutes=5 adsType=Normal nextFireTime=Fri Nov 13 14:21:40 CST 2026 finalFireTime=null
+2026-11-13 14:21:40 [ads-auto-task-3] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_PAUSED jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign
+2026-11-13 14:21:40 [quartzScheduler_Worker-3] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign start=2026-11-13T06:21:40.405754500Z adsType=Normal adsOwner=8899000001 adsId=1
+2026-11-13 14:21:40 [quartzScheduler_Worker-3] INFO  c.a.c.r.job.NormalAdsAutoTaskJob - NORMAL_AUTO_TASK_PAUSED_SKIP adsId=1 campaign=Quartz Normal Campaign status=PAUSED
+2026-11-13 14:21:40 [quartzScheduler_Worker-3] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign end=2026-11-13T06:21:40.407367800Z
+2026-11-13 14:21:40 [quartzScheduler_Worker-2] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=1 adsOwner=8899000001 campaign=Quartz Matrix Campaign dayStart=2026-11-13T00:00 purgedStale=0 todayCount=0 dailyLimit=24 allowed=true
+2026-11-13 14:21:40 [ads-auto-task-4] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign intervalMinutes=5 adsType=Normal nextFireTime=Fri Nov 13 14:21:40 CST 2026 finalFireTime=null
+2026-11-13 14:21:40 [quartzScheduler_Worker-2] WARN  c.a.c.r.job.MatrixAdsAutoTaskJob - MATRIX_AUTO_TASK_NO_AFFILIATE_INFO adsId=1 Job Id:1-8899000001-US-Matrix-Quartz-Matrix-Campaign  message=No affiliate info found for this matrix ad
+2026-11-13 14:21:40 [quartzScheduler_Worker-4] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign start=2026-11-13T06:21:40.424388600Z adsType=Normal adsOwner=8899000001 adsId=1
+2026-11-13 14:21:40 [quartzScheduler_Worker-2] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=8899000001-Matrix jobId=1-8899000001-US-Matrix-Quartz-Matrix-Campaign end=2026-11-13T06:21:40.424388600Z
+2026-11-13 14:21:40 [quartzScheduler_Worker-4] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=1 adsOwner=8899000001 campaign=Quartz Normal Campaign dayStart=2026-11-13T00:00 generatedToday=0 allowance=20 allowed=true
+2026-11-13 14:21:40 [quartzScheduler_Worker-4] ERROR c.a.c.r.job.NormalAdsAutoTaskJob - NORMAL_AUTO_TASK_EXCEPTION adsId=1 campaign=Quartz Normal Campaign error=affiliateUrl is required
+java.lang.IllegalArgumentException: affiliateUrl is required
+	at com.admire.cars.runner.util.AdsHttpClientTool.requireText(AdsHttpClientTool.java:1033)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyNormalAd(AdsHttpClientTool.java:126)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:111)
+	at com.admire.cars.runner.job.NormalAdsAutoTaskJob.executeTask(NormalAdsAutoTaskJob.java:71)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+2026-11-13 14:21:40 [quartzScheduler_Worker-4] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign end=2026-11-13T06:21:40.429388200Z
+2026-11-13 14:21:40 [ads-auto-task-5] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_DELETED jobGroup=8899000001-Normal jobId=1-8899000001-US-Quartz-Normal-Quartz-Normal-Campaign groupEmpty=true
+2026-11-13 14:21:41 [ads-auto-task-6] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=5555555555-Normal jobId=5-5555555555-US-TikTok-Ads-Summer-Sale intervalMinutes=30 adsType=Normal nextFireTime=Fri Nov 13 14:21:41 CST 2026 finalFireTime=null
+2026-11-13 14:21:41 [quartzScheduler_Worker-5] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=5555555555-Normal jobId=5-5555555555-US-TikTok-Ads-Summer-Sale start=2026-11-13T06:21:41.528984Z adsType=Normal adsOwner=5555555555 adsId=5
+2026-11-13 14:21:41 [quartzScheduler_Worker-5] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=5 adsOwner=5555555555 campaign=Summer Sale dayStart=2026-11-13T00:00 generatedToday=0 allowance=20 allowed=true
+2026-11-13 14:21:41 [quartzScheduler_Worker-5] ERROR c.a.c.r.job.NormalAdsAutoTaskJob - NORMAL_AUTO_TASK_EXCEPTION adsId=5 campaign=Summer Sale error=dynamicProxyInfo must use user:password@host:port or host:port:user:password format
+java.lang.IllegalArgumentException: dynamicProxyInfo must use user:password@host:port or host:port:user:password format
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseColonSeparatedProxy(IpProxyService.java:322)
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseProxyConfiguration(IpProxyService.java:291)
+	at com.admire.cars.runner.service.proxy.IpProxyService.buildOkHttpClient(IpProxyService.java:351)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyNormalAd(AdsHttpClientTool.java:131)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:111)
+	at com.admire.cars.runner.job.NormalAdsAutoTaskJob.executeTask(NormalAdsAutoTaskJob.java:71)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+2026-11-13 14:21:41 [quartzScheduler_Worker-5] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=5555555555-Normal jobId=5-5555555555-US-TikTok-Ads-Summer-Sale end=2026-11-13T06:21:41.534496600Z
+2026-11-13 14:21:41 [http-nio-auto-1-exec-3] WARN  o.s.d.w.c.SpringDataJackson3Configuration$PageModule$WarningLoggingModifier - Serializing PageImpl instances as-is is not supported, meaning that there is no guarantee about the stability of the resulting JSON structure!
+	For a stable JSON structure, please use Spring Data's PagedModel (globally via @EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO))
+	or Spring HATEOAS and Spring Data's PagedResourcesAssembler as documented in https://docs.spring.io/spring-data/commons/reference/repositories/core-extensions.html#core.web.pageables.
+
+2026-11-13 14:21:41 [http-nio-auto-1-exec-10] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=6666666666 row=1 gmail=null platform=Matrix TikTok
+2026-11-13 14:21:41 [http-nio-auto-1-exec-10] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=6666666666 row=2 gmail=null platform=Matrix Meta
+2026-11-13 14:21:41 [ads-auto-task-7] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign intervalMinutes=15 adsType=Matrix nextFireTime=Fri Nov 13 14:21:41 CST 2026 finalFireTime=null
+2026-11-13 14:21:41 [quartzScheduler_Worker-6] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign start=2026-11-13T06:21:41.689136900Z adsType=Matrix adsOwner=6666666666 adsId=3
+2026-11-13 14:21:41 [quartzScheduler_Worker-6] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=3 adsOwner=6666666666 campaign=Matrix Campaign dayStart=2026-11-13T00:00 purgedStale=0 todayCount=0 dailyLimit=24 allowed=true
+2026-11-13 14:21:41 [quartzScheduler_Worker-6] ERROR c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_EXCEPTION jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign end=2026-11-13T06:21:41.695076100Z
+java.lang.IllegalArgumentException: dynamicProxyInfo must use user:password@host:port or host:port:user:password format
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseColonSeparatedProxy(IpProxyService.java:322)
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseProxyConfiguration(IpProxyService.java:291)
+	at com.admire.cars.runner.service.proxy.IpProxyService.buildOkHttpClient(IpProxyService.java:351)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyMatrixAd(AdsHttpClientTool.java:288)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:269)
+	at com.admire.cars.runner.job.MatrixAdsAutoTaskJob.executeTask(MatrixAdsAutoTaskJob.java:72)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+2026-11-13 14:21:41 [quartzScheduler_Worker-6] ERROR org.quartz.core.JobRunShell - Job 6666666666-Matrix.3-6666666666-US-Matrix-Matrix-Campaign threw an unhandled Exception: 
+java.lang.IllegalStateException: Quartz auto job failed
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:35)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+Caused by: java.lang.IllegalArgumentException: dynamicProxyInfo must use user:password@host:port or host:port:user:password format
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseColonSeparatedProxy(IpProxyService.java:322)
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseProxyConfiguration(IpProxyService.java:291)
+	at com.admire.cars.runner.service.proxy.IpProxyService.buildOkHttpClient(IpProxyService.java:351)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyMatrixAd(AdsHttpClientTool.java:288)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:269)
+	at com.admire.cars.runner.job.MatrixAdsAutoTaskJob.executeTask(MatrixAdsAutoTaskJob.java:72)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	... 2 common frames omitted
+2026-11-13 14:21:41 [quartzScheduler_Worker-6] ERROR org.quartz.core.ErrorLogger - Job 6666666666-Matrix.3-6666666666-US-Matrix-Matrix-Campaign threw an exception.
+org.quartz.core.JobExecutionProcessException: Job threw an unhandled exception [See nested exception: java.lang.IllegalStateException: Quartz auto job failed]
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:212)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+Caused by: java.lang.IllegalStateException: Quartz auto job failed
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:35)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	... 1 common frames omitted
+Caused by: java.lang.IllegalArgumentException: dynamicProxyInfo must use user:password@host:port or host:port:user:password format
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseColonSeparatedProxy(IpProxyService.java:322)
+	at com.admire.cars.runner.service.proxy.IpProxyService.parseProxyConfiguration(IpProxyService.java:291)
+	at com.admire.cars.runner.service.proxy.IpProxyService.buildOkHttpClient(IpProxyService.java:351)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyMatrixAd(AdsHttpClientTool.java:288)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:269)
+	at com.admire.cars.runner.job.MatrixAdsAutoTaskJob.executeTask(MatrixAdsAutoTaskJob.java:72)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	... 2 common frames omitted
+2026-11-13 14:21:41 [http-nio-auto-1-exec-2] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=6666666666 row=1 gmail=null platform=Matrix TikTok
+2026-11-13 14:21:41 [ads-auto-task-8] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign intervalMinutes=15 adsType=Matrix nextFireTime=Fri Nov 13 14:21:41 CST 2026 finalFireTime=null
+2026-11-13 14:21:41 [ads-auto-task-8] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_PAUSED jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign
+2026-11-13 14:21:41 [quartzScheduler_Worker-7] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign start=2026-11-13T06:21:41.771241100Z adsType=Matrix adsOwner=6666666666 adsId=3
+2026-11-13 14:21:41 [quartzScheduler_Worker-7] INFO  c.a.c.r.job.MatrixAdsAutoTaskJob - MATRIX_AUTO_TASK_PAUSED_SKIP adsId=3 campaign=Matrix Campaign status=PAUSED
+2026-11-13 14:21:41 [quartzScheduler_Worker-7] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign end=2026-11-13T06:21:41.772244600Z
+2026-11-13 14:21:41 [ads-auto-task-9] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_DELETED jobGroup=6666666666-Matrix jobId=3-6666666666-US-Matrix-Matrix-Campaign groupEmpty=true
+2026-11-13 14:21:41 [http-nio-auto-1-exec-1] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=19912345678 row=1 gmail=null platform=Consume Platform
+2026-11-13 14:21:41 [http-nio-auto-1-exec-2] INFO  c.a.c.r.c.AdsApiConsumeController - consumeNormalAds campaignName: Summer Sale
+2026-11-13 14:21:41 [http-nio-auto-1-exec-6] INFO  c.a.c.r.c.AdsApiConsumeController - consumeMatrixAds campaignName: Summer Sale Matrix
+2026-11-13 14:21:41 [http-nio-auto-1-exec-7] INFO  c.a.c.r.c.AdsApiConsumeController - consumeMatrixAds campaignName: Summer Sale Matrix
+2026-11-13 14:21:42 [http-nio-auto-1-exec-10] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=7000000002 row=1 gmail=null platform=Scoped Matrix Platform
+2026-11-13 14:21:42 [http-nio-auto-1-exec-1] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=7000000003 row=1 gmail=null platform=Scoped Matrix Platform
+2026-11-13 14:21:42 [ads-auto-task-3] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=7777000001-Normal jobId=11-7777000001-US-Execute-Platform-Execute-Normal-Campaign intervalMinutes=5 adsType=Normal nextFireTime=Fri Nov 13 14:21:42 CST 2026 finalFireTime=null
+2026-11-13 14:21:42 [quartzScheduler_Worker-8] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=7777000001-Normal jobId=11-7777000001-US-Execute-Platform-Execute-Normal-Campaign start=2026-11-13T06:21:42.351351300Z adsType=Normal adsOwner=7777000001 adsId=11
+2026-11-13 14:21:42 [quartzScheduler_Worker-8] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=11 adsOwner=7777000001 campaign=Execute Normal Campaign dayStart=2026-11-13T00:00 generatedToday=0 allowance=20 allowed=true
+2026-11-13 14:21:42 [quartzScheduler_Worker-8] ERROR c.a.c.r.job.NormalAdsAutoTaskJob - NORMAL_AUTO_TASK_EXCEPTION adsId=11 campaign=Execute Normal Campaign error=affiliateUrl is required
+java.lang.IllegalArgumentException: affiliateUrl is required
+	at com.admire.cars.runner.util.AdsHttpClientTool.requireText(AdsHttpClientTool.java:1033)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyNormalAd(AdsHttpClientTool.java:126)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:111)
+	at com.admire.cars.runner.job.NormalAdsAutoTaskJob.executeTask(NormalAdsAutoTaskJob.java:71)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+2026-11-13 14:21:42 [quartzScheduler_Worker-8] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=7777000001-Normal jobId=11-7777000001-US-Execute-Platform-Execute-Normal-Campaign end=2026-11-13T06:21:42.356648900Z
+2026-11-13 14:21:42 [http-nio-auto-1-exec-1] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=7777000001 row=1 gmail=null platform=Execute Platform
+2026-11-13 14:21:42 [ads-auto-task-4] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=7777000001-Matrix jobId=7-7777000001-US-Matrix-Execute-Matrix-Campaign intervalMinutes=5 adsType=Matrix nextFireTime=Fri Nov 13 14:21:42 CST 2026 finalFireTime=null
+2026-11-13 14:21:42 [quartzScheduler_Worker-9] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=7777000001-Matrix jobId=7-7777000001-US-Matrix-Execute-Matrix-Campaign start=2026-11-13T06:21:42.362160300Z adsType=Matrix adsOwner=7777000001 adsId=7
+2026-11-13 14:21:42 [quartzScheduler_Worker-9] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=7 adsOwner=7777000001 campaign=Execute Matrix Campaign dayStart=2026-11-13T00:00 purgedStale=0 todayCount=0 dailyLimit=24 allowed=true
+2026-11-13 14:21:42 [quartzScheduler_Worker-9] ERROR c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_EXCEPTION jobGroup=7777000001-Matrix jobId=7-7777000001-US-Matrix-Execute-Matrix-Campaign end=2026-11-13T06:21:42.366072900Z
+java.lang.IllegalArgumentException: landingPageUrl is required
+	at com.admire.cars.runner.util.AdsHttpClientTool.requireText(AdsHttpClientTool.java:1033)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyMatrixAd(AdsHttpClientTool.java:284)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:269)
+	at com.admire.cars.runner.job.MatrixAdsAutoTaskJob.executeTask(MatrixAdsAutoTaskJob.java:72)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+2026-11-13 14:21:42 [quartzScheduler_Worker-9] ERROR org.quartz.core.JobRunShell - Job 7777000001-Matrix.7-7777000001-US-Matrix-Execute-Matrix-Campaign threw an unhandled Exception: 
+java.lang.IllegalStateException: Quartz auto job failed
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:35)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+Caused by: java.lang.IllegalArgumentException: landingPageUrl is required
+	at com.admire.cars.runner.util.AdsHttpClientTool.requireText(AdsHttpClientTool.java:1033)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyMatrixAd(AdsHttpClientTool.java:284)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:269)
+	at com.admire.cars.runner.job.MatrixAdsAutoTaskJob.executeTask(MatrixAdsAutoTaskJob.java:72)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	... 2 common frames omitted
+2026-11-13 14:21:42 [quartzScheduler_Worker-9] ERROR org.quartz.core.ErrorLogger - Job 7777000001-Matrix.7-7777000001-US-Matrix-Execute-Matrix-Campaign threw an exception.
+org.quartz.core.JobExecutionProcessException: Job threw an unhandled exception [See nested exception: java.lang.IllegalStateException: Quartz auto job failed]
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:212)
+	at org.quartz.simpl.SimpleThreadPool$WorkerThread.run(SimpleThreadPool.java:566)
+Caused by: java.lang.IllegalStateException: Quartz auto job failed
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:35)
+	at org.quartz.core.JobRunShell.run(JobRunShell.java:203)
+	... 1 common frames omitted
+Caused by: java.lang.IllegalArgumentException: landingPageUrl is required
+	at com.admire.cars.runner.util.AdsHttpClientTool.requireText(AdsHttpClientTool.java:1033)
+	at com.admire.cars.runner.util.AdsHttpClientTool.doApplyMatrixAd(AdsHttpClientTool.java:284)
+	at com.admire.cars.runner.util.AdsHttpClientTool.applyAffiliateAd(AdsHttpClientTool.java:269)
+	at com.admire.cars.runner.job.MatrixAdsAutoTaskJob.executeTask(MatrixAdsAutoTaskJob.java:72)
+	at com.admire.cars.runner.job.AdsAutoTaskJob.execute(AdsAutoTaskJob.java:31)
+	... 2 common frames omitted
+2026-11-13 14:21:42 [http-nio-auto-1-exec-10] INFO  c.a.c.r.service.AdsMatrixInfoService - [MatrixClassify] no rule matched owner=1777000002 row=1 gmail=null platform=Bulk Upload Platform
+2026-11-13 14:21:43 [ads-auto-task-5] INFO  c.a.c.r.e.AdsAutoTaskSchedulerService - AUTO_JOB_SCHEDULED jobGroup=8888000001-Normal jobId=15-8888000001-US-Audit-Platform-Audit-Campaign intervalMinutes=1 adsType=Normal nextFireTime=Fri Nov 13 14:21:43 CST 2026 finalFireTime=null
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_START jobGroup=8888000001-Normal jobId=15-8888000001-US-Audit-Platform-Audit-Campaign start=2026-11-13T06:21:43.124526300Z adsType=Normal adsOwner=8888000001 adsId=15
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=15 adsOwner=8888000001 campaign=Audit Campaign dayStart=2026-11-13T00:00 generatedToday=0 allowance=20 allowed=true
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://stackoverflow.com/, User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36, user device:Desktop
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9355/start?subid=fdb07ecb-3d23-4ee0-8491-f0aa046b582d Response=http://localhost:9355/start?subid=fdb07ecb-3d23-4ee0-8491-f0aa046b582d hop=1 status=302
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9355/start?subid=fdb07ecb-3d23-4ee0-8491-f0aa046b582d redirectTarget=/hop1 hop=1 status=302
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.bing.com/, User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36, user device:Desktop
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9355/hop1 Response=http://localhost:9355/hop1 hop=2 status=302
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9355/hop1 redirectTarget=/landing?ranMID=41274&utm_source=rakuten hop=2 status=302
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://stackoverflow.com/, User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36, user device:Desktop
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9355/landing?ranMID=41274&utm_source=rakuten Response=http://localhost:9355/landing?ranMID=41274&utm_source=rakuten hop=3 status=200
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.c.r.service.AdsClickTrackService - CLICK_TRACK_ISSUED clickId=fdb07ecb-3d23-4ee0-8491-f0aa046b582d normalAdsId=15 shiftLinkId=17 campaign=Audit Campaign owner=8888000001
+2026-11-13 14:21:43 [quartzScheduler_Worker-10] INFO  c.a.cars.runner.job.AdsAutoTaskJob - AUTO_JOB_END jobGroup=8888000001-Normal jobId=15-8888000001-US-Audit-Platform-Audit-Campaign end=2026-11-13T06:21:43.185248200Z
+2026-11-13 14:21:44 [main] INFO  c.a.c.r.c.AdsApiConsumeController - POSTBACK_RECEIVED site=BonusArrive orderNo=order-2 status=null shopId=null shopName=null signId=null subId=11111111-2222-3333-4444-555555555555 subId2=null clickTime=null orderTime=null amount=null commission=null
+2026-11-13 14:21:44 [main] INFO  c.a.c.r.c.AdsApiConsumeController - POSTBACK_RECEIVED site=BonusArrive orderNo=order-1 status=Approved shopId=shop-1 shopName=Shop One signId=sign-1 subId=11111111-2222-3333-4444-555555555555 subId2=null clickTime=2026-11-12 09:55:00 orderTime=2026-11-12 10:00:00 amount=100.00 commission=12.50
+2026-11-13 14:21:44 [main] INFO  c.a.c.r.job.CurrencyExchangeRateJob - CURRENCY_EXCHANGE_RATE_JOB_START
+2026-11-13 14:21:44 [main] INFO  c.a.c.r.job.CurrencyExchangeRateJob - CURRENCY_EXCHANGE_RATE_JOB_END
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.AdsAdvisorService - ADS_REVIEW_BUILT owner=null tasks=4 summary={STOP=1, NO_DATA=2, OPTIMIZE=0, WATCH=1, SCALE=0, CONTINUE=0, PAUSED=0}
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.AdsDailyReportService - DAILY_REPORT_SAVED owner=13800000000 reportDate=2026-11-13 currency=USD campaigns=0 dailyRows=0 searchTerms=2
+2026-11-13 14:21:45 [main] WARN  c.a.c.r.s.AdsDailyReportService - DAILY_REPORT_ROW_SKIPPED owner=13800000000 row=DailyRow[name=brand, date=2025-01-01, network=SEARCH, impressions=1, clicks=1, cost=1]
+2026-11-13 14:21:45 [main] WARN  c.a.c.r.s.AdsDailyReportService - DAILY_REPORT_ROW_SKIPPED owner=13800000000 row=DailyRow[name=brand, date=bad-date, network=SEARCH, impressions=1, clicks=1, cost=1]
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.AdsDailyReportService - DAILY_REPORT_SAVED owner=13800000000 reportDate=2026-11-13 currency=CNY campaigns=0 dailyRows=2 searchTerms=0
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.AdsNormalPostBackService - POSTBACK_UPDATED id=5 orderNo=order-1 status=approved subId=11111111-2222-3333-4444-555555555555 subId2=11111111-2222-3333-4444-555555555555
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.CurrencyExchangeRateSyncService - EXCHANGE_RATE_SYNCED fromCurrency=USD toCurrency=CNY effectiveDate=2026-08-19 rate=7.23450000
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.CurrencyExchangeRateSyncService - EXCHANGE_RATE_SYNCED fromCurrency=USD toCurrency=CNY effectiveDate=2026-08-19 rate=7.30000000
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=42 adsOwner=13800000000 campaign=Matrix-Campaign-A dayStart=2026-11-13T00:00 purgedStale=0 todayCount=24 dailyLimit=24 allowed=false
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=42 adsOwner=13800000000 campaign=Matrix-Campaign-A dayStart=2026-11-13T00:00 purgedStale=0 todayCount=0 dailyLimit=0 allowed=false
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] disabled adsId=42 adsOwner=13800000000 campaign=Matrix-Campaign-A allowed=true
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=42 adsOwner=13800000000 campaign=Matrix-Campaign-A dayStart=2026-11-13T00:00 purgedStale=7 todayCount=5 dailyLimit=24 allowed=true
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.MatrixShiftLinkQuotaService - [MatrixQuota] check adsId=42 adsOwner=13800000000 campaign=Matrix-Campaign-A dayStart=2026-11-13T00:00 purgedStale=0 todayCount=0 dailyLimit=24 allowed=true
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] clicks recorded adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A clicks=105 lastClicks=100 delta=5 earned=125 allowance=145
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A dayStart=2026-11-13T00:00 generatedToday=5 allowance=20 allowed=true
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] clicks recorded adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A clicks=108 lastClicks=105 delta=3 earned=75 allowance=220
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A dayStart=2026-11-13T00:00 generatedToday=20 allowance=20 allowed=false
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] clicks recorded adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A clicks=90 lastClicks=105 delta=0 earned=0 allowance=145
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] check adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A dayStart=2026-11-13T00:00 generatedToday=30 allowance=145 allowed=true
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] clicks recorded adsId=7 adsOwner=13800000000 campaign=Normal-Campaign-A clicks=100 lastClicks=null delta=0 earned=0 allowance=20
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] disabled adsId=7
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.NormalShiftLinkQuotaService - [NormalQuota] no normal campaign adsOwner=13800000000 campaign=Normal-Campaign-A clicks=100
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_DONE owner=13800000000 orderNo=order-1 clickId=11111111-2222-3333-4444-555555555555 normalAdsId=12 status=MATCHED rule=EXACT_SUB_ID
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_DONE owner=13800000000 orderNo=order-1 clickId=null normalAdsId=7 status=PARTIAL rule=ADVERTISER_SHOP_ID
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_DONE owner=13800000000 orderNo=order-1 clickId=null normalAdsId=null status=UNMATCHED rule=NONE
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_KEEP owner=13800000000 orderNo=order-1 clickId=11111111-2222-3333-4444-555555555555 rule=MANUAL_BIND
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_DONE owner=13800000000 orderNo=order-1 clickId=null normalAdsId=21 status=PARTIAL rule=ADVERTISER_SHOP_ID
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_DONE owner=13800000000 orderNo=order-1 clickId=null normalAdsId=12 status=PARTIAL rule=NORMAL_ADS_ID
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackAttributionService - ATTRIBUTION_DONE owner=13800000000 orderNo=order-1 clickId=11111111-2222-3333-4444-555555555555 normalAdsId=9 status=MATCHED rule=UUID_IN_VALUE
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackImportService - POSTBACK_IMPORT_DONE owner=18565545084 platform=BonusArrive total=2 imported=0 skipped=2 matched=0 partial=0 unmatched=0
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.s.PostBackImportService - POSTBACK_IMPORT_DONE owner=18565545084 platform=BonusArrive total=2 imported=1 skipped=1 matched=0 partial=0 unmatched=1
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click report row owner=13800000000 campaign=sharkninja clicks=100 cost=null currency=null
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click report row owner=13800000000 campaign=sharkninja clicks=101 cost=null currency=null
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - shift link rotated type=Normal campaign=sharkninja fromId=5 toId=9 newBase=101 capacity=1 unusedLeft=1
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click report row owner=13800000000 campaign=sharkninja clicks=100 cost=null currency=null
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click base initialized type=Normal campaign=sharkninja linkId=3 base=100 capacity=1
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click report row owner=13800000000 campaign=sharkninja clicks=101 cost=null currency=null
+2026-11-13 14:21:45 [main] WARN  c.a.c.r.service.TrackReportService - shift link exhausted type=Normal campaign=sharkninja linkId=5 no unused link, bare lpurl fallback
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click report row owner=13800000000 campaign=sharkninja clicks=105 cost=null currency=null
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - click report row owner=13800000000 campaign=sharkninja clicks=106 cost=null currency=null
+2026-11-13 14:21:45 [main] INFO  c.a.c.r.service.TrackReportService - shift link rotated type=Normal campaign=sharkninja fromId=5 toId=6 newBase=106 capacity=1 unusedLeft=-1
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://news.google.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9377/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=b534bcec-65be-4948-8a6c-e4338b07dab2 Response=http://localhost:9377/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=b534bcec-65be-4948-8a6c-e4338b07dab2 hop=1 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9377/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=b534bcec-65be-4948-8a6c-e4338b07dab2 redirectTarget=/step2 hop=1 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.yahoo.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9377/step2 Response=http://localhost:9377/step2 hop=2 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9377/step2 redirectTarget=/final?lkid=82853225&subid=566&cid=final hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://x.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9377/final?lkid=82853225&subid=566&cid=final Response=http://localhost:9377/final?lkid=82853225&subid=566&cid=final hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.nytimes.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=2612ed6b-560e-4620-aeaa-8d6565f65354 Response=http://localhost:9379/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=2612ed6b-560e-4620-aeaa-8d6565f65354 hop=1 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=2612ed6b-560e-4620-aeaa-8d6565f65354 redirectTarget=/step1?sharedId=&subId1=T2oFu0000m1gk464wg&subId3= hop=1 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.facebook.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/step1?sharedId=&subId1=T2oFu0000m1gk464wg&subId3= Response=http://localhost:9379/step1?sharedId=&subId1=T2oFu0000m1gk464wg&subId3= hop=2 status=301
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/step1?sharedId=&subId1=T2oFu0000m1gk464wg&subId3= redirectTarget=/step2?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= hop=2 status=301
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.yahoo.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/step2?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= Response=http://localhost:9379/step2?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= hop=3 status=308
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/step2?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= redirectTarget=/step3?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= hop=3 status=308
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.netflix.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/step3?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= Response=http://localhost:9379/step3?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= hop=4 status=301
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/step3?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= redirectTarget=/final?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= hop=4 status=301
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.google.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9379/final?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= Response=http://localhost:9379/final?irclickid=WscS7Y1mLxyZRryzd41Uey8nUkrzycyShzTt2M0&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=5498623&sharedid= hop=5 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.google.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9381/index/index/openurl?track=8f3cc583cb6b3419&url= Response=http://localhost:9381/index/index/openurl?track=8f3cc583cb6b3419&url= hop=1 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.nytimes.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9381/final?c=IHG%20Summer%20Sale.%20Save%20Up%20to%2030%25%20By%207/30 Response=http://localhost:9381/final?c=IHG%20Summer%20Sale.%20Save%20Up%20to%2030%25%20By%207/30 hop=2 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.quora.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9383/index/index/openurl?track=43615712065c6043&url= Response=http://localhost:9383/index/index/openurl?track=43615712065c6043&url= hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9383/index/index/openurl?track=43615712065c6043&url= redirectTarget=http://localhost:9383/bridge?url=http://localhost:9383/final&sid=lh_5xu07l7jk6ae hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.facebook.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9383/bridge?url=http://localhost:9383/final&sid=lh_5xu07l7jk6ae Response=http://localhost:9383/bridge?url=http://localhost:9383/final&sid=lh_5xu07l7jk6ae hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.youtube.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9383/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 Response=http://localhost:9383/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.nytimes.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9385/index/index/openurl?track=43615712065c6043&url=&subid=4e1152eb-3b9c-447e-b8fd-cc2d904c67c2 Response=http://localhost:9385/index/index/openurl?track=43615712065c6043&url=&subid=4e1152eb-3b9c-447e-b8fd-cc2d904c67c2 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9385/index/index/openurl?track=43615712065c6043&url=&subid=4e1152eb-3b9c-447e-b8fd-cc2d904c67c2 redirectTarget=http://localhost:9385/bridge?url=http://www.michaelstars.com&sid=lh_5x7uptulmrz6 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.netflix.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9385/bridge?url=http://www.michaelstars.com&sid=lh_5x7uptulmrz6 Response=http://localhost:9385/bridge?url=http://www.michaelstars.com&sid=lh_5x7uptulmrz6 hop=2 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9385/bridge?url=http://www.michaelstars.com&sid=lh_5x7uptulmrz6 redirectTarget=/final?affiliate_id=133734&click_id=5601876235&clickId=5601876235&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.pinterest.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9385/final?affiliate_id=133734&click_id=5601876235&clickId=5601876235&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 Response=http://localhost:9385/final?affiliate_id=133734&click_id=5601876235&clickId=5601876235&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.bing.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9387/index/index/openurl?store_url=http%3A%2F%2Flocalhost%3A9387%2Fstep2&c=3663&subid=de52f5a0-163f-43d2-99c4-42317b7e5892 Response=http://localhost:9387/index/index/openurl?store_url=http%3A%2F%2Flocalhost%3A9387%2Fstep2&c=3663&subid=de52f5a0-163f-43d2-99c4-42317b7e5892 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9387/index/index/openurl?store_url=http%3A%2F%2Flocalhost%3A9387%2Fstep2&c=3663&subid=de52f5a0-163f-43d2-99c4-42317b7e5892 redirectTarget=http://localhost:9387/step2 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://news.google.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9387/step2 Response=http://localhost:9387/step2 hop=2 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9387/step2 redirectTarget=/final hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.tiktok.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9387/final Response=http://localhost:9387/final hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://admirecars.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9389/index/index/openurl?track=8f3cc583cb6b3419&url= Response=http://localhost:9389/index/index/openurl?track=8f3cc583cb6b3419&url= hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9389/index/index/openurl?track=8f3cc583cb6b3419&url= redirectTarget=http://localhost:9389/step2 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://news.google.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9389/step2 Response=http://localhost:9389/step2 hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.facebook.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9389/final?lkid=82853225&subid=566&cid=final Response=http://localhost:9389/final?lkid=82853225&subid=566&cid=final hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://medium.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9391/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=e72ecb8e-54db-4b04-a4cd-49ba8e0ead87 Response=http://localhost:9391/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=e72ecb8e-54db-4b04-a4cd-49ba8e0ead87 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9391/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=e72ecb8e-54db-4b04-a4cd-49ba8e0ead87 redirectTarget=http://localhost:9391/final?onelink=3/abc&click_id=T2oFu&sub_id=4216 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.spotify.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9391/final?onelink=3/abc&click_id=T2oFu&sub_id=4216 Response=http://localhost:9391/final?onelink=3/abc&click_id=T2oFu&sub_id=4216 hop=2 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.youtube.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9393/index/index/openurl?camref=1011lkzHo&pubref=151966291x21515177451/[loyalty:151966291 Response=http://localhost:9393/index/index/openurl?camref=1011lkzHo&pubref=151966291x21515177451/[loyalty:151966291 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9393/index/index/openurl?camref=1011lkzHo&pubref=151966291x21515177451/[loyalty:151966291 redirectTarget=http://localhost:9393/step2 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.nytimes.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9393/step2 Response=http://localhost:9393/step2 hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://medium.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9393/final?lkid=82853225&subid=566&cid=final Response=http://localhost:9393/final?lkid=82853225&subid=566&cid=final hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.facebook.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9395/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=d4937f6c-26e8-4d5b-ae96-d5bc0e928516 Response=http://localhost:9395/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=d4937f6c-26e8-4d5b-ae96-d5bc0e928516 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9395/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=d4937f6c-26e8-4d5b-ae96-d5bc0e928516 redirectTarget=http://localhost:9395/step2 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.reddit.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9395/step2 Response=http://localhost:9395/step2 hop=2 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9395/step2 redirectTarget=/final?lkid=82853225&subid=566&cid=final hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.yahoo.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9395/final?lkid=82853225&subid=566&cid=final Response=http://localhost:9395/final?lkid=82853225&subid=566&cid=final hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.quora.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9397/index/index/openurl?track=43615712065c6043&url=&subid=a7206f47-6f1c-4ec1-8ada-64b104f2c232 Response=http://localhost:9397/index/index/openurl?track=43615712065c6043&url=&subid=a7206f47-6f1c-4ec1-8ada-64b104f2c232 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9397/index/index/openurl?track=43615712065c6043&url=&subid=a7206f47-6f1c-4ec1-8ada-64b104f2c232 redirectTarget=http://localhost:9397/bridge?url=http://localhost:9397/final&sid=lh_5xu07l7jk6ae hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.theguardian.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9397/bridge?url=http://localhost:9397/final&sid=lh_5xu07l7jk6ae Response=http://localhost:9397/bridge?url=http://localhost:9397/final&sid=lh_5xu07l7jk6ae hop=2 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9397/bridge?url=http://localhost:9397/final&sid=lh_5xu07l7jk6ae redirectTarget=/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.bing.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9397/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 Response=http://localhost:9397/final?affiliate_id=133734&click_id=5601845655&clickId=5601845655&utm_source=pepperjam&utm_medium=affiliate&utm_campaign=133734 hop=3 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.yahoo.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9399/index/index/openurl?track=8f3cc583cb6b3419&url= Response=http://localhost:9399/index/index/openurl?track=8f3cc583cb6b3419&url= hop=1 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.yahoo.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Matrix Affiliate Ads. Request URL=http://localhost:9399/final?c=InterContinental%7C%20Best%20Price%20Guarantee Response=http://localhost:9399/final?c=InterContinental%7C%20Best%20Price%20Guarantee hop=2 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.quora.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9401/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=3a24422d-3966-4160-a1e9-fc930807bb77 Response=http://localhost:9401/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=3a24422d-3966-4160-a1e9-fc930807bb77 hop=1 status=200
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9401/index/index/openurl?track=8f3cc583cb6b3419&url=&subid=3a24422d-3966-4160-a1e9-fc930807bb77 redirectTarget=/step2 hop=1 status=200
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.linkedin.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9401/step2 Response=http://localhost:9401/step2 hop=2 status=302
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9401/step2 redirectTarget=/final?lkid=82853225&subid=566&cid=final hop=2 status=302
+2026-11-13 14:21:46 [main] INFO  c.a.c.runner.util.AdsHttpClientTool - Using referer link: https://www.google.com/, User-Agent:Mozilla/5.0, user device:Desktop
+2026-11-13 14:21:46 [main] WARN  c.a.c.runner.util.AdsHttpClientTool - Apply Normal Affiliate Ads. Request URL=http://localhost:9401/final?lkid=82853225&subid=566&cid=final Response=http://localhost:9401/final?lkid=82853225&subid=566&cid=final hop=3 status=200
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  org.quartz.core.QuartzScheduler - Scheduler quartzScheduler_$_NON_CLUSTERED paused.
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  o.s.boot.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2026-11-13 14:21:46 [tomcat-shutdown] INFO  o.s.boot.tomcat.GracefulShutdown - Graceful shutdown complete
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  o.s.s.quartz.SchedulerFactoryBean - Shutting down Quartz Scheduler
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  org.quartz.core.QuartzScheduler - Scheduler quartzScheduler_$_NON_CLUSTERED shutting down.
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  org.quartz.core.QuartzScheduler - Scheduler quartzScheduler_$_NON_CLUSTERED paused.
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  org.quartz.core.QuartzScheduler - Scheduler quartzScheduler_$_NON_CLUSTERED shutdown complete.
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown initiated...
+2026-11-13 14:21:46 [SpringApplicationShutdownHook] INFO  com.zaxxer.hikari.HikariDataSource - HikariPool-1 - Shutdown completed.

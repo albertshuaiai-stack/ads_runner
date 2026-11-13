@@ -76,9 +76,13 @@ public final class AdsReviewRules {
         Double cpc = cost != null && m.lifetimeClicks() > 0 ? cost / m.lifetimeClicks() : null;
         Double roas = cost != null && cost > 0 ? effective / cost : null;
         Double roas7d = m.cost7dUsd() != null && m.cost7dUsd() > 0 ? effective7d / m.cost7dUsd() : null;
-        Double breakEvenCpc = m.orders() > 0 && m.lifetimeClicks() > 0
-                ? effective / m.lifetimeClicks()
-                : net != null ? net * AdsPlanEvaluator.ASSUMED_BRAND_CVR : null;
+        // 不用三元: double 与可能为 null 的 Double 混用会自动拆箱抛 NPE / no ternary: mixing double with a null Double unboxes and throws
+        Double breakEvenCpc = null;
+        if (m.orders() > 0 && m.lifetimeClicks() > 0) {
+            breakEvenCpc = effective / m.lifetimeClicks();
+        } else if (net != null) {
+            breakEvenCpc = net * AdsPlanEvaluator.ASSUMED_BRAND_CVR;
+        }
 
         metrics.put("lifetimeClicks", m.lifetimeClicks());
         metrics.put("lifetimeCostUsd", r(cost));

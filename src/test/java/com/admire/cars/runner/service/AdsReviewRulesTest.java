@@ -30,6 +30,24 @@ class AdsReviewRulesTest {
     }
 
     @Test
+    void watchesTaskWithoutPlanAndWithoutOrders() {
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(metrics(10.0, 50, 0, 0, 0, 0, 0, null, false, "MANUAL_CPC"));
+
+        assertEquals(AdsReviewRules.WATCH, decision.decision());
+        assertEquals(null, decision.metrics().get("breakEvenCpc"));
+    }
+
+    @Test
+    void noDataWithoutPlanOrdersOrCost() {
+        AdsReviewRules.TaskMetrics m = new AdsReviewRules.TaskMetrics(
+                1L, "new", "RUNNING", 0, null, false, null, 0, 0, null, Map.of(),
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null,
+                null, null, null, null, null, null, null, TODAY);
+
+        assertEquals(AdsReviewRules.NO_DATA, AdsReviewRules.decide(m).decision());
+    }
+
+    @Test
     void stopsAfterThreeTimesNetCommissionWithoutOrders() {
         AdsReviewRules.Decision decision = AdsReviewRules.decide(metrics(19.0, 368, 0, 0, 0, 0, 0, 0.525, false, "MANUAL_CPC"));
 
