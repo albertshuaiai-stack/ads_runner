@@ -167,6 +167,14 @@ public class PostBackAttributionService {
             }
         }
 
+        Map<Long, Map<String, Long>> statusByTask = new HashMap<>();
+        for (Object[] row : postBackRepository.countByTaskAndStatus(adsOwner)) {
+            if (row[0] != null) {
+                statusByTask.computeIfAbsent(((Number) row[0]).longValue(), key -> new HashMap<>())
+                        .merge(statusLabel(row[1]), toLong(row[2]), Long::sum);
+            }
+        }
+
         List<Map<String, Object>> rows = new ArrayList<>();
         long totalOrders = 0L;
         long totalIssued = 0L;
@@ -200,6 +208,7 @@ public class PostBackAttributionService {
             row.put("trackedClicks", tracked);
             row.put("reportedClicks", reportedClicks);
             row.put("orderCount", orderCount);
+            row.put("orderStatusCounts", sortByCountDesc(statusByTask.get(task.getId())));
             row.put("refundedOrderCount", refundedCount);
             row.put("matchedClickIds", matchedClickIds);
             row.put("orderAmount", amount);
@@ -251,6 +260,11 @@ public class PostBackAttributionService {
         result.put("trackedClicks", totalTracked);
         result.put("reportedClicks", totalReported);
         result.put("orderCount", totalOrders);
+        Map<String, Long> totalStatus = new HashMap<>();
+        for (Object[] row : postBackRepository.countByStatus(adsOwner)) {
+            totalStatus.merge(statusLabel(row[0]), toLong(row[1]), Long::sum);
+        }
+        result.put("orderStatusCounts", sortByCountDesc(totalStatus));
         result.put("refundedOrderCount", totalRefunded);
         result.put("unmatchedOrderCount", postBackRepository.countUnmatched(adsOwner));
         result.put("orderAmount", totalAmount);
@@ -616,6 +630,23 @@ public class PostBackAttributionService {
 
     private long toLong(Object value) {
         return value == null ? 0L : ((Number) value).longValue();
+    }
+
+    private String statusLabel(Object status) {
+        String value = status == null ? "" : status.toString().trim();
+        return value.isEmpty() ? "unknown" : value;
+    }
+
+    // 状态按订单数降序 / statuses ordered by order count desc
+    private Map<String, Long> sortByCountDesc(Map<String, Long> counts) {
+        Map<String, Long> sorted = new LinkedHashMap<>();
+        if (counts == null) {
+            return sorted;
+        }
+        counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .forEach(entry -> sorted.put(entry.getKey(), entry.getValue()));
+        return sorted;
     }
 
     // 花费折算 USD: USD 原样返回, 其他币种取最新汇率(正向或反向), 缺汇率返回 null

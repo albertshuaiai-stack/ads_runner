@@ -51,6 +51,12 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
             return;
         }
+        // 以数据库状态为准, 触发器残留时暂停任务也不能生成 / DB status is the source of truth; stale triggers must not generate
+        if (!"RUNNING".equalsIgnoreCase(adsMatrixInfo.getStatus())) {
+            log.info("MATRIX_AUTO_TASK_PAUSED_SKIP adsId={} campaign={} status={}",
+                    adsId, adsMatrixInfo.getCampainName(), adsMatrixInfo.getStatus());
+            return;
+        }
         // 先清理昨日链, 再判断今日配额 / purge stale links first, then check today's quota
         if (!matrixShiftLinkQuotaService.allowGeneration(adsId, adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getCampainName())) {
             log.info("MATRIX_AUTO_TASK_DAILY_LIMIT_SKIP adsId={} jobId={}", adsId, jobId);

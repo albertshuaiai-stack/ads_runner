@@ -56,6 +56,12 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
             log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
             return;
         }
+        // 以数据库状态为准, 触发器残留时暂停任务也不能生成 / DB status is the source of truth; stale triggers must not generate
+        if (!"RUNNING".equalsIgnoreCase(adsNormalInfo.getStatus())) {
+            log.info("NORMAL_AUTO_TASK_PAUSED_SKIP adsId={} campaign={} status={}",
+                    adsId, adsNormalInfo.getCampainName(), adsNormalInfo.getStatus());
+            return;
+        }
         // 每天基础额度 + 点击增量额度, 用完后跳过本轮生成 / skip generation once today's allowance is used up
         if (!normalShiftLinkQuotaService.allowGeneration(adsNormalInfo)) {
             log.info("NORMAL_AUTO_TASK_DAILY_LIMIT_SKIP adsId={} jobId={}", adsId, jobId);

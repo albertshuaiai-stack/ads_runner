@@ -978,6 +978,22 @@ public class AdsHttpClientTool {
                 sanitized.append("%5B");
             } else if (ch == ']') {
                 sanitized.append("%5D");
+            } else if (ch == '{') {
+                sanitized.append("%7B");
+            } else if (ch == '}') {
+                sanitized.append("%7D");
+            } else if (ch == '"') {
+                sanitized.append("%22");
+            } else if (ch == '<') {
+                sanitized.append("%3C");
+            } else if (ch == '>') {
+                sanitized.append("%3E");
+            } else if (ch == '^') {
+                sanitized.append("%5E");
+            } else if (ch == '`') {
+                sanitized.append("%60");
+            } else if (ch == '\\') {
+                sanitized.append("%5C");
             } else {
                 sanitized.append(ch);
             }

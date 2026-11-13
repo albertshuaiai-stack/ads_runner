@@ -81,6 +81,25 @@ public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPost
             """)
     List<Object[]> aggregateTotal(@Param("adsOwner") String adsOwner);
 
+    // 按任务+状态统计订单数 / order count per task and status
+    @Query("""
+            select p.normalAdsId, lower(trim(coalesce(p.status, ''))), count(p)
+            from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner)
+              and p.normalAdsId is not null
+            group by p.normalAdsId, lower(trim(coalesce(p.status, '')))
+            """)
+    List<Object[]> countByTaskAndStatus(@Param("adsOwner") String adsOwner);
+
+    // 全部订单按状态统计(含未归因) / order count per status, unmatched included
+    @Query("""
+            select lower(trim(coalesce(p.status, ''))), count(p)
+            from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner)
+            group by lower(trim(coalesce(p.status, '')))
+            """)
+    List<Object[]> countByStatus(@Param("adsOwner") String adsOwner);
+
     // 未归因订单按商家分组 / unmatched orders grouped by advertiser
     @Query("""
             select p.advertiserShopName, p.advertiserShopId, count(p),
