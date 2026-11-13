@@ -1957,7 +1957,7 @@ public class AuthIntegrationTest {
 
         org.junit.jupiter.api.Assertions.assertEquals("https://example.com/normal-shift-1?url={lpurl}", normalUrl);
 
-        // 拉取模板不消耗点击, 两次拉取都返回第一条 / fetching never consumes, both fetches return the first link
+        // 拉取模板不消耗点击, 尚未启用任何链时两次拉取都返回最新生成的链 / fetching never consumes; the newest link is returned
         for (int i = 0; i < 2; i++) {
             String matrixUrl = webTestClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/api/matrix/ads")
@@ -1969,7 +1969,7 @@ public class AuthIntegrationTest {
                     .expectBody(String.class)
                     .returnResult()
                     .getResponseBody();
-            org.junit.jupiter.api.Assertions.assertEquals("https://example.com/matrix-shift-1?url={lpurl}", matrixUrl);
+            org.junit.jupiter.api.Assertions.assertEquals("https://example.com/matrix-shift-2?url={lpurl}", matrixUrl);
         }
 
         var currentScopedLinks = shiftLinkRepository

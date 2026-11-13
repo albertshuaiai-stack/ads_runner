@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -55,15 +56,15 @@ public class AdsApiConsumeService {
         String adsOwner = user.getUserPhoneNumber();
 
         List<ShiftLink> links = rotationHelper.loadRunning(adsOwner, normalizedCampaignName, adsType);
-        int index = rotationHelper.activeIndex(links, rotationHelper.capacity(adsType));
-        if (index < 0) {
+        Optional<ShiftLink> selected = rotationHelper.selectForTemplate(links, rotationHelper.capacity(adsType));
+        if (selected.isEmpty()) {
             // 链全部用完时回退裸落地页, 不再复用最后一条链 / all links exhausted, fall back to bare landing page
             log.warn("no available shift link type={} campaign={} owner={}, fallback to bare lpurl",
                     adsType, normalizedCampaignName, adsOwner);
             return BARE_LANDING_TEMPLATE;
         }
 
-        ShiftLink selectedLink = links.get(index);
+        ShiftLink selectedLink = selected.get();
         String shiftLink = buildTrackingTemplate(selectedLink);
         shiftLinkConsumeAsyncService.recordLogOnly(selectedLink.getId());
         return shiftLink;

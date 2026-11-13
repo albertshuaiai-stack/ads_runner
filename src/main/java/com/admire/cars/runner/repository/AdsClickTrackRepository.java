@@ -27,8 +27,8 @@ public interface AdsClickTrackRepository extends JpaRepository<AdsClickTrack, Lo
             """)
     List<AdsClickTrack> findRecent(@Param("adsOwner") String adsOwner, Pageable pageable);
 
-    // 已被换链轮到过的链(CLICK_BASE 非空)对应的点击ID; 轮换从最旧的链开始, 最新生成的链通常还没轮到
-    // Click ids whose link has been reached by rotation; rotation starts from the oldest links
+    // 已被启用过的链(CLICK_BASE 非空)对应的点击ID; 换链只用最新的链, 中间被跳过的链不会启用
+    // Click ids whose link has been activated; rotation always takes the newest link, skipped ones stay unused
     @Query("""
             select c from AdsClickTrack c, ShiftLink s
             where s.id = c.shiftLinkId and s.clickBase is not null

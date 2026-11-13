@@ -17,9 +17,9 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * 接收 Google Ads 报表点击数, 与当前链的换链基准比较, 达到配置阈值就换下一条。
+ * 接收 Google Ads 报表点击数, 与当前链的换链基准比较, 达到配置阈值就换成最新未用过的链。
  * Matrix 与 Normal 都按真实点击消耗, 与脚本拉取频率无关。
- * Rotate links when lifetime clicks minus the active link's base reach the configured threshold.
+ * Rotate to the newest unused link when lifetime clicks minus the active link's base reach the configured threshold.
  */
 @Service
 public class TrackReportService {
@@ -97,57 +97,65 @@ public class TrackReportService {
                 ads.getId(), adsOwner, campaignName, cost, normalizedCurrency);
     }
 
-    // 只处理当前在用的链: clicks - clickBase 达到阈值就换下一条, 并把新基准记为当前 clicks
-    // Only the active link is evaluated; rotation depends on clicks, never on how often the script runs
+    // 在用的链 clicks - clickBase 达到阈值就换成最新未用过的链, 新链基准记为当前 clicks; 与脚本拉取频率无关
+    // When the active link reaches the threshold, switch to the newest unused link; independent of fetch frequency
     private boolean redistribute(String adsOwner, String campaignName, long clicks, String adsType) {
         List<ShiftLink> links = rotationHelper.loadRunning(adsOwner, campaignName, adsType);
         if (links.isEmpty()) {
             return false;
         }
         long capacity = rotationHelper.capacity(adsType);
-        int index = rotationHelper.activeIndex(links, capacity);
-        if (index < 0) {
-            return false;
-        }
+        Optional<ShiftLink> current = rotationHelper.current(links);
 
-        ShiftLink link = links.get(index);
-        Long base = link.getClickBase();
-        if (base == null) {
-            // 首次接入: 以当前累计点击为基准, 之前的点击不计入本条
-            link.setClickBase(clicks);
-            link.setDisplayTimes(0L);
-            shiftLinkRepository.save(link);
+        if (current.isPresent()) {
+            ShiftLink link = current.get();
+            long consumed = Math.max(clicks - link.getClickBase(), 0L);
+            long previous = link.getDisplayTimes() == null ? 0L : link.getDisplayTimes();
+            boolean alreadyUsedUp = rotationHelper.isUsedUp(link, capacity);
+            if (!alreadyUsedUp && consumed < capacity) {
+                if (previous == consumed) {
+                    return false;
+                }
+                link.setDisplayTimes(consumed);
+                shiftLinkRepository.save(link);
+                return true;
+            }
+            if (!alreadyUsedUp) {
+                // 本次刚用完, 冻结它的点击数 / used up just now, freeze its click count
+                link.setDisplayTimes(consumed);
+                shiftLinkRepository.save(link);
+            }
+            return activateNewest(links, clicks, adsType, campaignName, capacity, link, !alreadyUsedUp);
+        }
+        // 还没有启用过任何链(新 campaign 或在用链已被清理) / nothing active yet, e.g. new campaign or purged link
+        return activateNewest(links, clicks, adsType, campaignName, capacity, null, false);
+    }
+
+    // 启用最新未用过的链, 以当前累计点击为基准 / activate the newest unused link with the current lifetime clicks as base
+    private boolean activateNewest(List<ShiftLink> links, long clicks, String adsType, String campaignName,
+                                   long capacity, ShiftLink from, boolean fromJustUsedUp) {
+        Optional<ShiftLink> next = rotationHelper.newestUnused(links);
+        if (next.isEmpty()) {
+            if (fromJustUsedUp) {
+                // 没有可换的新链, 取模板会回退裸落地页, 直到生成新链 / no fresh link, templates fall back to bare lpurl
+                log.warn("shift link exhausted type={} campaign={} linkId={} no unused link, bare lpurl fallback",
+                        adsType, campaignName, from.getId());
+            }
+            return fromJustUsedUp;
+        }
+        ShiftLink link = next.get();
+        link.setClickBase(clicks);
+        link.setDisplayTimes(0L);
+        shiftLinkRepository.save(link);
+        if (from == null) {
             log.info("click base initialized type={} campaign={} linkId={} base={} capacity={}",
                     adsType, campaignName, link.getId(), clicks, capacity);
-            return true;
+        } else {
+            log.info("shift link rotated type={} campaign={} fromId={} toId={} newBase={} capacity={} unusedLeft={}",
+                    adsType, campaignName, from.getId(), link.getId(), clicks, capacity,
+                    links.stream().filter(item -> item.getClickBase() == null).count() - 1);
         }
-
-        long consumed = Math.max(clicks - base, 0L);
-        long previous = link.getDisplayTimes() == null ? 0L : link.getDisplayTimes();
-        if (consumed >= capacity) {
-            link.setDisplayTimes(consumed);
-            shiftLinkRepository.save(link);
-            if (index + 1 < links.size()) {
-                ShiftLink next = links.get(index + 1);
-                next.setClickBase(clicks);
-                next.setDisplayTimes(0L);
-                shiftLinkRepository.save(next);
-                log.info("shift link rotated type={} campaign={} fromId={} toId={} newBase={} capacity={}",
-                        adsType, campaignName, link.getId(), next.getId(), clicks, capacity);
-            } else {
-                // 最后一条也已用完, 后续取模板会回退裸落地页, 不再使用这条链
-                log.warn("shift link exhausted type={} campaign={} linkId={} no next link, bare lpurl fallback",
-                        adsType, campaignName, link.getId());
-            }
-            return true;
-        }
-
-        if (previous != consumed) {
-            link.setDisplayTimes(consumed);
-            shiftLinkRepository.save(link);
-            return true;
-        }
-        return false;
+        return true;
     }
 
     // cost: 累计花费(账户币种), currency: 账户币种代码 / lifetime cost in account currency and its code

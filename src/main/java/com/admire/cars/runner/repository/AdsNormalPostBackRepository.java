@@ -41,9 +41,17 @@ public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPost
             """)
     List<AdsNormalPostBack> findRecent(@Param("adsOwner") String adsOwner, Pageable pageable);
 
+    // 按任务聚合, 含退单数; 退单按状态关键词识别 / per-task aggregate including refunded count by status keywords
     @Query("""
             select p.normalAdsId, count(p), coalesce(sum(p.orderAmount), 0),
-                   coalesce(sum(p.userCommissionAmount), 0), count(distinct p.clickId)
+                   coalesce(sum(p.userCommissionAmount), 0), count(distinct p.clickId),
+                   sum(case when lower(coalesce(p.status, '')) like '%reject%'
+                         or lower(coalesce(p.status, '')) like '%refund%'
+                         or lower(coalesce(p.status, '')) like '%cancel%'
+                         or lower(coalesce(p.status, '')) like '%void%'
+                         or lower(coalesce(p.status, '')) like '%decline%'
+                         or lower(coalesce(p.status, '')) like '%revers%'
+                         then 1 else 0 end)
             from AdsNormalPostBack p
             where (:adsOwner is null or p.adsOwner = :adsOwner)
               and p.normalAdsId is not null
@@ -58,9 +66,16 @@ public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPost
             """)
     long countUnmatched(@Param("adsOwner") String adsOwner);
 
-    // 全局口径含未归因订单 / global totals include unmatched orders
+    // 全局口径含未归因订单, 含退单数 / global totals include unmatched orders and refunded count
     @Query("""
-            select count(p), coalesce(sum(p.orderAmount), 0), coalesce(sum(p.userCommissionAmount), 0)
+            select count(p), coalesce(sum(p.orderAmount), 0), coalesce(sum(p.userCommissionAmount), 0),
+                   sum(case when lower(coalesce(p.status, '')) like '%reject%'
+                         or lower(coalesce(p.status, '')) like '%refund%'
+                         or lower(coalesce(p.status, '')) like '%cancel%'
+                         or lower(coalesce(p.status, '')) like '%void%'
+                         or lower(coalesce(p.status, '')) like '%decline%'
+                         or lower(coalesce(p.status, '')) like '%revers%'
+                         then 1 else 0 end)
             from AdsNormalPostBack p
             where (:adsOwner is null or p.adsOwner = :adsOwner)
             """)

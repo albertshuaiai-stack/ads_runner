@@ -186,6 +186,7 @@ public class PostBackAttributionService {
             BigDecimal amount = orders == null || orders[2] == null ? BigDecimal.ZERO : new BigDecimal(orders[2].toString());
             BigDecimal commission = orders == null || orders[3] == null ? BigDecimal.ZERO : new BigDecimal(orders[3].toString());
             long matchedClickIds = orders == null ? 0L : toLong(orders[4]);
+            long refundedCount = orders == null || orders.length < 6 || orders[5] == null ? 0L : toLong(orders[5]);
             Long reportedClicks = task.getLastReportClicks();
 
             Map<String, Object> row = new LinkedHashMap<>();
@@ -199,6 +200,7 @@ public class PostBackAttributionService {
             row.put("trackedClicks", tracked);
             row.put("reportedClicks", reportedClicks);
             row.put("orderCount", orderCount);
+            row.put("refundedOrderCount", refundedCount);
             row.put("matchedClickIds", matchedClickIds);
             row.put("orderAmount", amount);
             row.put("commission", commission);
@@ -233,11 +235,13 @@ public class PostBackAttributionService {
 
         // 全局口径含未归因订单, 不能只累加各任务 / include unmatched orders in global totals
         List<Object[]> totals = postBackRepository.aggregateTotal(adsOwner);
+        long totalRefunded = 0L;
         if (!totals.isEmpty() && totals.get(0) != null) {
             Object[] total = totals.get(0);
             totalOrders = toLong(total[0]);
             totalAmount = total[1] == null ? BigDecimal.ZERO : new BigDecimal(total[1].toString());
             totalCommission = total[2] == null ? BigDecimal.ZERO : new BigDecimal(total[2].toString());
+            totalRefunded = total.length < 4 || total[3] == null ? 0L : toLong(total[3]);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -247,6 +251,7 @@ public class PostBackAttributionService {
         result.put("trackedClicks", totalTracked);
         result.put("reportedClicks", totalReported);
         result.put("orderCount", totalOrders);
+        result.put("refundedOrderCount", totalRefunded);
         result.put("unmatchedOrderCount", postBackRepository.countUnmatched(adsOwner));
         result.put("orderAmount", totalAmount);
         result.put("commission", totalCommission);
@@ -303,8 +308,8 @@ public class PostBackAttributionService {
     public Map<String, Object> clickSummary(String adsOwnerParam, Long currentUserId, int limit) {
         String adsOwner = resolveAdsOwner(adsOwnerParam, currentUserId);
         PageRequest page = PageRequest.of(0, Math.min(Math.max(limit, 1), 2000));
-        // 已轮到的链 + 最新生成的链, 去重后按 id 倒序; 只取最新的会全是排队未用的链, 点击恒为 0
-        // Reached links plus newest links; newest alone are all still queued and always show 0 clicks
+        // 已启用的链 + 最新生成的链, 去重后按 id 倒序; 最新的链里多数是被跳过、从未启用的链, 点击为 0
+        // Activated links plus newest links; most of the newest were skipped and never activated, so they show 0
         Map<Long, AdsClickTrack> merged = new LinkedHashMap<>();
         List<AdsClickTrack> reached = clickTrackRepository.findReached(adsOwner, page);
         for (AdsClickTrack track : reached) {
