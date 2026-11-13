@@ -24,6 +24,14 @@ public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPost
     Optional<AdsNormalPostBack> findByAdsOwnerAndOrderNo(@Param("adsOwner") String adsOwner,
                                                          @Param("orderNo") String orderNo);
 
+    // 已归因到任务的订单, 供复盘按任务/日期统计 / orders attributed to a task, used by the daily review
+    @Query("""
+            select p from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner)
+              and p.normalAdsId is not null
+            """)
+    List<AdsNormalPostBack> findAttributedByOwner(@Param("adsOwner") String adsOwner);
+
     // owner 为 null 表示不过滤(admin All owners) / null owner means no filter
     @Query("""
             select p from AdsNormalPostBack p

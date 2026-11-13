@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 投前方案只保留算账与推广词, 去掉条款/广告文案/落地页字段 -->
+    <!-- pre-launch plan keeps only economics and keywords; drop terms, ad copy and landing columns -->
+    <changeSet id="ads-advisor-005-simplify-plan" author="copilot">
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="PLATFORM_NAME"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="LANDING_URL"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="COOKIE_DAYS"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="ALLOW_PPC"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="ALLOW_BRAND_BID"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="ALLOW_COUPON_TERMS"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="DAILY_BUDGET"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="HEADLINES"/>
+        <dropColumn tableName="ADS_CAMPAIGN_PLAN" columnName="DESCRIPTIONS"/>
+    </changeSet>
+
+</databaseChangeLog>

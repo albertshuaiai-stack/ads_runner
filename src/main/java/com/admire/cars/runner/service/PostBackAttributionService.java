@@ -655,18 +655,30 @@ public class PostBackAttributionService {
         if (cost == null) {
             return null;
         }
-        String currency = StringUtils.hasText(task.getCostCurrency())
-                ? task.getCostCurrency().trim().toUpperCase(java.util.Locale.ROOT) : USD;
+        BigDecimal usd = toUsd(task.getCostCurrency(), cost);
+        if (usd == null) {
+            log.warn("ad cost not converted, no exchange rate adsId={} campaign={} currency={} cost={}",
+                    task.getId(), task.getCampainName(), task.getCostCurrency(), cost);
+        }
+        return usd;
+    }
+
+    // 任意币种金额折算 USD, 缺汇率返回 null; 空币种按 USD / convert any currency to USD, null when no rate
+    @Transactional(readOnly = true)
+    public BigDecimal toUsd(String currencyCode, BigDecimal amount) {
+        if (amount == null) {
+            return null;
+        }
+        String currency = StringUtils.hasText(currencyCode)
+                ? currencyCode.trim().toUpperCase(java.util.Locale.ROOT) : USD;
         if (USD.equals(currency)) {
-            return cost;
+            return amount;
         }
         BigDecimal rate = usdRateOf(currency);
         if (rate == null) {
-            log.warn("ad cost not converted, no exchange rate adsId={} campaign={} currency={} cost={}",
-                    task.getId(), task.getCampainName(), currency, cost);
             return null;
         }
-        return cost.multiply(rate).setScale(4, java.math.RoundingMode.HALF_UP);
+        return amount.multiply(rate).setScale(4, java.math.RoundingMode.HALF_UP);
     }
 
     // 1 单位 currency 折合多少 USD / how many USD one unit of currency is worth

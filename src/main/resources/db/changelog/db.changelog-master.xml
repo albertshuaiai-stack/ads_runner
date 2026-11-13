@@ -159,6 +159,12 @@
     <!-- Unique ADS_OWNER + ORDER_NO on ADS_NORMAL_POST_BACK -->
     <include file="db/changelog/db.changelog-073-post-back-owner-order-unique.xml"/>
 
+    <!-- Ads advisor: pre-launch plans, daily stats, campaign snapshot, search terms -->
+    <include file="db/changelog/db.changelog-074-ads-advisor.xml"/>
+
+    <!-- Ads advisor: plan keeps only economics and keywords -->
+    <include file="db/changelog/db.changelog-075-ads-advisor-simplify-plan.xml"/>
+
     <!-- Add ADS_NORMAL_INFO lifetime ad cost and currency from the Ads script -->
     <include file="db/changelog/db.changelog-074-normal-ad-cost.xml"/>
 
