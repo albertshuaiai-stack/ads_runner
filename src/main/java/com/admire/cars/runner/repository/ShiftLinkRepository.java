@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,27 +25,6 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
     List<ShiftLink> findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(String adsOwner, String adsName, String adsType);
 
     Optional<ShiftLink> findTopByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberDesc(String adsOwner, String adsName, String adsType);
-    @Query("""
-            select s from ShiftLink s
-            where s.adsOwner = :adsOwner
-              and s.adsName = :adsName
-              and s.adsType = :adsType
-              and upper(s.status) = upper(:status)
-              and coalesce(s.displayTimes, 0) < coalesce(s.displayNumber, 0)
-              order by (s.displayNumber - s.displayTimes) desc, s.id DESC
-            """)
-    List<ShiftLink> findEligibleForConsume(String adsOwner, String adsName, String adsType, String status);
-
-    @Query("""
-            select s from ShiftLink s
-            where s.adsOwner = :adsOwner
-              and s.adsName = :adsName
-              and s.adsType = :adsType
-              and upper(s.status) = upper(:status)
-              and coalesce(s.displayTimes, 0) = 0
-             order by s.id DESC
-            """)
-    List<ShiftLink> findEligibleForNormalConsume(String adsOwner, String adsName, String adsType, String status);
 
     @Query("""
             select s from ShiftLink s
@@ -54,19 +34,6 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
               ORDER BY s.createDate DESC LIMIT 1
             """)
     ShiftLink findLastShiftLink(String adsOwner, String adsName, String adsType);
-
-    // 按落地页找可用链接, 轮流取用量最少的一条, 只取 Tracker 类型(与旧 Normal/Matrix 脚本隔离)
-    // Pick Tracker links matching the landing page, least used first (round-robin)
-    @Query("""
-            select s from ShiftLink s
-            where upper(s.status) = upper(:status)
-              and s.adsType = 'Tracker'
-              and s.landingPageUrl is not null
-              and s.landingPageUrl <> ''
-              and (s.landingPageUrl = :url or :url like concat(s.landingPageUrl, '%'))
-            order by coalesce(s.displayTimes, 0) asc, s.id asc
-            """)
-    List<ShiftLink> findRotatingForLanding(String url, String status);
 
     List<ShiftLink> findByPlatformName(String platformName);
 
@@ -82,14 +49,39 @@ public interface ShiftLinkRepository extends JpaRepository<ShiftLink, Long>, Jpa
 
     List<ShiftLink> findByAdsOwnerAndPlatformName(String adsOwner, String platformName);
 
+    // Matrix 绝对过期清理：不看消耗进度 / absolute matrix cleanup regardless of consumption
+    @Modifying
+    @Transactional
+    @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
+    int deleteMatrixByCreateDateBefore(LocalDateTime cutoff);
+
     @Modifying
     @Transactional
     @Query("delete from ShiftLink s where s.createDate < :cutoff and upper(s.adsType) = 'NORMAL'")
     int deleteByCreateDateBeforeAndAdsTypeNormal(LocalDateTime cutoff);
 
+    // 点击达到全局阈值的 Matrix 链视为用完 / matrix links whose clicks reached the global threshold
     @Modifying
     @Transactional
-    @Query("delete from ShiftLink s where (s.displayNumber - s.displayTimes) = 0 and s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
-    int deleteByCreateDateBeforeAndAdsTypeMatrix(LocalDateTime cutoff);
+    @Query("delete from ShiftLink s where coalesce(s.displayTimes, 0) >= :capacity and s.createDate < :cutoff and upper(s.adsType) = 'MATRIX'")
+    int deleteByCreateDateBeforeAndAdsTypeMatrix(LocalDateTime cutoff, long capacity);
+
+    // Matrix 每日配额: 按 owner + campaign + type 统计当天链, 与换链池维度一致
+    // count today's links by owner, campaign and type, matching the rotation pool scope
+    @Query("select count(s) from ShiftLink s where s.adsOwner = :adsOwner and s.adsName = :adsName and upper(s.adsType) = 'MATRIX' and s.createDate >= :dayStart")
+    long countMatrixCreatedSince(@Param("adsOwner") String adsOwner, @Param("adsName") String adsName,
+                                 @Param("dayStart") LocalDateTime dayStart);
+
+    // Matrix 次日清理: 删除该 campaign 当天之前生成的链 / purge links created before today for this campaign
+    @Modifying
+    @Transactional
+    @Query("delete from ShiftLink s where s.adsOwner = :adsOwner and s.adsName = :adsName and upper(s.adsType) = 'MATRIX' and s.createDate < :dayStart")
+    int deleteMatrixCreatedBefore(@Param("adsOwner") String adsOwner, @Param("adsName") String adsName,
+                                  @Param("dayStart") LocalDateTime dayStart);
+
+    // Normal 每日配额: 统计该 campaign 当天已生成的链 / count links generated today for this campaign
+    @Query("select count(s) from ShiftLink s where s.adsOwner = :adsOwner and s.adsName = :adsName and upper(s.adsType) = 'NORMAL' and s.createDate >= :dayStart")
+    long countNormalCreatedSince(@Param("adsOwner") String adsOwner, @Param("adsName") String adsName,
+                                 @Param("dayStart") LocalDateTime dayStart);
 
 }

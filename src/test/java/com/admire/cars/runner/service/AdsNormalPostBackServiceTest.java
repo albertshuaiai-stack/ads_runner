@@ -97,6 +97,41 @@ class AdsNormalPostBackServiceTest {
     }
 
     @Test
+    void create_statusUpdateWithoutSubId_keepsStoredSubId() {
+        User user = new User();
+        user.setId(1L);
+        user.setUserPhoneNumber("13800000000");
+        user.setUserRole("user");
+
+        AdsNormalPostBack existing = new AdsNormalPostBack();
+        existing.setId(5L);
+        existing.setAdsOwner("13800000000");
+        existing.setOrderNo("order-1");
+        existing.setStatus("pending");
+        existing.setSubId("11111111-2222-3333-4444-555555555555");
+        existing.setSubId2("11111111-2222-3333-4444-555555555555");
+        existing.setClickTime("2026-11-12 10:00:00");
+
+        AdsNormalPostBack incoming = new AdsNormalPostBack();
+        incoming.setOrderNo("order-1");
+        incoming.setStatus("approved");
+
+        when(userService.getEnabledUserByApiKey("api-key")).thenReturn(user);
+        when(userRepository.findByUserPhoneNumber("13800000000")).thenReturn(Optional.of(user));
+        when(adsNormalPostBackRepository.findByAdsOwnerAndOrderNo("13800000000", "order-1"))
+                .thenReturn(Optional.of(existing));
+        when(adsNormalPostBackRepository.save(any(AdsNormalPostBack.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdsNormalPostBack updated = service.create(incoming, "api-key");
+
+        assertEquals("approved", updated.getStatus());
+        assertEquals("11111111-2222-3333-4444-555555555555", updated.getSubId());
+        assertEquals("11111111-2222-3333-4444-555555555555", updated.getSubId2());
+        assertEquals("2026-11-12 10:00:00", updated.getClickTime());
+    }
+
+    @Test
     void search_allows_admin_without_ads_owner_filter() {
         User admin = new User();
         admin.setId(1L);

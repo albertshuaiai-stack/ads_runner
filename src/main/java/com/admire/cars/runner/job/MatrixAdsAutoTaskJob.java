@@ -4,7 +4,8 @@ import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
-import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.service.MatrixShiftLinkQuotaService;
+import com.admire.cars.runner.service.ShiftLinkService;
 import com.admire.cars.runner.util.AdsHttpClientTool;
 import com.admire.cars.runner.util.AdsHttpResponseDto;
 import org.quartz.JobDataMap;
@@ -27,11 +28,16 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     private AdsMatrixInfoRepository adsMatrixInfoRepository;
 
     @Autowired
-    private ShiftLinkRepository shiftLinkRepository;
+    private ShiftLinkService shiftLinkService;
 
+    @Autowired
+    private MatrixShiftLinkQuotaService matrixShiftLinkQuotaService;
 
     @Autowired
     private AdsHttpClientTool adsHttpClientTool;
+
+    @Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
 
     @Override
     protected void executeTask(JobExecutionContext context) {
@@ -43,6 +49,17 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
         AdsMatrixInfo adsMatrixInfo = adsMatrixInfoRepository.findById(adsId).orElse(null);
         if (adsMatrixInfo == null) {
             log.warn("AUTO_JOB_SKIP_MISSING_ADS jobId={} adsId={}", jobId, adsId);
+            return;
+        }
+        // 以数据库状态为准, 触发器残留时暂停任务也不能生成 / DB status is the source of truth; stale triggers must not generate
+        if (!"RUNNING".equalsIgnoreCase(adsMatrixInfo.getStatus())) {
+            log.info("MATRIX_AUTO_TASK_PAUSED_SKIP adsId={} campaign={} status={}",
+                    adsId, adsMatrixInfo.getCampainName(), adsMatrixInfo.getStatus());
+            return;
+        }
+        // 先清理昨日链, 再判断今日配额 / purge stale links first, then check today's quota
+        if (!matrixShiftLinkQuotaService.allowGeneration(adsId, adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getCampainName())) {
+            log.info("MATRIX_AUTO_TASK_DAILY_LIMIT_SKIP adsId={} jobId={}", adsId, jobId);
             return;
         }
         List<AdsMatrixAffiliateInfo> adsMatrixAffiliateInfoList = adsMatrixInfo.getAffiliateInfos();
@@ -62,14 +79,23 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
             shiftLink.setPlatformName(adsMatrixAffiliateInfo.getPlatformName());
             shiftLink.setLandingPageUrl(adsMatrixInfo.getLandingPageUrl());
             shiftLink.setFullUrl(adsHttpResponseDto.getUrl());
-            shiftLink.setDisplayNumber(1L);
-            shiftLink.setStatus(adsMatrixInfo.getStatus());
+            shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(Constant.ADS_TYPE_MATRIX));
+            // 链接状态固定 RUNNING, 停不停投由任务控制 / link status is always RUNNING; the ads task decides pausing
+            shiftLink.setStatus("RUNNING");
             shiftLink.setAdsOwner(adsMatrixInfo.getAdsOwner());
             shiftLink.setRemarks(adsMatrixAffiliateInfo.getRemarks());
             shiftLink.setUserName(adsMatrixAffiliateInfo.getUserName());
             updateMatrixSuccessCounter(adsMatrixInfo.getId(), eventTime);
-            shiftLinkRepository.save(shiftLink);
-
+            // 走统一入口：URL 去重 + Gmail 归属兜底 + 统计 / unified entry: url dedupe, gmail fallback and stats
+            try {
+                ShiftLink saved = shiftLinkService.createShiftLink(shiftLink, null);
+                log.info("[MatrixJob] shift link archived adsId={} shiftLinkId={} gmail={} platform={} matchId={}",
+                        adsMatrixInfo.getId(), saved.getId(), saved.getUserName(), saved.getPlatformName(),
+                        adsMatrixAffiliateInfo.getMatchId());
+            } catch (IllegalArgumentException e) {
+                log.warn("[MatrixJob] shift link skipped adsId={} affiliateId={} reason={}",
+                        adsMatrixInfo.getId(), adsMatrixAffiliateInfo.getId(), e.getMessage());
+            }
         } else {
             updateMatrixFailedCounter(adsMatrixInfo.getId(), eventTime);
         }

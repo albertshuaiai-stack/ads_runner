@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 手工录入的历史投放数据 / manually entered history data -->
+    <changeSet id="shift-link-history-001-create-table" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="SHIFT_LINK_HISTORY"/>
+            </not>
+        </preConditions>
+        <createTable tableName="SHIFT_LINK_HISTORY">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ADS_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LINK_COUNT" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="BANNED" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+        <addUniqueConstraint tableName="SHIFT_LINK_HISTORY"
+                             columnNames="ADS_OWNER, USER_NAME, PLATFORM_NAME, ADS_NAME"
+                             constraintName="UK_SHIFT_LINK_HISTORY_GROUP"/>
+    </changeSet>
+
+</databaseChangeLog>

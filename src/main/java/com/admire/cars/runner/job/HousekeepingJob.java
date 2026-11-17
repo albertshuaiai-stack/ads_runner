@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @DisallowConcurrentExecution
 public class HousekeepingJob implements Job {
@@ -23,6 +24,9 @@ public class HousekeepingJob implements Job {
 
     @Autowired
     private ShiftLinkRepository shiftLinkRepository;
+
+    @Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
 
     @Autowired
     private AdsTaskLogRepository adsTaskLogRepository;
@@ -45,6 +49,9 @@ public class HousekeepingJob implements Job {
 
     @Value("${housekeeping.matrix.shift-link.retention-days:1}")
     private int matrixShiftLinkRetentionDays;
+
+    @Value("${housekeeping.matrix.shift-link.absolute-retention-days:30}")
+    private int matrixShiftLinkAbsoluteRetentionDays;
 
     @Value("${housekeeping.ads-task-log.retention-days:1}")
     private int adsTaskLogRetentionDays;
@@ -104,15 +111,22 @@ public class HousekeepingJob implements Job {
 
     private long purgeNormalShiftLinks() {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(normalShiftLinkRetentionDays);
+        // 统计在创建时已记录，直接删除不影响统计 / stats are recorded at creation, deletion is safe
         long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeNormal(cutoff);
         log.info("HOUSEKEEPING_SHIFT_LINK_NORMAL_PURGED cutoff={} deletedCount={}", cutoff, deleted);
         return deleted;
     }
 
     private long purgeMatrixShiftLinks() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(matrixShiftLinkRetentionDays);
-        long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(cutoff);
-        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_PURGED cutoff={} deletedCount={}", cutoff, deleted);
+        LocalDateTime consumedCutoff = LocalDateTime.now().minusDays(matrixShiftLinkRetentionDays);
+        long deleted = shiftLinkRepository.deleteByCreateDateBeforeAndAdsTypeMatrix(consumedCutoff,
+                shiftLinkClickConfig.capacityFor("Matrix"));
+        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_PURGED cutoff={} deletedCount={}", consumedCutoff, deleted);
+
+        // 绝对清理：30 天后无论是否消耗完都删除 / absolute purge after 30 days regardless of consumption
+        LocalDateTime absoluteCutoff = LocalDateTime.now().minusDays(matrixShiftLinkAbsoluteRetentionDays);
+        deleted += shiftLinkRepository.deleteMatrixByCreateDateBefore(absoluteCutoff);
+        log.info("HOUSEKEEPING_SHIFT_LINK_MATRIX_ABSOLUTE_PURGED cutoff={} deletedCount={}", absoluteCutoff, deleted);
         return deleted;
     }
 

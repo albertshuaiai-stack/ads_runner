@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Gmail-返利平台-前落地页链接归类规则表 / gmail-platform link classify rule table -->
+    <changeSet id="gmail-platform-link-001-create-table" author="copilot">
+        <createTable tableName="GMAIL_PLATFORM_LINK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM_NAME" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LINK_PREFIX" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMARKS" type="VARCHAR(1024)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false" foreignKeyName="FK_GMAIL_PLATFORM_LINK_ADS_OWNER" references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="gmail-platform-link-002-indexes" author="copilot">
+        <createIndex indexName="IDX_GMAIL_PLATFORM_LINK_ADS_OWNER" tableName="GMAIL_PLATFORM_LINK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_GMAIL_PLATFORM_LINK_USER_NAME" tableName="GMAIL_PLATFORM_LINK">
+            <column name="USER_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_GMAIL_PLATFORM_LINK_PLATFORM_NAME" tableName="GMAIL_PLATFORM_LINK">
+            <column name="PLATFORM_NAME"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

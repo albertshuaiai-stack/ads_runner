@@ -126,19 +126,46 @@
     <include file="db/changelog/db.changelog-055-tool-outcome-normalize-types.xml"/>
     <include file="db/changelog/db.changelog-057-shift-link-add-user-name.xml"/>
 
-    <!-- Create TRACK_CAMPAIGN table -->
-    <include file="db/changelog/db.changelog-057-track-campaign-table.xml"/>
+    <!-- Create GMAIL_PLATFORM_LINK table -->
+    <include file="db/changelog/db.changelog-062-gmail-platform-link-table.xml"/>
 
-    <!-- Create RAN_SITE_ID_POOL table -->
-    <include file="db/changelog/db.changelog-058-ran-site-id-pool-table.xml"/>
+    <!-- Rename GMAIL_PLATFORM_LINK.LINK_PREFIX to MATCH_ID -->
+    <include file="db/changelog/db.changelog-063-gmail-platform-link-match-id.xml"/>
 
-    <!-- Create TRACK_CLICK table -->
-    <include file="db/changelog/db.changelog-059-track-click-table.xml"/>
+    <!-- Create MIDDLE_LINK table -->
+    <include file="db/changelog/db.changelog-064-middle-link-table.xml"/>
 
-    <!-- Create TRACK_CONVERSION table -->
-    <include file="db/changelog/db.changelog-060-track-conversion-table.xml"/>
+    <!-- Create SHIFT_LINK_STAT table -->
+    <include file="db/changelog/db.changelog-065-shift-link-stat-table.xml"/>
 
-    <!-- Create TRACK_HEALTH_CHECK table -->
-    <include file="db/changelog/db.changelog-061-track-health-check-table.xml"/>
+    <!-- Backfill SHIFT_LINK_STAT from existing SHIFT_LINK rows -->
+    <include file="db/changelog/db.changelog-066-shift-link-stat-backfill.xml"/>
+
+    <!-- Create SHIFT_LINK_SEEN_URL table -->
+    <include file="db/changelog/db.changelog-067-shift-link-seen-url-table.xml"/>
+    <include file="db/changelog/db.changelog-068-middle-link-match-id.xml"/>
+    <include file="db/changelog/db.changelog-069-matrix-affiliate-match-id.xml"/>
+    <include file="db/changelog/db.changelog-070-shift-link-history-table.xml"/>
+
+    <!-- Add SHIFT_LINK CLICK_BASE for click driven rotation -->
+    <include file="db/changelog/db.changelog-069-shift-link-click-base.xml"/>
+
+    <!-- Add ADS_NORMAL_INFO daily click quota columns -->
+    <include file="db/changelog/db.changelog-071-normal-click-quota.xml"/>
+
+    <!-- Click id ledger and postback attribution to normal tasks -->
+    <include file="db/changelog/db.changelog-072-click-attribution.xml"/>
+
+    <!-- Unique ADS_OWNER + ORDER_NO on ADS_NORMAL_POST_BACK -->
+    <include file="db/changelog/db.changelog-073-post-back-owner-order-unique.xml"/>
+
+    <!-- Ads advisor: pre-launch plans, daily stats, campaign snapshot, search terms -->
+    <include file="db/changelog/db.changelog-074-ads-advisor.xml"/>
+
+    <!-- Ads advisor: plan keeps only economics and keywords -->
+    <include file="db/changelog/db.changelog-075-ads-advisor-simplify-plan.xml"/>
+
+    <!-- Add ADS_NORMAL_INFO lifetime ad cost and currency from the Ads script -->
+    <include file="db/changelog/db.changelog-074-normal-ad-cost.xml"/>
 
 </databaseChangeLog>

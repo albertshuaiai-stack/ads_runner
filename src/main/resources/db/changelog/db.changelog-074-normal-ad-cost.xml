@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Google Ads 上报的 campaign 累计花费及账户币种 / lifetime campaign cost and account currency reported by the Ads script -->
+    <changeSet id="074-add-normal-ad-cost-columns" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="ADS_NORMAL_INFO" columnName="LAST_REPORT_COST"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="ADS_NORMAL_INFO">
+            <column name="LAST_REPORT_COST" type="DECIMAL(18,4)"/>
+            <column name="COST_CURRENCY" type="VARCHAR(8)"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

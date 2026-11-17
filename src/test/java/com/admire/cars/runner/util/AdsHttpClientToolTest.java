@@ -289,6 +289,45 @@ class AdsHttpClientToolTest {
         }
     }
 
+    @Test
+    void applyAffiliateAd_normalFollowsOneLinkHiddenInputRedirect() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            String host = exchange.getRequestHeaders().getFirst("Host");
+            String body = "<html><body>"
+                    + "<input id=\"url\" value=\"http://" + host + "/final?onelink=3/abc&amp;click_id=T2oFu&amp;sub_id=4216\" style=\"display: none\"/>"
+                    + "<input id=\"deeplink\" value=\"sheinlink://applink/wakeup?data=x\" style=\"display: none\"/>"
+                    + "<script>var url=document.getElementById(\"url\").value,deeplink=document.getElementById(\"deeplink\").value;"
+                    + "setTimeout(function(){setTimeout(function(){window.location.href=url},100);"
+                    + "try{window.location.href=deeplink}catch(e){}},100);</script>"
+                    + "</body></html>";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.createContext("/final", exchange -> {
+            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsNormalInfo adsNormalInfo = buildNormalInfo(baseUrl);
+            mockCommonDependencies();
+
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+
+            assertEquals(StatusConstant.SUCCESS, response.getStatus());
+            assertEquals(baseUrl + "/final?onelink=3/abc&click_id=T2oFu&sub_id=4216", response.getUrl());
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private void mockCommonDependencies() {
         doReturn("Mozilla/5.0").when(userAgentService).getUserAgent();
         doReturn(new OkHttpClient()).when(ipProxyService).buildOkHttpClient(any());

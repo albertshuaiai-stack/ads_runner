@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 规则字段从样品链接改为唯一 ID / rule field renamed from sample link to unique match id -->
+    <changeSet id="gmail-platform-link-003-rename-match-id" author="copilot">
+        <renameColumn tableName="GMAIL_PLATFORM_LINK"
+                      oldColumnName="LINK_PREFIX"
+                      newColumnName="MATCH_ID"
+                      columnDataType="VARCHAR(128)"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -19,10 +19,20 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Transactional
 public class AdsNormalInfoService {
+
+    // 大小写不敏感匹配 subid= / sub_id= 两种写法, 统一成 subid={subid}; 不误伤 sub2id= / match both spellings, keep sub2id= untouched
+    private static final Pattern SUBID_PARAM_PATTERN =
+            Pattern.compile("[?&](?:subid|sub_id)=([^&]*)", Pattern.CASE_INSENSITIVE);
+
+    // sub2id 家族: sub2id / sub_id2 / subid2 / the sub2id family of param spellings
+    private static final Pattern SUB2ID_PARAM_PATTERN =
+            Pattern.compile("[?&](?:sub2id|sub_id2|subid2)=([^&]*)", Pattern.CASE_INSENSITIVE);
 
     private final AdsNormalInfoRepository adsNormalInfoRepository;
     private final UserRepository userRepository;
@@ -183,6 +193,77 @@ public class AdsNormalInfoService {
         if (adsNormalInfo.getStatus().length() > 16) {
             throw new IllegalArgumentException("status must be at most 16 characters");
         }
+        adsNormalInfo.setAffiliteUrl(ensureSubIdPlaceholder(adsNormalInfo.getAffiliteUrl()));
+    }
+
+    // 联盟链接必须带 subid={subid}: 已有 subid= 的把值换成占位符并去重, 完全没有的追加; 避免 subid= 与 subid={subid} 并存
+    // The affiliate URL must carry subid={subid}: rewrite an existing subid= value into the placeholder, drop duplicates, append when missing
+    static String ensureSubIdPlaceholder(String url) {
+        if (!StringUtils.hasText(url)) {
+            return url;
+        }
+        Matcher matcher = SUBID_PARAM_PATTERN.matcher(url);
+        List<int[]> spans = new ArrayList<>();
+        String firstValue = null;
+        while (matcher.find()) {
+            spans.add(new int[]{matcher.start(), matcher.end(), matcher.start(1), matcher.end(1)});
+            if (firstValue == null) {
+                firstValue = url.substring(matcher.start(1), matcher.end(1));
+            }
+        }
+        String normalized;
+        if (spans.isEmpty()) {
+            String appended = url + (url.contains("?") ? "&" : "?") + "subid={subid}";
+            normalized = appended.length() <= 128 ? appended : url;
+        } else {
+            StringBuilder rebuilt = new StringBuilder(url);
+            // 从后往前删多余的 subid= 参数, 再把第一处统一成小写 subid={subid} / drop duplicates, then normalize the first to lowercase subid={subid}
+            for (int i = spans.size() - 1; i >= 1; i--) {
+                rebuilt.delete(spans.get(i)[0], spans.get(i)[1]);
+            }
+            String normalizedToken = url.charAt(spans.get(0)[0]) + "subid={subid}";
+            rebuilt.replace(spans.get(0)[0], spans.get(0)[1], normalizedToken);
+            String result = rebuilt.toString();
+            normalized = result.length() <= 128 ? result : url;
+        }
+        return ensureSub2IdPlaceholder(normalized);
+    }
+
+    // sub2id 冗余位: 空/占位符的统一成 sub2id={subid}(运行时填同一个 clickId), 没有 sub2id 的补上;
+    // 有业务值(如 {adid} 任务标记)的不动
+    // Mirror slot: normalize empty/placeholder sub2id into sub2id={subid} and append when absent; real values stay
+    static String ensureSub2IdPlaceholder(String url) {
+        if (!StringUtils.hasText(url)) {
+            return url;
+        }
+        Matcher matcher = SUB2ID_PARAM_PATTERN.matcher(url);
+        List<int[]> spans = new ArrayList<>();
+        String firstValue = null;
+        while (matcher.find()) {
+            spans.add(new int[]{matcher.start(), matcher.end(), matcher.start(1), matcher.end(1)});
+            if (firstValue == null) {
+                firstValue = url.substring(matcher.start(1), matcher.end(1));
+            }
+        }
+        if (spans.isEmpty()) {
+            String appended = url + (url.contains("?") ? "&" : "?") + "sub2id={subid}";
+            return appended.length() <= 128 ? appended : url;
+        }
+        StringBuilder rebuilt = new StringBuilder(url);
+        // 从后往前删多余的 sub2id= 参数 / drop duplicates from the tail
+        for (int i = spans.size() - 1; i >= 1; i--) {
+            rebuilt.delete(spans.get(i)[0], spans.get(i)[1]);
+        }
+        String value = firstValue == null ? "" : firstValue.trim();
+        boolean blank = value.isEmpty()
+                || "{subid}".equalsIgnoreCase(value)
+                || "{subid2}".equalsIgnoreCase(value);
+        if (blank) {
+            String normalizedToken = url.charAt(spans.get(0)[0]) + "sub2id={subid}";
+            rebuilt.replace(spans.get(0)[0], spans.get(0)[1], normalizedToken);
+        }
+        String normalized = rebuilt.toString();
+        return normalized.length() <= 128 ? normalized : url;
     }
 
     private String normalizeStatus(String status) {

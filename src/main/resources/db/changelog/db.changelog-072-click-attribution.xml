@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Click id ledger: links a generated {subid} UUID to the listed normal task -->
+    <changeSet id="click-attribution-001-create-click-track-table" author="copilot">
+        <createTable tableName="ADS_CLICK_TRACK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="CLICK_ID" type="VARCHAR(64)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="UK_ADS_CLICK_TRACK_CLICK_ID"/>
+            </column>
+            <column name="NORMAL_ADS_ID" type="BIGINT"/>
+            <column name="SHIFT_LINK_ID" type="BIGINT"/>
+            <column name="CAMPAIN_NAME" type="VARCHAR(64)"/>
+            <column name="PLATFORM_NAME" type="VARCHAR(64)"/>
+            <column name="ADS_OWNER" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="AFFILIATE_URL" type="VARCHAR(1024)"/>
+            <column name="FULL_URL" type="VARCHAR(1024)"/>
+            <column name="LANDING_PAGE_URL" type="VARCHAR(1024)"/>
+            <column name="CLICK_COUNT" type="BIGINT" defaultValueNumeric="0"/>
+            <column name="LAST_CLICK_TIME" type="TIMESTAMP"/>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="click-attribution-002-click-track-indexes" author="copilot">
+        <createIndex indexName="IDX_ADS_CLICK_TRACK_NORMAL_ADS_ID" tableName="ADS_CLICK_TRACK">
+            <column name="NORMAL_ADS_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_CLICK_TRACK_ADS_OWNER" tableName="ADS_CLICK_TRACK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_CLICK_TRACK_SHIFT_LINK_ID" tableName="ADS_CLICK_TRACK">
+            <column name="SHIFT_LINK_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_CLICK_TRACK_CREATE_DATE" tableName="ADS_CLICK_TRACK">
+            <column name="CREATE_DATE"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Attribution result columns on existing postback records -->
+    <changeSet id="click-attribution-003-add-postback-attribution-columns" author="copilot">
+        <addColumn tableName="ADS_NORMAL_POST_BACK">
+            <column name="CLICK_ID" type="VARCHAR(64)"/>
+            <column name="NORMAL_ADS_ID" type="BIGINT"/>
+            <column name="SHIFT_LINK_ID" type="BIGINT"/>
+            <column name="MATCH_STATUS" type="VARCHAR(16)"/>
+            <column name="MATCH_RULE" type="VARCHAR(32)"/>
+            <column name="ATTRIBUTED_AT" type="TIMESTAMP"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="click-attribution-004-postback-attribution-indexes" author="copilot">
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_CLICK_ID" tableName="ADS_NORMAL_POST_BACK">
+            <column name="CLICK_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_NORMAL_ADS_ID" tableName="ADS_NORMAL_POST_BACK">
+            <column name="NORMAL_ADS_ID"/>
+        </createIndex>
+        <createIndex indexName="IDX_ADS_NORMAL_POST_BACK_MATCH_STATUS" tableName="ADS_NORMAL_POST_BACK">
+            <column name="MATCH_STATUS"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

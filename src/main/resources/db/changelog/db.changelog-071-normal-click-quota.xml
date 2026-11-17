@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Normal 每日额度状态: 当天日期、上次上报的累计点击、当天累计额度 -->
+    <!-- Normal daily quota state: quota date, last reported lifetime clicks, earned allowance -->
+    <changeSet id="071-add-normal-click-quota-columns" author="copilot">
+        <addColumn tableName="ADS_NORMAL_INFO">
+            <column name="QUOTA_DATE" type="VARCHAR(10)"/>
+            <column name="LAST_REPORT_CLICKS" type="BIGINT"/>
+            <column name="DAILY_ALLOWANCE" type="BIGINT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

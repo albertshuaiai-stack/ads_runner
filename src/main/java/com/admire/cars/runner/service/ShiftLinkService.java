@@ -5,13 +5,18 @@ import com.admire.cars.runner.entity.AdsPlatform;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.User;
+import com.admire.cars.runner.entity.GmailPlatformLink;
 import com.admire.cars.runner.repository.ShiftLinkRepository;
+import com.admire.cars.runner.repository.ShiftLinkStatRepository;
+import com.admire.cars.runner.repository.ShiftLinkSeenUrlRepository;
 import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsMatrixInfoRepository;
 import com.admire.cars.runner.repository.ToolEmailRepository;
+import com.admire.cars.runner.repository.GmailPlatformLinkRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.Lists;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -40,36 +45,94 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional
 public class ShiftLinkService {
 
     private final ShiftLinkRepository shiftLinkRepository;
+    private final ShiftLinkStatRepository shiftLinkStatRepository;
+    private final ShiftLinkSeenUrlRepository shiftLinkSeenUrlRepository;
     private final UserRepository userRepository;
     private final AdsPlatformRepository adsPlatformRepository;
     private final AdsNormalInfoRepository adsNormalInfoRepository;
     private final AdsMatrixInfoRepository adsMatrixInfoRepository;
     private final ToolEmailRepository toolEmailRepository;
+    private final GmailPlatformLinkRepository gmailPlatformLinkRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.admire.cars.runner.config.ShiftLinkClickConfig shiftLinkClickConfig;
 
     public ShiftLinkService(
             ShiftLinkRepository shiftLinkRepository,
+            ShiftLinkStatRepository shiftLinkStatRepository,
+            ShiftLinkSeenUrlRepository shiftLinkSeenUrlRepository,
             UserRepository userRepository,
             AdsPlatformRepository adsPlatformRepository,
             AdsNormalInfoRepository adsNormalInfoRepository,
             AdsMatrixInfoRepository adsMatrixInfoRepository,
-            ToolEmailRepository toolEmailRepository) {
+            ToolEmailRepository toolEmailRepository,
+            GmailPlatformLinkRepository gmailPlatformLinkRepository) {
         this.shiftLinkRepository = shiftLinkRepository;
+        this.shiftLinkStatRepository = shiftLinkStatRepository;
+        this.shiftLinkSeenUrlRepository = shiftLinkSeenUrlRepository;
         this.userRepository = userRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
         this.adsMatrixInfoRepository = adsMatrixInfoRepository;
         this.toolEmailRepository = toolEmailRepository;
+        this.gmailPlatformLinkRepository = gmailPlatformLinkRepository;
     }
 
     public ShiftLink createShiftLink(ShiftLink shiftLink, Long currentUserId) {
         prepareForSave(shiftLink, currentUserId);
         ensureFullUrlNotDuplicated(shiftLink.getAdsOwner(), shiftLink.getFullUrl(), null);
-        return shiftLinkRepository.save(shiftLink);
+        ShiftLink saved = shiftLinkRepository.save(shiftLink);
+        // 创建时即记录统计，之后删除 Shift Link 不影响统计 / record stats at creation so later deletion never shrinks stats
+        recordShiftLinkStat(saved);
+        return saved;
+    }
+
+    // 按 owner+gmail+平台+商家 累计计数，重复 URL 不统计
+    // increment stats grouped by owner, gmail, platform and merchant; duplicate urls are not counted
+    private void recordShiftLinkStat(ShiftLink link) {
+        try {
+            if (!markUrlSeen(link.getAdsOwner(), link.getFullUrl())) {
+                return;
+            }
+            String sampleUrl = link.getFullUrl() != null && link.getFullUrl().length() > 1024
+                    ? link.getFullUrl().substring(0, 1024) : link.getFullUrl();
+            shiftLinkStatRepository.upsertIncrement(
+                    link.getAdsOwner(), nullToEmpty(link.getUserName()),
+                    nullToEmpty(link.getPlatformName()), nullToEmpty(link.getAdsName()), 1L, sampleUrl);
+        } catch (Exception e) {
+            // 统计失败不影响主流程 / stat failure must not break the main flow
+            log.warn("ShiftLink stat record failed id={} error={}", link.getId(), e.getMessage());
+        }
+    }
+
+    // 新 URL 返回 true，重复 URL 返回 false / true for a new url, false for a duplicate
+    private boolean markUrlSeen(String adsOwner, String fullUrl) {
+        return shiftLinkSeenUrlRepository.insertIgnore(adsOwner, urlHash(fullUrl)) > 0;
+    }
+
+    private static String urlHash(String url) {
+        String value = url == null ? "" : url.trim();
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return Integer.toHexString(value.hashCode());
+        }
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     // URL 去重：同一 owner 下 fullUrl 不允许重复 / URL de-duplication within the same owner
@@ -238,12 +301,15 @@ public class ShiftLinkService {
         User owner = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));
 
+        // 本次导入共用的归类规则 / classify rules loaded once for this import
+        List<GmailPlatformLink> classifyRules = gmailPlatformLinkRepository.findByAdsOwner(owner.getUserPhoneNumber());
+
         Map<String,List<ExcelRowData>> rowsByAdsType = rows.stream().collect(Collectors.groupingBy(ExcelRowData :: adsType, Collectors.toList()));
         AtomicInteger insertedCount = new AtomicInteger(0);
         // URL 去重：记录本次导入已使用的 fullUrl / track fullUrl used in this import for de-duplication
         java.util.Set<String> seenUrls = new java.util.HashSet<>();
         rowsByAdsType.keySet().forEach(adsType -> {
-            if (!"Normal".equals(adsType) && !"Matrix".equals(adsType) && !"Tracker".equals(adsType)) {
+            if (!"Normal".equals(adsType) && !"Matrix".equals(adsType)) {
                 throw new IllegalArgumentException("Invalid adsType in Excel: " + adsType);
             }
             List<ExcelRowData> rowsByAdsTypeList = rowsByAdsType.get(adsType);
@@ -274,16 +340,45 @@ public class ShiftLinkService {
                             shiftLink.setPlatformName(row.platformName());
                             shiftLink.setFullUrl(row.fullUrl());
                             shiftLink.setLandingPageUrl(row.landingPageUrl());
-                            shiftLink.setDisplayNumber(row.displayNumber() != null ? row.displayNumber() : 5L);
+                            shiftLink.setDisplayNumber(row.displayNumber() != null
+                                    ? row.displayNumber() : shiftLinkClickConfig.capacityFor(row.adsType()));
                             shiftLink.setRemarks(row.remarks());
                             shiftLink.setAdsOwner(owner.getUserPhoneNumber());
-                            shiftLink.setUserName(owner.getUserName());
+                            // 按链接前缀归类到 Gmail，未命中则用登录账号名 / classify gmail by link prefix, fallback to owner name
+                            var matchedRule = GmailPlatformLinkService.matchRule(classifyRules, row.fullUrl());
+                            shiftLink.setUserName(matchedRule != null ? matchedRule.getUserName() : owner.getUserName());
                             shiftLink.setSeqNumber(sequenceNum.get() + 1);
                             sequenceNum.getAndSet(sequenceNum.get() + 1);
                             shiftLinkList.add(shiftLink);
                         });
                         shiftLinkRepository.saveAll(shiftLinkList);
                         insertedCount.addAndGet(shiftLinkList.size());
+                        // 批量记录统计，重复 URL 不统计 / batch stats, duplicate urls are not counted
+                        Map<String, Long> statCounts = new java.util.HashMap<>();
+                        for (ShiftLink saved : shiftLinkList) {
+                            try {
+                                if (!markUrlSeen(saved.getAdsOwner(), saved.getFullUrl())) {
+                                    continue;
+                                }
+                                String statKey = nullToEmpty(saved.getUserName()) + "|"
+                                        + nullToEmpty(saved.getPlatformName()) + "|" + nullToEmpty(saved.getAdsName());
+                                statCounts.merge(statKey, 1L, Long::sum);
+                            } catch (Exception e) {
+                                log.warn("ShiftLink bulk seen-url record failed error={}", e.getMessage());
+                            }
+                        }
+                        for (Map.Entry<String, Long> statEntry : statCounts.entrySet()) {
+                            String[] parts = statEntry.getKey().split("\\|", -1);
+                            ShiftLink sample = shiftLinkList.get(0);
+                            try {
+                                shiftLinkStatRepository.upsertIncrement(owner.getUserPhoneNumber(),
+                                        parts[0], parts[1], parts[2], statEntry.getValue(),
+                                        sample.getFullUrl() != null && sample.getFullUrl().length() > 1024
+                                                ? sample.getFullUrl().substring(0, 1024) : sample.getFullUrl());
+                            } catch (Exception e) {
+                                log.warn("ShiftLink bulk stat record failed error={}", e.getMessage());
+                            }
+                        }
             });
         });
         return new BulkUploadResult(rows.size(), insertedCount.get());
@@ -443,7 +538,7 @@ public class ShiftLinkService {
             return false;
         }
         String normalized = value.trim().toUpperCase(Locale.ROOT);
-        return "NORMAL".equals(normalized) || "MATRIX".equals(normalized) || "TRACKER".equals(normalized);
+        return "NORMAL".equals(normalized) || "MATRIX".equals(normalized);
     }
 
     private String normalizeAdsType(String value) {
@@ -453,9 +548,6 @@ public class ShiftLinkService {
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         if ("NORMAL".equals(normalized)) {
             return "Normal";
-        }
-        if ("TRACKER".equals(normalized)) {
-            return "Tracker";
         }
         if ("MATRIX".equals(normalized)) {
             return "Matrix";
@@ -522,9 +614,16 @@ public class ShiftLinkService {
                     .orElseThrow(() -> new IllegalArgumentException("TOOL_EMAIL not found by userName: " + normalizedUserName));
             shiftLink.setUserName(normalizedUserName);
         } else {
-            User owner = userRepository.findByUserPhoneNumber(shiftLink.getAdsOwner())
-                    .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + shiftLink.getAdsOwner()));
-            shiftLink.setUserName(owner.getUserName());
+            // 未指定 Gmail 时按链接前缀自动归类 / auto-classify gmail by link prefix when not specified
+            var matchedRule = GmailPlatformLinkService.matchRule(
+                    gmailPlatformLinkRepository.findByAdsOwner(shiftLink.getAdsOwner()), shiftLink.getFullUrl());
+            if (matchedRule != null) {
+                shiftLink.setUserName(matchedRule.getUserName());
+            } else {
+                User owner = userRepository.findByUserPhoneNumber(shiftLink.getAdsOwner())
+                        .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + shiftLink.getAdsOwner()));
+                shiftLink.setUserName(owner.getUserName());
+            }
         }
 
         // Normalize adsType
@@ -532,15 +631,13 @@ public class ShiftLinkService {
             String normalized = shiftLink.getAdsType().trim().toUpperCase();
             if ("NORMAL".equals(normalized)) {
                 shiftLink.setAdsType("Normal");
-            } else if ("TRACKER".equals(normalized)) {
-                shiftLink.setAdsType("Tracker");
             } else if ("MATRIX".equals(normalized)) {
                 shiftLink.setAdsType("Matrix");
             }
         }
 
         if (shiftLink.getDisplayNumber() == null) {
-            shiftLink.setDisplayNumber(5L);
+            shiftLink.setDisplayNumber(shiftLinkClickConfig.capacityFor(shiftLink.getAdsType()));
         }
         shiftLink.setDisplayTimes(0L);
 
@@ -620,8 +717,8 @@ public class ShiftLinkService {
         }
 
         String normalizedAdsType = shiftLink.getAdsType().trim().toUpperCase();
-        if (!"NORMAL".equals(normalizedAdsType) && !"MATRIX".equals(normalizedAdsType) && !"TRACKER".equals(normalizedAdsType)) {
-            throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
+        if (!"NORMAL".equals(normalizedAdsType) && !"MATRIX".equals(normalizedAdsType)) {
+            throw new IllegalArgumentException("adsType must be Normal or Matrix");
         }
 
         if (shiftLink.getAdsName().length() > 32) {
@@ -688,11 +785,7 @@ public class ShiftLinkService {
                     .map(AdsMatrixInfo::getId)
                     .orElse(0L);
         }
-        // Tracker 类型没有对应的 campaign 配置表 / no ads info table for Tracker type
-        if ("TRACKER".equals(normalizedAdsType)) {
-            return 0L;
-        }
-        throw new IllegalArgumentException("adsType must be Normal, Matrix or Tracker");
+        throw new IllegalArgumentException("adsType must be Normal or Matrix");
     }
 
     private void validatePlatform(ShiftLink shiftLink) {

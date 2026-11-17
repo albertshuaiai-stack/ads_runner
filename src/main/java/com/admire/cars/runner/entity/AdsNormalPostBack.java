@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ADS_NORMAL_POST_BACK")
@@ -64,4 +65,23 @@ public class AdsNormalPostBack {
 
     @Column(name = "click_time", length = 32)
     private String clickTime;
+
+    // 归因结果: 点击ID -> ShiftLink -> 后台上架的 normaltask / attribution result
+    @Column(name = "CLICK_ID", length = 64)
+    private String clickId;
+
+    @Column(name = "NORMAL_ADS_ID")
+    private Long normalAdsId;
+
+    @Column(name = "SHIFT_LINK_ID")
+    private Long shiftLinkId;
+
+    @Column(name = "MATCH_STATUS", length = 16)
+    private String matchStatus;
+
+    @Column(name = "MATCH_RULE", length = 32)
+    private String matchRule;
+
+    @Column(name = "ATTRIBUTED_AT")
+    private LocalDateTime attributedAt;
 }

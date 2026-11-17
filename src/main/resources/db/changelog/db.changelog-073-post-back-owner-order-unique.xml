@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 同一账号订单号唯一, 防止并发回调插出重复行导致后续回调一直失败 -->
+    <!-- one row per owner + order no, so concurrent callbacks cannot create duplicates -->
+    <!-- 存在重复数据时跳过且下次启动重试, 不阻塞应用启动 / skip (retry next start) instead of failing startup if duplicates exist -->
+    <changeSet id="post-back-073-owner-order-unique" author="copilot">
+        <preConditions onFail="CONTINUE" onFailMessage="ADS_NORMAL_POST_BACK has duplicate ADS_OWNER+ORDER_NO rows, unique constraint skipped">
+            <sqlCheck expectedResult="0">
+                select count(*) from (
+                    select ADS_OWNER, ORDER_NO from ADS_NORMAL_POST_BACK
+                    where ORDER_NO is not null
+                    group by ADS_OWNER, ORDER_NO
+                    having count(*) &gt; 1
+                ) dup
+            </sqlCheck>
+        </preConditions>
+        <addUniqueConstraint tableName="ADS_NORMAL_POST_BACK"
+                             columnNames="ADS_OWNER, ORDER_NO"
+                             constraintName="UK_ADS_NORMAL_POST_BACK_OWNER_ORDER"/>
+    </changeSet>
+
+</databaseChangeLog>

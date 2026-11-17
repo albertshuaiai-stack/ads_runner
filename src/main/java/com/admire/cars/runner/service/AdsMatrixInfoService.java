@@ -12,11 +12,14 @@ import com.admire.cars.runner.repository.AdsPlatformRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import com.admire.cars.runner.repository.ToolEmailRepository;
 import com.admire.cars.runner.repository.AdsRunningAuditRepository;
+import com.admire.cars.runner.repository.GmailPlatformLinkRepository;
 import com.admire.cars.runner.entity.AdsRunningAudit;
+import com.admire.cars.runner.entity.GmailPlatformLink;
 import java.time.LocalDate;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional
 public class AdsMatrixInfoService {
@@ -39,6 +43,7 @@ public class AdsMatrixInfoService {
     private final ApplicationEventPublisher eventPublisher;
     private final ToolEmailRepository toolEmailRepository;
     private final AdsRunningAuditRepository adsRunningAuditRepository;
+    private final GmailPlatformLinkRepository gmailPlatformLinkRepository;
 
     public AdsMatrixInfoService(
             AdsMatrixInfoRepository adsMatrixInfoRepository,
@@ -46,17 +51,20 @@ public class AdsMatrixInfoService {
             UserRepository userRepository,
             ApplicationEventPublisher eventPublisher,
             ToolEmailRepository toolEmailRepository,
-            AdsRunningAuditRepository adsRunningAuditRepository) {
+            AdsRunningAuditRepository adsRunningAuditRepository,
+            GmailPlatformLinkRepository gmailPlatformLinkRepository) {
         this.adsMatrixInfoRepository = adsMatrixInfoRepository;
         this.adsPlatformRepository = adsPlatformRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
         this.toolEmailRepository = toolEmailRepository;
         this.adsRunningAuditRepository = adsRunningAuditRepository;
+        this.gmailPlatformLinkRepository = gmailPlatformLinkRepository;
     }
 
     public AdsMatrixInfo create(AdsMatrixInfo adsMatrixInfo, Long currentUserId) {
         adsMatrixInfo.setAdsOwner(resolveAdsOwner(currentUserId));
+        classifyAffiliates(adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getAffiliateInfos());
         validateAndNormalize(adsMatrixInfo);
         adsMatrixInfo.setCreateDate(LocalDateTime.now());
         attachChildren(adsMatrixInfo);
@@ -135,13 +143,13 @@ public class AdsMatrixInfoService {
         }
         existing.setAdsOwner(resolveAdsOwner(currentUserId));
 
-        validateAndNormalize(existing);
-        existing.setUpdateDate(LocalDateTime.now());
+        // 先替换子行再统一归属与校验，新行也会被 trim 与校验 / replace rows first so new rows are classified and validated too
         if (updateData.getAffiliateInfos() != null) {
-            validateAffiliateList(updateData.getAffiliateInfos());
-            existing.getAffiliateInfos().clear();
+            classifyAffiliates(existing.getAdsOwner(), updateData.getAffiliateInfos());
             attachChildren(existing, updateData.getAffiliateInfos());
         }
+        validateAndNormalize(existing);
+        existing.setUpdateDate(LocalDateTime.now());
         AdsMatrixInfo saved = adsMatrixInfoRepository.save(existing);
         publishAutoTaskRegistration(saved);
         return saved;
@@ -197,9 +205,12 @@ public class AdsMatrixInfoService {
         validateAffiliateList(adsMatrixInfo.getAffiliateInfos());
         if (adsMatrixInfo.getAffiliateInfos() != null) {
             for (AdsMatrixAffiliateInfo affiliateInfo : adsMatrixInfo.getAffiliateInfos()) {
-                adsPlatformRepository.findByPlatformNameIgnoreCase(affiliateInfo.getPlatformName().trim())
+                AdsPlatform platform = adsPlatformRepository.findByPlatformNameIgnoreCase(affiliateInfo.getPlatformName().trim())
                         .orElseThrow(() -> new IllegalArgumentException("ADS_PLATFORM not found: " + affiliateInfo.getPlatformName()));
-                affiliateInfo.setPlatformName(affiliateInfo.getPlatformName().trim());
+                affiliateInfo.setPlatformName(platform.getPlatformName());
+                if (affiliateInfo.getMatchId() != null && affiliateInfo.getMatchId().length() > 128) {
+                    throw new IllegalArgumentException("affiliate matchId must be at most 128 characters");
+                }
                 affiliateInfo.setAffiliteUrl(affiliateInfo.getAffiliteUrl() == null ? null : affiliateInfo.getAffiliteUrl().trim());
                 affiliateInfo.setRemarks(affiliateInfo.getRemarks() == null ? null : affiliateInfo.getRemarks().trim());
             // set and validate userName sourced from TOOL_EMAL when present
@@ -271,8 +282,90 @@ public class AdsMatrixInfoService {
             throw new IllegalArgumentException("affiliateInfos cannot contain null entries");
         }
         if (!StringUtils.hasText(affiliateInfo.getPlatformName())) {
-            throw new IllegalArgumentException("affiliate platformName is required");
+            throw new IllegalArgumentException(
+                    "affiliate platformName is required: select a platform or fill a Match ID configured in Gmail Link Rule");
         }
+    }
+
+    // 按 Gmail Link Rule 自动归属：手动 Match ID 优先，否则从中间链接识别；只填补空的 Gmail / 平台
+    // classify by gmail link rule: manual match id first, otherwise detect from the middle link; only fills blank gmail / platform
+    private void classifyAffiliates(String adsOwner, List<AdsMatrixAffiliateInfo> affiliates) {
+        if (affiliates == null || affiliates.isEmpty()) {
+            return;
+        }
+        List<GmailPlatformLink> rules = gmailPlatformLinkRepository.findByAdsOwner(adsOwner);
+        int index = 0;
+        for (AdsMatrixAffiliateInfo affiliate : affiliates) {
+            index++;
+            if (affiliate == null) {
+                continue;
+            }
+            affiliate.setAffiliteUrl(trimToNull(affiliate.getAffiliteUrl()));
+            affiliate.setUserName(trimToNull(affiliate.getUserName()));
+            affiliate.setPlatformName(trimToNull(affiliate.getPlatformName()));
+            String manualMatchId = trimToNull(affiliate.getMatchId());
+
+            GmailPlatformLink rule;
+            if (manualMatchId != null) {
+                rule = findRuleByMatchId(rules, manualMatchId);
+                if (rule == null) {
+                    log.warn("[MatrixClassify] manual match id not found owner={} row={} matchId={} platform={}",
+                            adsOwner, index, manualMatchId, affiliate.getPlatformName());
+                    // 已选平台时保留原值，避免规则删除后无法暂停任务 / keep existing values so a deleted rule never blocks status toggles
+                    if (affiliate.getPlatformName() == null) {
+                        throw new IllegalArgumentException("Affiliate row " + index
+                                + ": no Gmail Link Rule found for match id " + manualMatchId);
+                    }
+                    affiliate.setMatchId(manualMatchId);
+                    continue;
+                }
+            } else {
+                rule = GmailPlatformLinkService.matchRule(rules, affiliate.getAffiliteUrl());
+            }
+
+            if (rule == null) {
+                affiliate.setMatchId(null);
+                log.info("[MatrixClassify] no rule matched owner={} row={} gmail={} platform={}",
+                        adsOwner, index, affiliate.getUserName(), affiliate.getPlatformName());
+                continue;
+            }
+            affiliate.setMatchId(rule.getMatchId());
+            if (affiliate.getUserName() == null) {
+                affiliate.setUserName(rule.getUserName());
+            } else if (!affiliate.getUserName().equalsIgnoreCase(rule.getUserName())) {
+                log.warn("[MatrixClassify] gmail kept as selected owner={} row={} selected={} rule={}",
+                        adsOwner, index, affiliate.getUserName(), rule.getUserName());
+            }
+            if (affiliate.getPlatformName() == null) {
+                affiliate.setPlatformName(rule.getPlatformName());
+            } else if (!affiliate.getPlatformName().equalsIgnoreCase(rule.getPlatformName())) {
+                log.warn("[MatrixClassify] platform kept as selected owner={} row={} selected={} rule={}",
+                        adsOwner, index, affiliate.getPlatformName(), rule.getPlatformName());
+            }
+            log.info("[MatrixClassify] rule matched owner={} row={} matchId={} manual={} gmail={} platform={}",
+                    adsOwner, index, rule.getMatchId(), manualMatchId != null,
+                    affiliate.getUserName(), affiliate.getPlatformName());
+        }
+    }
+
+    private static GmailPlatformLink findRuleByMatchId(List<GmailPlatformLink> rules, String matchId) {
+        if (rules == null || !StringUtils.hasText(matchId)) {
+            return null;
+        }
+        String normalized = matchId.trim();
+        return rules.stream()
+                .filter(rule -> StringUtils.hasText(rule.getMatchId())
+                        && rule.getMatchId().trim().equalsIgnoreCase(normalized))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void publishAutoTaskRegistration(AdsMatrixInfo saved) {

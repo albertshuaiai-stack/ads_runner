@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +63,12 @@ public class AdsHttpClientTool {
     private static final Pattern META_REFRESH_PATTERN = Pattern.compile(
             "(?is)<meta[^>]+http-equiv\\s*=\\s*['\"]?refresh['\"]?[^>]+content\\s*=\\s*['\"][^'\"]*url\\s*=\\s*([^'\"\\s>]+)");
     private static final Pattern REFRESH_HEADER_PATTERN = Pattern.compile("(?i)\\burl\\s*=\\s*(.+)$");
+    // location.href=变量, 变量取自 document.getElementById("x").value (如 AppsFlyer OneLink 页)
+    // location.href=<variable> where the variable is read from a hidden element, e.g. AppsFlyer OneLink pages
+    private static final Pattern JS_VARIABLE_REDIRECT_PATTERN = Pattern.compile(
+            "(?is)(?:window|document|top|self)\\s*\\.\\s*location(?:\\.href)?\\s*=\\s*([A-Za-z_$][\\w$]*)\\s*(?=[;},)\\s])");
+    private static final Pattern INPUT_TAG_PATTERN = Pattern.compile("(?is)<input\\b[^>]*>");
+    private static final Pattern VALUE_ATTR_PATTERN = Pattern.compile("(?is)\\bvalue\\s*=\\s*(['\"])(.*?)\\1");
     private static final Pattern SEARCH_PARAM_REDIRECT_PATTERN = Pattern.compile(
             "(?is)searchParams\\.get\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)");
     private static final Pattern PRIORITY_SEARCH_PARAM_REDIRECT_PATTERN = Pattern.compile(
@@ -96,7 +103,23 @@ public class AdsHttpClientTool {
      * @param adsNormalInfo
      * @return
      */
+    // 403/超时/IP 国家不匹配时重建代理连接重试, 每次重试出口 IP 可能变化
+    // retry with a fresh proxy connection on 403, timeout or country mismatch
     public AdsHttpResponseDto applyAffiliateAd(AdsNormalInfo adsNormalInfo) {
+        AdsHttpResponseDto last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            last = doApplyNormalAd(adsNormalInfo);
+            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last)) {
+                return last;
+            }
+            log.warn("normal affiliate retry campaign={} attempt={}/{} code={} error={}",
+                    adsNormalInfo.getCampainName(), attempt, MAX_ATTEMPTS, last.getCode(), last.getError());
+            sleepBeforeRetry();
+        }
+        return last;
+    }
+
+    private AdsHttpResponseDto doApplyNormalAd(AdsNormalInfo adsNormalInfo) {
 
         AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
@@ -108,7 +131,8 @@ public class AdsHttpClientTool {
         final OkHttpClient okHttpClient = ipProxyService.buildOkHttpClient(adsNormalInfo.getDynamicProxyInfo());
         //Verify Http client IP region
         IpVerificationDto ipVerificationDto = ipProxyService.ipVerification4OkHttpClient(okHttpClient, adsNormalInfo.getCampainCountry());
-        String enrichedAffiliateUrl = enrichAffiliateUrl(affiliateUrl);
+        String clickId = UUID.randomUUID().toString();
+        String enrichedAffiliateUrl = enrichAffiliateUrlForNormal(affiliateUrl, clickId, adsNormalInfo.getId());
         buildAdsTaskLog(adsTaskLog, adsNormalInfo,
                 ipVerificationDto.getIp(), ipVerificationDto.getCountryCode(),
                 0L, userAgent, null);
@@ -190,6 +214,14 @@ public class AdsHttpClientTool {
                             adsTaskLog.setResponseUrl(location);
                             currentUri = nextUri;
                             continue;
+                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                            log.warn("Apply Normal Affiliate Ads. landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
+                            adsTaskLog.setPageType("normal");
+                            adsTaskLog.setRedirectType("none");
+                            adsTaskLog.setErrMsg("landing page returned " + statusCode + ", accepted by url match");
+                            adsTaskLog.setSuccess(true);
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                            break;
                         } else {
                             adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                             break;
@@ -197,7 +229,9 @@ public class AdsHttpClientTool {
 
                     }
                 }
-                if (!StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                // 只在跳转次数耗尽(未产生结果)时改写; 403 等已明确的失败保留原状态码, 否则重试判定拿不到 403
+                // only rewrite when hops are exhausted; keep explicit failures such as 403 so retry can see them
+                if (adsHttpResponseDto.getStatus() == null) {
                     adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Response URL does not match landing page prefix with max redirect times.");
                 }
                 // Redirect End
@@ -215,6 +249,9 @@ public class AdsHttpClientTool {
         } else {
             adsTaskLog.setErrMsg("IP verification failed: expected country " + adsNormalInfo.getCampainCountry() + ", but got " + ipVerificationDto.getCountryCode());
         }
+        // 无论成功失败都带回本次点击ID, 成功时才由 Job 落台账 / always return the click id, persisted only on success
+        adsHttpResponseDto.setClickId(clickId);
+        adsHttpResponseDto.setRequestUrl(enrichedAffiliateUrl);
         adsTaskLogRepository.saveAll(adsTaskLogList);
         return adsHttpResponseDto;
     }
@@ -227,6 +264,20 @@ public class AdsHttpClientTool {
      * @return
      */
     public AdsHttpResponseDto applyAffiliateAd(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
+        AdsHttpResponseDto last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            last = doApplyMatrixAd(matrixInfo, adsMatrixAffiliateInfo);
+            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last)) {
+                return last;
+            }
+            log.warn("matrix affiliate retry campaign={} attempt={}/{} code={} error={}",
+                    matrixInfo.getCampainName(), attempt, MAX_ATTEMPTS, last.getCode(), last.getError());
+            sleepBeforeRetry();
+        }
+        return last;
+    }
+
+    private AdsHttpResponseDto doApplyMatrixAd(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
         AdsHttpResponseDto adsHttpResponseDto = new AdsHttpResponseDto();
         String userAgent = userAgentService.getUserAgent();
         String affiliateUrl = requireText(adsMatrixAffiliateInfo.getAffiliteUrl(), "affiliateUrl is required");
@@ -317,13 +368,21 @@ public class AdsHttpClientTool {
                             adsTaskLog.setResponseUrl(location);
                             currentUri = nextUri;
                             continue;
+                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                            log.warn("Apply Matrix Affiliate Ads. landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
+                            adsTaskLog.setErrMsg("landing page returned " + statusCode + ", accepted by url match");
+                            adsTaskLog.setSuccess(true);
+                            adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
+                            break;
                         } else {
                             adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                             break;
                         }
                     }
                 }
-                if (!StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {
+                // 只在跳转次数耗尽(未产生结果)时改写; 403 等已明确的失败保留原状态码, 否则重试判定拿不到 403
+                // only rewrite when hops are exhausted; keep explicit failures such as 403 so retry can see them
+                if (adsHttpResponseDto.getStatus() == null) {
                     adsHttpResponseDto = new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Response URL does not match landing page prefix with max redirect times.");
                 }
             } catch (IOException proxyIoException) {
@@ -453,6 +512,9 @@ public class AdsHttpClientTool {
                             URI nextUri = currentUri.resolve(location.trim());
                             currentUri = nextUri;
                             continue;
+                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
+                            log.warn("Affiliate test landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
+                            return new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
                         } else {
                             return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
                         }
@@ -506,9 +568,76 @@ public class AdsHttpClientTool {
         return affiliateUrL.replace("{subid}", UUID.randomUUID().toString());
     }
 
+    // 后台模板可能没写 {subid} 占位符, 这时覆盖或补上 subid 参数, 保证每次请求都有唯一点击ID
+    // the admin template may omit {subid}; overwrite or append the param so every request carries a unique click id
+    private String enrichAffiliateUrlForNormal(String affiliateUrL, String clickId, Long normalAdsId) {
+        if (!StringUtils.hasText(affiliateUrL)) {
+            throw new IllegalArgumentException("affiliateUrL is required");
+        }
+        String enriched = affiliateUrL
+                .replace("{subid}", clickId)
+                .replace("(subid)", clickId)
+                .replace("{adid}", "n" + (normalAdsId == null ? 0L : normalAdsId));
+        // 后台模板可能用 {subid} 或客服说的 (subid), 也可能把它放在 sub2id 上;
+        // 无论哪种都保证 SUBID1 的 subid= 带上同一个 UUID
+        // whatever placeholder/position the template uses, SUBID1 always carries the same click id
+        Matcher subIdMatcher = Pattern.compile("([?&])subid=[^&#]*").matcher(enriched);
+        String result;
+        if (subIdMatcher.find()) {
+            result = subIdMatcher.replaceFirst(
+                    Matcher.quoteReplacement(subIdMatcher.group(1) + "subid=" + clickId));
+        } else {
+            result = enriched + (enriched.contains("?") ? "&" : "?") + "subid=" + clickId;
+        }
+        // 部分 offer 回传只带 sub_id2 不带 sub_id(如 Fresh CA/New Balance Canada),
+        // 把同一个 clickId 冗余写进空的 sub2id 位; 已有业务值(如 {adid} 的 n<taskId>)不动
+        // some offers echo only sub_id2; mirror the click id into an empty sub2id slot, keep real values intact
+        Matcher sub2IdMatcher = Pattern.compile("([?&])(sub2id|sub_id2|subid2)=([^&#]*)", Pattern.CASE_INSENSITIVE)
+                .matcher(result);
+        if (sub2IdMatcher.find()) {
+            String value = sub2IdMatcher.group(3);
+            if (!StringUtils.hasText(value)
+                    || "{subid}".equalsIgnoreCase(value.trim())
+                    || "{subid2}".equalsIgnoreCase(value.trim())) {
+                result = sub2IdMatcher.replaceFirst(
+                        Matcher.quoteReplacement(sub2IdMatcher.group(1) + sub2IdMatcher.group(2) + "=" + clickId));
+            }
+        }
+        return result;
+    }
+
+
+    // 已到达正确落地页但被商家反爬返回 403: 联盟跳转已完成、带点击参数的最终 URL 已拿到, 视为成功
+    // 只放宽这一种情况; 前缀不匹配或跳转中途的 403 仍算失败
+    // reached the expected landing page but the merchant blocked the bot; the final url is all we need
+    private boolean isBlockedLandingPage(int statusCode, URI responseUri, String landingPageUrl) {
+        return statusCode == 403 && isLandingPage(responseUri, landingPageUrl);
+    }
 
     private boolean isLandingPage(final URI uri, final String landingPage) {
-        return uri != null && StringUtils.hasText(landingPage) && uri.toString().startsWith(landingPage);
+        if (uri == null || !StringUtils.hasText(landingPage)) {
+            return false;
+        }
+        return normalizeLandingUrl(uri.toString()).startsWith(normalizeLandingUrl(landingPage.trim()));
+    }
+
+    // 统一 origin 末尾斜杠: https://a.com 与 https://a.com/ 是同一落地页, 裸 startsWith 会误判
+    // Normalize the trailing slash of origin so https://a.com?x=1 matches https://a.com/
+    private String normalizeLandingUrl(String url) {
+        int schemeEnd = url.indexOf("://");
+        if (schemeEnd < 0) {
+            return url;
+        }
+        int authorityStart = schemeEnd + 3;
+        int pathStart = url.indexOf('/', authorityStart);
+        int queryStart = url.indexOf('?', authorityStart);
+        if (pathStart < 0 && queryStart >= 0) {
+            return url.substring(0, queryStart) + "/" + url.substring(queryStart);
+        }
+        if (pathStart < 0) {
+            return url + "/";
+        }
+        return url;
     }
 
     private String extractClientRedirectTarget(String responseBody) {
@@ -531,6 +660,10 @@ public class AdsHttpClientTool {
         if (StringUtils.hasText(target)) {
             return target;
         }
+        target = extractElementValueRedirectTarget(responseBody);
+        if (StringUtils.hasText(target)) {
+            return target;
+        }
         target = findPatternMatch(SCRIPT_URL_ASSIGNMENT_PATTERN, responseBody);
         if (StringUtils.hasText(target) && looksLikeRedirectTarget(target)) {
             return target;
@@ -538,6 +671,44 @@ public class AdsHttpClientTool {
         target = extractSearchParamRedirectTarget(responseBody, currentUri);
         if (StringUtils.hasText(target)) {
             return target;
+        }
+        return null;
+    }
+
+    // 解析 location.href=变量 -> getElementById(id).value -> <input id=id value=...>, 只接受 http(s) 目标
+    // resolve location.href=<var> through getElementById(id).value to the element value; http(s) targets only
+    private String extractElementValueRedirectTarget(String responseBody) {
+        Matcher assignment = JS_VARIABLE_REDIRECT_PATTERN.matcher(responseBody);
+        while (assignment.find()) {
+            String variable = assignment.group(1);
+            Matcher source = Pattern.compile("(?is)\\b" + Pattern.quote(variable)
+                    + "\\s*=\\s*document\\s*\\.\\s*getElementById\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)\\s*\\.\\s*value").matcher(responseBody);
+            if (!source.find()) {
+                continue;
+            }
+            String value = findInputValueById(responseBody, source.group(1));
+            if (value == null) {
+                continue;
+            }
+            value = value.replace("&amp;", "&").trim();
+            String lower = value.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("http://") || lower.startsWith("https://")) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String findInputValueById(String responseBody, String id) {
+        Pattern idAttr = Pattern.compile("(?is)\\bid\\s*=\\s*(['\"])" + Pattern.quote(id) + "\\1");
+        Matcher tag = INPUT_TAG_PATTERN.matcher(responseBody);
+        while (tag.find()) {
+            String input = tag.group();
+            if (!idAttr.matcher(input).find()) {
+                continue;
+            }
+            Matcher value = VALUE_ATTR_PATTERN.matcher(input);
+            return value.find() ? value.group(2) : null;
         }
         return null;
     }
@@ -582,6 +753,9 @@ public class AdsHttpClientTool {
         }
         if (findPatternMatch(META_REFRESH_PATTERN, responseBody) != null) {
             return "meta_refresh";
+        }
+        if (extractElementValueRedirectTarget(responseBody) != null) {
+            return "javascript_element";
         }
         if (findPatternMatch(SCRIPT_URL_ASSIGNMENT_PATTERN, responseBody) != null) {
             return "javascript";
@@ -733,19 +907,50 @@ public class AdsHttpClientTool {
         return currentUri.resolve(targetUri);
     }
 
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MILLIS = 2000L;
+
+    // 只重试换出口 IP 可能改善的失败: 国家不匹配 / 403 / 超时; 其它失败(如落地页不匹配)直接返回
+    // retry only failures a new exit IP may fix; other failures return immediately
+    private boolean shouldRetry(AdsHttpResponseDto dto) {
+        if (dto == null) {
+            return false;
+        }
+        if (dto.getStatus() == null) {
+            return true;
+        }
+        if (dto.getCode() == 403) {
+            return true;
+        }
+        String error = dto.getError();
+        return error != null && (error.contains("timed out") || error.contains("timeout"));
+    }
+
+    private void sleepBeforeRetry() {
+        try {
+            Thread.sleep(RETRY_DELAY_MILLIS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private Request buildRequest(AdsHttpRequestDto adsHttpRequestDto, String url) {
         String referLink = getRandomReferLink();
         log.info("Using referer link: {}, User-Agent:{}, user device:{}",
                 referLink, adsHttpRequestDto.getUserAgent(), adsHttpRequestDto.getDeviceType());
+        // 模拟真实浏览器导航请求: 去掉 X-Device-Type 自定义头, Accept/Sec-Fetch 与浏览器对齐, 降低被反爬识别概率
+        // mimic a real browser navigation; custom headers are removed to reduce bot detection
         return new Request.Builder()
                 .url(url)
-                .header("Accept", "text/html, application/json, text/plain, */*")
-                .header("Accept-Language", "en-US,en;q=0.9")
-                .header("Cache-Control", "no-cache")
-                .header("Pragma", "no-cache")
-                .header("Referer", referLink)
-                .header("X-Device-Type", adsHttpRequestDto.getDeviceType())
+                .header("Upgrade-Insecure-Requests", "1")
                 .header("User-Agent", adsHttpRequestDto.getUserAgent())
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+                .header("Sec-Fetch-Dest", "document")
+                .header("Sec-Fetch-Mode", "navigate")
+                .header("Sec-Fetch-Site", "cross-site")
+                .header("Sec-Fetch-User", "?1")
+                .header("Referer", referLink)
+                .header("Accept-Language", "en-US,en;q=0.9")
                 .get()
                 .build();
     }
@@ -790,6 +995,22 @@ public class AdsHttpClientTool {
                 sanitized.append("%5B");
             } else if (ch == ']') {
                 sanitized.append("%5D");
+            } else if (ch == '{') {
+                sanitized.append("%7B");
+            } else if (ch == '}') {
+                sanitized.append("%7D");
+            } else if (ch == '"') {
+                sanitized.append("%22");
+            } else if (ch == '<') {
+                sanitized.append("%3C");
+            } else if (ch == '>') {
+                sanitized.append("%3E");
+            } else if (ch == '^') {
+                sanitized.append("%5E");
+            } else if (ch == '`') {
+                sanitized.append("%60");
+            } else if (ch == '\\') {
+                sanitized.append("%5C");
             } else {
                 sanitized.append(ch);
             }

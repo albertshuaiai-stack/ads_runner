@@ -44,13 +44,51 @@ public class AdsNormalPostBackService {
         adsNormalPostBack.setAdsOwner(adsOwner);
         validateAndNormalize(adsNormalPostBack);
 
-        adsNormalPostBackRepository.findByAdsOwnerAndOrderNo(adsOwner, adsNormalPostBack.getOrderNo())
-                .ifPresent(existing -> {
-                    existing.setStatus(adsNormalPostBack.getStatus());
-                    adsNormalPostBack.setId(existing.getId());
-                    log.info("Updated existing ADS_NORMAL_POST_BACK: {}", existing.getId());
-                });
-        return adsNormalPostBackRepository.save(adsNormalPostBack);
+        var existingOpt = adsNormalPostBackRepository
+                .findByAdsOwnerAndOrderNo(adsOwner, adsNormalPostBack.getOrderNo());
+        if (existingOpt.isEmpty()) {
+            return adsNormalPostBackRepository.save(adsNormalPostBack);
+        }
+        // 状态变更回调也要刷新业务字段: 首条 pending 常缺 sub_id, 不刷新会永久归因失败, 且不能清掉归因结果
+        // refresh business fields on status updates; a pending postback without sub_id stays unattributed,
+        // and saving the incoming entity would also wipe the attribution columns
+        AdsNormalPostBack existing = existingOpt.get();
+        existing.setStatus(adsNormalPostBack.getStatus());
+        existing.setAffiliateSite(adsNormalPostBack.getAffiliateSite());
+        existing.setAdvertiserShopId(adsNormalPostBack.getAdvertiserShopId());
+        existing.setAdvertiserShopName(adsNormalPostBack.getAdvertiserShopName());
+        existing.setSignId(adsNormalPostBack.getSignId());
+        existing.setOrderTime(adsNormalPostBack.getOrderTime());
+        existing.setOrderAmount(adsNormalPostBack.getOrderAmount());
+        existing.setUserCommissionAmount(adsNormalPostBack.getUserCommissionAmount());
+        // 后续回调未带 sub_id 时保留原值, 否则已归因订单会被冲掉 / keep the stored sub ids when a later callback omits them
+        if (StringUtils.hasText(adsNormalPostBack.getSubId())) {
+            existing.setSubId(adsNormalPostBack.getSubId());
+        }
+        if (StringUtils.hasText(adsNormalPostBack.getSubId2())) {
+            existing.setSubId2(adsNormalPostBack.getSubId2());
+        }
+        if (StringUtils.hasText(adsNormalPostBack.getClickTime())) {
+            existing.setClickTime(adsNormalPostBack.getClickTime());
+        }
+        log.info("POSTBACK_UPDATED id={} orderNo={} status={} subId={} subId2={}",
+                existing.getId(), existing.getOrderNo(), existing.getStatus(),
+                existing.getSubId(), existing.getSubId2());
+        return adsNormalPostBackRepository.save(existing);
+    }
+
+    // 后台 Post Back 页删除单条记录, 非 admin 只能删自己的 / delete one postback row
+    public void deleteById(Long id, Long currentUserId) {
+        AdsNormalPostBack postBack = adsNormalPostBackRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("ADS_NORMAL_POST_BACK not found: " + id));
+        if (currentUserId != null) {
+            User current = getCurrentUser(currentUserId);
+            if (!isAdmin(current) && !current.getUserPhoneNumber().equals(postBack.getAdsOwner())) {
+                throw new IllegalArgumentException("Unauthorized: you can only delete your own post backs");
+            }
+        }
+        adsNormalPostBackRepository.delete(postBack);
+        log.info("Deleted ADS_NORMAL_POST_BACK id={} orderNo={}", id, postBack.getOrderNo());
     }
 
     @Transactional(readOnly = true)

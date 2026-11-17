@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 中间链接存档表：上传-归类-解析落地页-归档 Matrix / middle link archive table -->
+    <changeSet id="middle-link-001-create-table" author="copilot">
+        <createTable tableName="MIDDLE_LINK">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="FULL_URL" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="BRAND_NAME" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_NAME" type="VARCHAR(32)"/>
+            <column name="PLATFORM_NAME" type="VARCHAR(128)"/>
+            <column name="RESOLVE_STATUS" type="VARCHAR(16)" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RESOLVED_COUNT" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="TARGET_COUNT" type="BIGINT" defaultValueNumeric="24">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RESOLVED_URLS" type="TEXT"/>
+            <column name="LAST_ERROR" type="VARCHAR(1024)"/>
+            <column name="ADS_OWNER" type="VARCHAR(32)">
+                <constraints nullable="false" foreignKeyName="FK_MIDDLE_LINK_ADS_OWNER" references="ADS_USER(USER_PHONE_NUMBER)"/>
+            </column>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="middle-link-002-indexes" author="copilot">
+        <createIndex indexName="IDX_MIDDLE_LINK_ADS_OWNER" tableName="MIDDLE_LINK">
+            <column name="ADS_OWNER"/>
+        </createIndex>
+        <createIndex indexName="IDX_MIDDLE_LINK_BRAND_NAME" tableName="MIDDLE_LINK">
+            <column name="BRAND_NAME"/>
+        </createIndex>
+        <createIndex indexName="IDX_MIDDLE_LINK_STATUS" tableName="MIDDLE_LINK">
+            <column name="RESOLVE_STATUS"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

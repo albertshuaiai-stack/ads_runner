@@ -3,18 +3,22 @@ package com.admire.cars.runner.controller;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.AdsNormalPostBackService;
-import com.admire.cars.runner.service.TrackCampaignService;
+import com.admire.cars.runner.service.PostBackAttributionService;
 import com.admire.cars.runner.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -28,45 +32,19 @@ public class AdsApiConsumeController {
 
     private final AdsNormalPostBackService adsNormalPostBackService;
 
-    private final TrackCampaignService trackCampaignService;
+    private final PostBackAttributionService postBackAttributionService;
 
     private final ObjectMapper objectMapper;
 
-    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService, AdsNormalPostBackService adsNormalPostBackService, TrackCampaignService trackCampaignService, ObjectMapper objectMapper) {
+    public AdsApiConsumeController(UserService userService, AdsApiConsumeService adsApiConsumeService,
+                                   AdsNormalPostBackService adsNormalPostBackService,
+                                   PostBackAttributionService postBackAttributionService,
+                                   ObjectMapper objectMapper) {
         this.userService = userService;
         this.adsApiConsumeService = adsApiConsumeService;
         this.adsNormalPostBackService = adsNormalPostBackService;
-        this.trackCampaignService = trackCampaignService;
+        this.postBackAttributionService = postBackAttributionService;
         this.objectMapper = objectMapper;
-    }
-
-    /**
-     * 供 Google Ads 脚本获取追踪链接(Final URL) / resolve tracker url for ads scripts
-     * @param campaignName
-     * @param apiKeyParam
-     * @return
-     */
-    @GetMapping(value = "/track/url", produces = MediaType.TEXT_PLAIN_VALUE)
-    public ResponseEntity<String> resolveTrackerUrl(
-            @RequestParam(value = "campaign_name", required = false) String campaignName,
-            @RequestParam(value = "api_key", required = false) String apiKeyParam) {
-        try {
-            String apiKey = resolveApiKey(apiKeyParam);
-            log.info("resolveTrackerUrl campaignName: {}", campaignName);
-            String url = trackCampaignService.resolveTrackerUrl(campaignName, apiKey);
-            if (url == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .contentType(MediaType.TEXT_PLAIN)
-                        .body("No running tracker campaign found for: " + campaignName);
-            }
-            return ResponseEntity.ok()
-                    .contentType(MediaType.TEXT_PLAIN)
-                    .body(url);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .contentType(MediaType.TEXT_PLAIN)
-                    .body(e.getMessage());
-        }
     }
 
     /**
@@ -147,7 +125,8 @@ public class AdsApiConsumeController {
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "sub_id", required = false) String subId,
             @RequestParam(value = "sub_id2", required = false) String subId2,
-            @RequestParam(value = "click_time", required = false) String clickTime) {
+            @RequestParam(value = "click_time", required = false) String clickTime,
+            HttpServletRequest request) {
         AdsNormalPostBack adsNormalPostBack = new AdsNormalPostBack();
         adsNormalPostBack.setAdvertiserShopId(advertiserShopId);
         adsNormalPostBack.setAdvertiserShopName(advertiserShopName);
@@ -157,11 +136,14 @@ public class AdsApiConsumeController {
         adsNormalPostBack.setOrderAmount(parseBigDecimal(orderAmount,"order_amount"));
         adsNormalPostBack.setUserCommissionAmount(parseBigDecimal(userCommissionAmount,"user_commission_amount"));
         adsNormalPostBack.setStatus(status);
-        adsNormalPostBack.setSubId(subId);
-        adsNormalPostBack.setSubId2(subId2);
+        // 后台 Global Postback 默认把点击ID放在 web_id/web_id2, 这里兼容常见别名
+        // the Global Postback page sends the click id as web_id/web_id2; accept the common aliases too
+        // 只收 BonusArrive 实际会用的参数名, 其它原始参数由 POSTBACK_RAW_PARAMS 记录
+        // only accept names BonusArrive actually sends; everything else is logged by POSTBACK_RAW_PARAMS
+        adsNormalPostBack.setSubId(resolveSubId(subId, request, "sub_id", "subid", "web_id"));
+        adsNormalPostBack.setSubId2(resolveSubId(subId2, request, "sub_id2", "subid2", "sub2id", "web_id2"));
         adsNormalPostBack.setClickTime(clickTime);
         adsNormalPostBack.setAffiliateSite("BonusArrive");
-        log.info("postback with BonusArrive:{}", adsNormalPostBack);
         return createPostBack(apiKeyParam, adsNormalPostBack);
     }
 
@@ -221,7 +203,6 @@ public class AdsApiConsumeController {
 
     /**
      * Post back for Yeahpromos
-     * @param apiKeyParam
      * @param advertId
      * @param id
      * @param saleComm
@@ -267,9 +248,39 @@ public class AdsApiConsumeController {
 
 
     private ResponseEntity<Map<String, Object>> createPostBack(String apiKeyParam, AdsNormalPostBack adsNormalPostBack) {
+        // 记录联盟真正回传的原始字段, 便于核对 sub_id / click_id 对不对 / log the raw callback fields
+        log.info("POSTBACK_RECEIVED site={} orderNo={} status={} shopId={} shopName={} signId={} subId={} subId2={} clickTime={} orderTime={} amount={} commission={}",
+                adsNormalPostBack.getAffiliateSite(), adsNormalPostBack.getOrderNo(),
+                adsNormalPostBack.getStatus(), adsNormalPostBack.getAdvertiserShopId(),
+                adsNormalPostBack.getAdvertiserShopName(), adsNormalPostBack.getSignId(),
+                adsNormalPostBack.getSubId(), adsNormalPostBack.getSubId2(),
+                adsNormalPostBack.getClickTime(), adsNormalPostBack.getOrderTime(),
+                adsNormalPostBack.getOrderAmount(), adsNormalPostBack.getUserCommissionAmount());
+        // 打印平台发来的全部原始参数, 参数名或宏值有偏差时一眼可见 / log every raw callback parameter
+        try {
+            ServletRequestAttributes attributes =
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest rawRequest = attributes.getRequest();
+                Map<String, String> rawParams = new LinkedHashMap<>();
+                rawRequest.getParameterMap().forEach((key, values) ->
+                        rawParams.put(key, String.join(",", values)));
+                log.info("POSTBACK_RAW_PARAMS site={} params={}",
+                        adsNormalPostBack.getAffiliateSite(), rawParams);
+            }
+        } catch (Exception e) {
+            log.warn("POSTBACK_RAW_PARAMS_FAILED error={}", e.getMessage());
+        }
         try {
             String apiKey = resolveApiKey(apiKeyParam);
             adsNormalPostBackService.create(adsNormalPostBack, apiKey);
+            try {
+                postBackAttributionService.attribute(adsNormalPostBack.getAdsOwner(), adsNormalPostBack.getOrderNo());
+            } catch (Exception e) {
+                // 归因失败不能让联盟平台重试回调 / attribution failure must not make the network retry the postback
+                log.error("POSTBACK_ATTRIBUTION_FAILED orderNo={} error={}",
+                        adsNormalPostBack.getOrderNo(), e.getMessage(), e);
+            }
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "post received.");
@@ -287,6 +298,21 @@ public class AdsApiConsumeController {
             return apiKeyParam.trim();
         }
         throw new IllegalArgumentException("api_key is required");
+    }
+
+    private String resolveSubId(String primary, HttpServletRequest request, String... aliases) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+        if (request != null) {
+            for (String alias : aliases) {
+                String value = request.getParameter(alias);
+                if (StringUtils.hasText(value)) {
+                    return value.trim();
+                }
+            }
+        }
+        return null;
     }
 
 
