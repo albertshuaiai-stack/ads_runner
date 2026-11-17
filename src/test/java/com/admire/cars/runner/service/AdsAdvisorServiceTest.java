@@ -163,4 +163,63 @@ class AdsAdvisorServiceTest {
         assertEquals("teepublic login", candidates.get(0).get("term"));
         assertFalse(String.valueOf(review.get("markdown")).isBlank());
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reviewMergesTasksWithSameCampaignName() {
+        LocalDate today = LocalDate.now();
+        when(attributionService.resolveOwnerForRead(isNull(), isNull())).thenReturn(null);
+        lenient().when(attributionService.toUsd(any(), any())).thenReturn(BigDecimal.ONE);
+        when(normalInfoRepository.findAllByOrderByIdDesc()).thenReturn(List.of(
+                task(1, "neomwellbeing", "RUNNING", 100L, "10", "USD"),
+                task(2, "neomwellbeing", "PAUSED", 50L, "5", "USD")));
+        when(planRepository.findByOwner(null)).thenReturn(List.of());
+        when(snapshotRepository.findByOwner(null)).thenReturn(List.of());
+
+        AdsDailyStat stat = new AdsDailyStat();
+        stat.setAdsOwner(OWNER);
+        stat.setCampaignName("neomwellbeing");
+        stat.setStatDate(today);
+        stat.setNetwork("SEARCH");
+        stat.setClicks(7L);
+        stat.setImpressions(70L);
+        stat.setCost(new BigDecimal("3"));
+        stat.setCurrency("USD");
+        when(dailyStatRepository.findSince(isNull(), any())).thenReturn(List.of(stat));
+        when(searchTermRepository.findSince(isNull(), any())).thenReturn(List.of());
+
+        long now = System.currentTimeMillis() / 1000;
+        AdsNormalPostBack order1 = new AdsNormalPostBack();
+        order1.setNormalAdsId(1L);
+        order1.setStatus("Approved");
+        order1.setOrderTime(String.valueOf(now));
+        order1.setUserCommissionAmount(new BigDecimal("2"));
+        AdsNormalPostBack order2 = new AdsNormalPostBack();
+        order2.setNormalAdsId(2L);
+        order2.setStatus("Approved");
+        order2.setOrderTime(String.valueOf(now));
+        order2.setUserCommissionAmount(new BigDecimal("4"));
+        when(postBackRepository.findAttributedByOwner(null)).thenReturn(List.of(order1, order2));
+
+        AdsAdvisorService service = new AdsAdvisorService(planRepository, dailyStatRepository, snapshotRepository,
+                searchTermRepository, normalInfoRepository, postBackRepository, attributionService, new AdsPlanEvaluator());
+
+        Map<String, Object> review = service.review(null, null);
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) review.get("tasks");
+
+        // 两个同名 task 只出一行 / two same-name tasks produce one row
+        assertEquals(1, rows.size());
+        Map<String, Object> row = rows.get(0);
+        assertEquals(2, row.get("taskCount"));
+        assertEquals(List.of(1L, 2L), row.get("taskIds"));
+        Map<String, Object> m = (Map<String, Object>) row.get("metrics");
+        // 点击与花费按 task 汇总 / clicks and lifetime cost are summed
+        assertEquals(150L, m.get("lifetimeClicks"));
+        assertEquals(15.0, (Double) m.get("lifetimeCostUsd"), 0.001);
+        // 订单合并, 7 天数据只算一份不重复 / orders merged, 7-day data counted once
+        assertEquals(2L, m.get("orders"));
+        assertEquals(6.0, (Double) m.get("effectiveCommission"), 0.001);
+        assertEquals(7L, m.get("clicks7d"));
+        assertTrue(String.valueOf(review.get("markdown")).contains("[1, 2]"));
+    }
 }

@@ -181,12 +181,33 @@ public class AdsAdvisorService {
                 orders.computeIfAbsent(order.getNormalAdsId(), k -> new ArrayList<>()).add(order));
         Map<String, Optional<BigDecimal>> rateCache = new HashMap<>();
 
-        List<Map<String, Object>> rows = new ArrayList<>();
+        // 同名 campaign 合并成一行: Google Ads 一个 campaign 只有一份每日数据, 多 task 时把订单/花费汇总
+        // Merge tasks sharing a campaign name: Google Ads reports one row per campaign, so sum orders/cost
+        Map<String, List<AdsNormalInfo>> grouped = new LinkedHashMap<>();
         for (AdsNormalInfo task : tasks) {
-            String key = ownerKey(task.getAdsOwner(), task.getCampainName());
-            rows.add(reviewTask(task, plans.get(key), snapshots.get(key), daily.getOrDefault(key, List.of()),
-                    terms.getOrDefault(key, List.of()), orders.getOrDefault(task.getId(), List.of()),
-                    today, from7d, rateCache));
+            grouped.computeIfAbsent(ownerKey(task.getAdsOwner(), task.getCampainName()),
+                    k -> new ArrayList<>()).add(task);
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int mergedCampaigns = 0;
+        for (Map.Entry<String, List<AdsNormalInfo>> entry : grouped.entrySet()) {
+            String key = entry.getKey();
+            List<AdsNormalInfo> group = entry.getValue();
+            if (group.size() > 1) {
+                mergedCampaigns++;
+            }
+            List<AdsNormalPostBack> groupOrders = new ArrayList<>();
+            List<Long> taskIds = new ArrayList<>();
+            for (AdsNormalInfo task : group) {
+                taskIds.add(task.getId());
+                groupOrders.addAll(orders.getOrDefault(task.getId(), List.of()));
+            }
+            Map<String, Object> row = reviewTask(mergeTasks(group, rateCache), plans.get(key), snapshots.get(key),
+                    daily.getOrDefault(key, List.of()), terms.getOrDefault(key, List.of()),
+                    groupOrders, today, from7d, rateCache);
+            row.put("taskIds", taskIds);
+            row.put("taskCount", group.size());
+            rows.add(row);
         }
         rows.sort(Comparator.comparingInt((Map<String, Object> row) -> AdsReviewRules.priority((String) row.get("decision")))
                 .thenComparing(row -> String.valueOf(row.get("campaignName"))));
@@ -202,8 +223,50 @@ public class AdsAdvisorService {
         result.put("summary", summary);
         result.put("tasks", rows);
         result.put("markdown", reviewMarkdown(today, owner, summary, rows));
-        log.info("ADS_REVIEW_BUILT owner={} tasks={} summary={}", owner, rows.size(), summary);
+        log.info("ADS_REVIEW_BUILT owner={} tasks={} rows={} mergedCampaigns={} summary={}",
+                owner, tasks.size(), rows.size(), mergedCampaigns, summary);
         return result;
+    }
+
+    // 同名任务汇总: 累计花费按各自币种折 USD 后相加, 点击求和, 任一 RUNNING 即视为在投
+    // Merge: convert each task's lifetime cost to USD before summing, sum clicks, keep RUNNING if any
+    private AdsNormalInfo mergeTasks(List<AdsNormalInfo> group, Map<String, Optional<BigDecimal>> rateCache) {
+        AdsNormalInfo first = group.get(0);
+        if (group.size() == 1) {
+            return first;
+        }
+        AdsNormalInfo merged = new AdsNormalInfo();
+        merged.setId(first.getId());
+        merged.setAdsOwner(first.getAdsOwner());
+        merged.setCampainName(first.getCampainName());
+        merged.setCampainCountry(first.getCampainCountry());
+        merged.setPlatformName(first.getPlatformName());
+        merged.setLandingPageUrl(first.getLandingPageUrl());
+        long clicks = 0L;
+        BigDecimal costUsd = null;
+        boolean running = false;
+        for (AdsNormalInfo task : group) {
+            clicks += value(task.getLastReportClicks());
+            if ("RUNNING".equalsIgnoreCase(task.getStatus())) {
+                running = true;
+            }
+            if (task.getLastReportCost() != null) {
+                Double usd = usd(task.getCostCurrency(), task.getLastReportCost(), rateCache);
+                if (usd != null) {
+                    costUsd = (costUsd == null ? BigDecimal.ZERO : costUsd).add(BigDecimal.valueOf(usd));
+                }
+            }
+        }
+        merged.setLastReportClicks(clicks);
+        merged.setStatus(running ? "RUNNING" : first.getStatus());
+        if (costUsd != null) {
+            // 已经是 USD, reviewTask 再折一次乘以 1 / already USD, reviewTask converts it by 1
+            merged.setCostCurrency("USD");
+            merged.setLastReportCost(costUsd);
+        }
+        log.info("ADS_REVIEW_TASKS_MERGED campaign={} taskIds={} clicks={} costUsd={}",
+                first.getCampainName(), group.stream().map(AdsNormalInfo::getId).toList(), clicks, costUsd);
+        return merged;
     }
 
     private Map<String, Object> reviewTask(AdsNormalInfo task, AdsCampaignPlan plan, AdsCampaignSnapshot snapshot,
@@ -464,7 +527,9 @@ public class AdsAdvisorService {
             if (AdsReviewRules.PAUSED.equals(row.get("decision"))) {
                 continue;
             }
-            md.append("\n## ").append(row.get("campaignName")).append(" (task ").append(row.get("normalAdsId"))
+            Object taskIds = row.get("taskIds");
+            md.append("\n## ").append(row.get("campaignName")).append(" (task ")
+                    .append(taskIds == null ? row.get("normalAdsId") : taskIds)
                     .append(") - ").append(row.get("decision")).append('\n');
             ((List<String>) row.get("reasons")).forEach(reason -> md.append("- Why: ").append(reason).append('\n'));
             ((List<String>) row.get("actions")).forEach(action -> md.append("- Do: ").append(action).append('\n'));
