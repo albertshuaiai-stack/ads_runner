@@ -171,4 +171,7 @@
     <!-- Ad cost ledger per Google Ads campaign, survives task and campaign deletion -->
     <include file="db/changelog/db.changelog-076-campaign-cost-ledger.xml"/>
 
+    <!-- Landing collector: email profile/password/2FA columns and gmail link rule status -->
+    <include file="db/changelog/db.changelog-077-cashback-collector.xml"/>
+
 </databaseChangeLog>

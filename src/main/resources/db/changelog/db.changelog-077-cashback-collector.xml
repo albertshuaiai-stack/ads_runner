@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 邮箱表: 指纹浏览器环境编号、返利平台登录密码(各平台共用)、2FA 取码网址, 供落地页采集工具使用 -->
+    <!-- email table: browser profile serial, shared cashback platform password and 2FA code url for the landing collector -->
+    <changeSet id="077-tool-email-collector-columns" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="TOOL_EMAL" columnName="ENV_SERIAL"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="TOOL_EMAL">
+            <column name="ENV_SERIAL" type="VARCHAR(32)"/>
+            <column name="PLATFORM_PWD" type="VARCHAR(128)"/>
+            <column name="TWO_FA_URL" type="VARCHAR(512)"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Gmail Link Rule 运行状态: RUNNING / DISABLED, DISABLED 在统计里算被封, 上传时跳过 -->
+    <!-- rule status: RUNNING / DISABLED; DISABLED counts as banned in stats and is skipped on upload -->
+    <changeSet id="077-gmail-platform-link-status" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="GMAIL_PLATFORM_LINK" columnName="STATUS"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="GMAIL_PLATFORM_LINK">
+            <column name="STATUS" type="VARCHAR(16)" defaultValue="RUNNING">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

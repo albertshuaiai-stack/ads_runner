@@ -16,6 +16,7 @@ public class GmailPlatformLinkDto {
     private String platformName;
     private String matchId;
     private String remarks;
+    private String status;
     private String adsOwner;
     private LocalDateTime createDate;
     private LocalDateTime updateDate;
@@ -28,6 +29,7 @@ public class GmailPlatformLinkDto {
                 e.getPlatformName(),
                 e.getMatchId(),
                 e.getRemarks(),
+                e.getStatus(),
                 e.getAdsOwner(),
                 e.getCreateDate(),
                 e.getUpdateDate()
@@ -41,6 +43,8 @@ public class GmailPlatformLinkDto {
         e.setPlatformName(this.platformName);
         e.setMatchId(this.matchId);
         e.setRemarks(this.remarks);
+        // 未传状态时保持 null, 由 service 决定默认值或保留原值 / null lets the service default or keep the stored value
+        e.setStatus(this.status);
         e.setAdsOwner(this.adsOwner);
         e.setCreateDate(this.createDate);
         e.setUpdateDate(this.updateDate);

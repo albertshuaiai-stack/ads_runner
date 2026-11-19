@@ -38,6 +38,14 @@ public class GmailPlatformLink {
     @Column(name = "REMARKS", length = 1024)
     private String remarks;
 
+    // RUNNING / DISABLED: 手动标记该邮箱在该平台是否还能用; DISABLED 统计算被封, 上传跳过
+    // manual flag whether the account still works on the platform; DISABLED counts as banned and is skipped on upload
+    @Column(name = "STATUS", length = 16, nullable = false)
+    private String status = STATUS_RUNNING;
+
+    public static final String STATUS_RUNNING = "RUNNING";
+    public static final String STATUS_DISABLED = "DISABLED";
+
     @Column(name = "ADS_OWNER", length = 32, nullable = false)
     private String adsOwner;
 

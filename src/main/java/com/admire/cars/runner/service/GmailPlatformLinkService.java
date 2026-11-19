@@ -60,9 +60,68 @@ public class GmailPlatformLinkService {
         }
         User currentUser = getCurrentUser(currentUserId);
         rule.setAdsOwner(currentUser.getUserPhoneNumber());
+        if (!StringUtils.hasText(rule.getMatchId())) {
+            rule.setMatchId(nextAutoMatchId());
+        }
+        if (!StringUtils.hasText(rule.getStatus())) {
+            rule.setStatus(GmailPlatformLink.STATUS_RUNNING);
+        }
         validateAndNormalize(rule);
         rule.setCreateDate(LocalDateTime.now());
         return repository.save(rule);
+    }
+
+    // 自增 Match ID: GL + 6 位序号, 前缀避免与链接里的数字参数子串误命中
+    // auto match id: GL + 6-digit sequence; the prefix avoids false substring hits on numeric url params
+    static final String AUTO_MATCH_ID_PREFIX = "GL";
+
+    String nextAutoMatchId() {
+        long max = 0L;
+        for (GmailPlatformLink existing : repository.findByMatchIdStartingWith(AUTO_MATCH_ID_PREFIX)) {
+            String suffix = existing.getMatchId().substring(AUTO_MATCH_ID_PREFIX.length());
+            if (suffix.matches("\\d{1,18}")) {
+                max = Math.max(max, Long.parseLong(suffix));
+            }
+        }
+        return AUTO_MATCH_ID_PREFIX + String.format("%06d", max + 1);
+    }
+
+    // 手动切换 RUNNING / DISABLED / manually switch a rule between RUNNING and DISABLED
+    public GmailPlatformLink updateStatus(Long id, String status, Long currentUserId) {
+        GmailPlatformLink existing = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("GMAIL_PLATFORM_LINK not found: " + id));
+        ensureAccess(existing, currentUserId, "modify");
+        existing.setStatus(normalizeStatus(status));
+        existing.setUpdateDate(LocalDateTime.now());
+        return repository.save(existing);
+    }
+
+    // 上传落地页时确保 邮箱+平台 有规则, 没有则自动建一条 RUNNING 规则
+    // make sure a rule exists for the gmail + platform on upload; create a RUNNING one when missing
+    public GmailPlatformLink ensureRule(String adsOwner, String userName, String platformName) {
+        List<GmailPlatformLink> found = repository
+                .findByAdsOwnerAndUserNameIgnoreCaseAndPlatformNameIgnoreCase(adsOwner, userName, platformName);
+        if (!found.isEmpty()) {
+            return found.get(0);
+        }
+        GmailPlatformLink rule = new GmailPlatformLink();
+        rule.setAdsOwner(adsOwner);
+        rule.setUserName(userName);
+        rule.setPlatformName(platformName);
+        rule.setMatchId(nextAutoMatchId());
+        rule.setStatus(GmailPlatformLink.STATUS_RUNNING);
+        rule.setRemarks("auto created by landing upload");
+        validateAndNormalize(rule);
+        rule.setCreateDate(LocalDateTime.now());
+        return repository.save(rule);
+    }
+
+    private static String normalizeStatus(String status) {
+        String value = status == null ? "" : status.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!GmailPlatformLink.STATUS_RUNNING.equals(value) && !GmailPlatformLink.STATUS_DISABLED.equals(value)) {
+            throw new IllegalArgumentException("status must be RUNNING or DISABLED");
+        }
+        return value;
     }
 
     @Transactional(readOnly = true)
@@ -112,8 +171,9 @@ public class GmailPlatformLinkService {
 
         if (updateData.getUserName() != null) existing.setUserName(updateData.getUserName());
         if (updateData.getPlatformName() != null) existing.setPlatformName(updateData.getPlatformName());
-        if (updateData.getMatchId() != null) existing.setMatchId(updateData.getMatchId());
+        if (StringUtils.hasText(updateData.getMatchId())) existing.setMatchId(updateData.getMatchId());
         if (updateData.getRemarks() != null) existing.setRemarks(updateData.getRemarks());
+        if (StringUtils.hasText(updateData.getStatus())) existing.setStatus(updateData.getStatus());
 
         validateAndNormalize(existing);
         existing.setUpdateDate(LocalDateTime.now());
@@ -306,6 +366,21 @@ public class GmailPlatformLinkService {
                 accountStatusByKey.putIfAbsent(entry.getKey(), "RUNNING");
             }
         }
+        // Gmail Link Rule 手动状态优先: DISABLED 视为 LOCKED / the manual rule status wins: DISABLED counts as LOCKED
+        List<GmailPlatformLink> rules = admin
+                ? repository.findAll()
+                : repository.findByAdsOwner(currentUser.getUserPhoneNumber());
+        for (GmailPlatformLink rule : rules) {
+            String key = accountKey(rule.getUserName(), rule.getPlatformName());
+            if (key == null) {
+                continue;
+            }
+            if (GmailPlatformLink.STATUS_DISABLED.equalsIgnoreCase(rule.getStatus())) {
+                accountStatusByKey.put(key, "LOCKED");
+            } else {
+                accountStatusByKey.putIfAbsent(key, "RUNNING");
+            }
+        }
 
         Map<String, GmailPlatformStatDto> grouped = new LinkedHashMap<>();
         Map<String, MerchantAccumulator> merchantStats = new LinkedHashMap<>();
@@ -426,6 +501,7 @@ public class GmailPlatformLinkService {
         rule.setPlatformName(trimToNull(rule.getPlatformName()));
         rule.setMatchId(trimToNull(rule.getMatchId()));
         rule.setRemarks(trimToNull(rule.getRemarks()));
+        rule.setStatus(normalizeStatus(StringUtils.hasText(rule.getStatus()) ? rule.getStatus() : GmailPlatformLink.STATUS_RUNNING));
 
         if (rule.getUserName() == null) {
             throw new IllegalArgumentException("userName is required");

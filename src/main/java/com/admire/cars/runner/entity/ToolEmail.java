@@ -52,6 +52,18 @@ public class ToolEmail {
     @Column(name = "REMARKS", length = 64)
     private String remarks;
 
+    // 指纹浏览器环境编号(AdsPower 列表里的编号) / browser profile serial number, e.g. the AdsPower serial
+    @Column(name = "ENV_SERIAL", length = 32)
+    private String envSerial;
+
+    // 返利平台登录密码, 账号为邮箱地址, 各平台共用 / cashback platform password, login is the email address
+    @Column(name = "PLATFORM_PWD", length = 128)
+    private String platformPwd;
+
+    // 2FA 取码网址, 采集工具访问它读验证码 / url the collector reads the 2FA code from
+    @Column(name = "TWO_FA_URL", length = 512)
+    private String twoFaUrl;
+
     @Column(name = "ADS_OWNER", nullable = false, length = 32)
     private String adsOwner;
 

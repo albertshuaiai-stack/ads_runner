@@ -125,6 +125,15 @@ public class ToolEmailService {
         if (updateData.getRemarks() != null) {
             existing.setRemarks(updateData.getRemarks());
         }
+        if (updateData.getEnvSerial() != null) {
+            existing.setEnvSerial(updateData.getEnvSerial());
+        }
+        if (updateData.getPlatformPwd() != null) {
+            existing.setPlatformPwd(updateData.getPlatformPwd());
+        }
+        if (updateData.getTwoFaUrl() != null) {
+            existing.setTwoFaUrl(updateData.getTwoFaUrl());
+        }
 
         validateAndNormalize(existing);
         existing.setUpdateDate(LocalDateTime.now());
@@ -152,7 +161,13 @@ public class ToolEmailService {
         toolEmail.setParentEmail(trimToNull(toolEmail.getParentEmail()));
         toolEmail.setAddress(trimToNull(toolEmail.getAddress()));
         toolEmail.setRemarks(trimToNull(toolEmail.getRemarks()));
+        toolEmail.setEnvSerial(trimToNull(toolEmail.getEnvSerial()));
+        toolEmail.setPlatformPwd(trimToNull(toolEmail.getPlatformPwd()));
+        toolEmail.setTwoFaUrl(trimToNull(toolEmail.getTwoFaUrl()));
 
+        validateLength(toolEmail.getEnvSerial(), "envSerial", 32);
+        validateLength(toolEmail.getPlatformPwd(), "platformPwd", 128);
+        validateLength(toolEmail.getTwoFaUrl(), "twoFaUrl", 512);
         validateLength(toolEmail.getUserName(), "userName", 16);
         validateLength(toolEmail.getEmailAddress(), "emailAddress", 64);
         validateLength(toolEmail.getEmailPwd(), "emailPwd", 64);
