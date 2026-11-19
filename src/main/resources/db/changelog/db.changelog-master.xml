@@ -74,14 +74,6 @@
     <!-- Fix Quartz JOB_DATA column types -->
     <include file="db/changelog/db.changelog-027-quartz-job-data-longblob-fix.xml"/>
 
-    <!-- Create IP_PROXY_INFO table -->
-    <include file="db/changelog/db.changelog-028-ip-proxy-info-table.xml"/>
-
-    <!-- Create AFFILIATE_ADS_SYNC table -->
-    <include file="db/changelog/db.changelog-029-affiliate-ads-sync-table.xml"/>
-
-    <!-- Create AFFILIATE_AUTO_TASK table -->
-    <include file="db/changelog/db.changelog-036-affiliate-auto-task-table.xml"/>
 
     <!-- Increase matrix campaign and URL field lengths -->
     <include file="db/changelog/db.changelog-037-matrix-field-length.xml"/>
@@ -89,11 +81,6 @@
     <!-- Remove platform foreign key from ADS_NORMAL_INFO -->
     <include file="db/changelog/db.changelog-038-normal-ads-drop-platform-fk.xml"/>
 
-    <!-- Rename AFFILIATE_ADS_SYNC table and normalize test statuses -->
-    <include file="db/changelog/db.changelog-039-affiliate-ads-rename-and-status.xml"/>
-
-    <!-- Rename AFFILIATE_ADS_TEST_RESULT table to AFFILIATE_TEST -->
-    <include file="db/changelog/db.changelog-040-affiliate-test-rename.xml"/>
 
     <!-- Migrate NORMAL_TASK_REDIRECT_LOG to ADS_TASK_LOG -->
     <include file="db/changelog/db.changelog-041-ads-task-log-table.xml"/>
@@ -167,5 +154,8 @@
 
     <!-- Add ADS_NORMAL_INFO lifetime ad cost and currency from the Ads script -->
     <include file="db/changelog/db.changelog-074-normal-ad-cost.xml"/>
+
+    <!-- Drop deprecated affiliate and proxy-info legacy tables -->
+    <include file="db/changelog/db.changelog-076-drop-affiliate-legacy-tables.xml"/>
 
 </databaseChangeLog>
