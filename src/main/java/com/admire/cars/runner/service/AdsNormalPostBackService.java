@@ -16,7 +16,14 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 @Slf4j
 @Service
@@ -107,6 +114,146 @@ public class AdsNormalPostBackService {
             String status,
             Long currentUserId,
             Pageable pageable) {
+        return search(adsOwner, affiliateSite, orderNo, status, null, null, currentUserId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AdsNormalPostBack> search(
+            String adsOwner,
+            String affiliateSite,
+            String orderNo,
+            String status,
+            String advertiserShopId,
+            String advertiserShopName,
+            Long currentUserId,
+            Pageable pageable) {
+        String scopedAdsOwner = resolveScopedOwner(adsOwner, currentUserId);
+        return adsNormalPostBackRepository.findAll(
+                buildSpecification(scopedAdsOwner, affiliateSite, orderNo, status, advertiserShopId, advertiserShopName),
+                pageable);
+    }
+
+    // 按 offer(商家) 汇总订单, 与订单列表同口径筛选(owner/平台/状态) / per-offer order summary, same filters as the list
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> offerSummary(
+            String adsOwner,
+            String affiliateSite,
+            String status,
+            Long currentUserId) {
+        String scopedAdsOwner = resolveScopedOwner(adsOwner, currentUserId);
+        List<AdsNormalPostBack> orders = adsNormalPostBackRepository.findAll(
+                buildSpecification(scopedAdsOwner, affiliateSite, null, status, null, null));
+
+        Map<String, OfferAggregate> byOffer = new LinkedHashMap<>();
+        for (AdsNormalPostBack order : orders) {
+            String shopId = trimToNull(order.getAdvertiserShopId());
+            String shopName = trimToNull(order.getAdvertiserShopName());
+            // 优先按商家ID分组, 无ID的按名称 / group by shop id, fall back to name when id is missing
+            String key = shopId != null ? "ID:" + shopId
+                    : "NAME:" + (shopName == null ? "" : shopName.toLowerCase(Locale.ROOT));
+            byOffer.computeIfAbsent(key, ignored -> new OfferAggregate(shopId)).add(order, shopName);
+        }
+
+        return byOffer.values().stream()
+                .sorted(Comparator.comparingLong(OfferAggregate::orderCount).reversed()
+                        .thenComparing(OfferAggregate::commission, Comparator.reverseOrder()))
+                .map(OfferAggregate::toMap)
+                .toList();
+    }
+
+    static boolean isRefundedStatus(String status) {
+        if (status == null) {
+            return false;
+        }
+        String value = status.toLowerCase(Locale.ROOT);
+        for (String keyword : REFUNDED_STATUS_KEYWORDS) {
+            if (value.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 与 AdsNormalPostBackRepository 聚合查询的退单关键词一致 / same keywords as the repository aggregate queries
+    private static final List<String> REFUNDED_STATUS_KEYWORDS =
+            List.of("reject", "refund", "cancel", "void", "decline", "revers");
+
+    private static final class OfferAggregate {
+        private final String advertiserShopId;
+        private String advertiserShopName;
+        private final Set<String> affiliateSites = new TreeSet<>();
+        private final Map<String, Long> statusCounts = new TreeMap<>();
+        private long orderCount;
+        private long refundedOrderCount;
+        private long matchedOrderCount;
+        private BigDecimal orderAmount = BigDecimal.ZERO;
+        private BigDecimal commission = BigDecimal.ZERO;
+        private String firstOrderTime;
+        private String lastOrderTime;
+
+        private OfferAggregate(String advertiserShopId) {
+            this.advertiserShopId = advertiserShopId;
+        }
+
+        private void add(AdsNormalPostBack order, String shopName) {
+            orderCount++;
+            if (shopName != null && advertiserShopName == null) {
+                advertiserShopName = shopName;
+            }
+            if (StringUtils.hasText(order.getAffiliateSite())) {
+                affiliateSites.add(order.getAffiliateSite().trim());
+            }
+            String status = order.getStatus() == null ? "" : order.getStatus().trim().toLowerCase(Locale.ROOT);
+            statusCounts.merge(status, 1L, Long::sum);
+            if (isRefundedStatus(status)) {
+                refundedOrderCount++;
+            }
+            if ("MATCHED".equals(order.getMatchStatus())) {
+                matchedOrderCount++;
+            }
+            if (order.getOrderAmount() != null) {
+                orderAmount = orderAmount.add(order.getOrderAmount());
+            }
+            if (order.getUserCommissionAmount() != null) {
+                commission = commission.add(order.getUserCommissionAmount());
+            }
+            String orderTime = order.getOrderTime();
+            if (StringUtils.hasText(orderTime)) {
+                if (firstOrderTime == null || orderTime.compareTo(firstOrderTime) < 0) {
+                    firstOrderTime = orderTime;
+                }
+                if (lastOrderTime == null || orderTime.compareTo(lastOrderTime) > 0) {
+                    lastOrderTime = orderTime;
+                }
+            }
+        }
+
+        private long orderCount() {
+            return orderCount;
+        }
+
+        private BigDecimal commission() {
+            return commission;
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("advertiserShopId", advertiserShopId);
+            row.put("advertiserShopName", advertiserShopName);
+            row.put("affiliateSites", String.join(", ", affiliateSites));
+            row.put("orderCount", orderCount);
+            row.put("orderStatusCounts", statusCounts);
+            row.put("refundedOrderCount", refundedOrderCount);
+            row.put("matchedOrderCount", matchedOrderCount);
+            row.put("orderAmount", orderAmount);
+            row.put("commission", commission);
+            row.put("firstOrderTime", firstOrderTime);
+            row.put("lastOrderTime", lastOrderTime);
+            return row;
+        }
+    }
+
+    private String resolveScopedOwner(String adsOwner, Long currentUserId) {
         String normalizedAdsOwner = normalizeOptional(adsOwner);
         User currentUser = currentUserId == null ? null : getCurrentUser(currentUserId);
         boolean admin = currentUser != null && isAdmin(currentUser);
@@ -126,8 +273,17 @@ public class AdsNormalPostBackService {
             }
             scopedAdsOwner = normalizedAdsOwner;
         }
+        return scopedAdsOwner;
+    }
 
-        Specification<AdsNormalPostBack> specification = (root, query, criteriaBuilder) -> {
+    private Specification<AdsNormalPostBack> buildSpecification(
+            String scopedAdsOwner,
+            String affiliateSite,
+            String orderNo,
+            String status,
+            String advertiserShopId,
+            String advertiserShopName) {
+        return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             if (StringUtils.hasText(scopedAdsOwner)) {
@@ -152,13 +308,19 @@ public class AdsNormalPostBackService {
                         criteriaBuilder.lower(root.get("status")),
                         status.trim().toLowerCase()));
             }
+            // offer 筛选: 有商家ID按ID精确匹配, 否则按名称(不区分大小写) / offer filter: exact shop id, else shop name
+            if (StringUtils.hasText(advertiserShopId)) {
+                predicates.add(criteriaBuilder.equal(root.get("advertiserShopId"), advertiserShopId.trim()));
+            } else if (StringUtils.hasText(advertiserShopName)) {
+                predicates.add(criteriaBuilder.equal(
+                        criteriaBuilder.lower(root.get("advertiserShopName")),
+                        advertiserShopName.trim().toLowerCase()));
+            }
 
             return predicates.isEmpty()
                     ? criteriaBuilder.conjunction()
                     : criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
-
-        return adsNormalPostBackRepository.findAll(specification, pageable);
     }
 
     private void validateAndNormalize(AdsNormalPostBack adsNormalPostBack) {

@@ -16,6 +16,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -147,5 +148,58 @@ class AdsNormalPostBackServiceTest {
                 .thenReturn(new PageImpl<>(List.of(saved)));
 
         assertEquals(1, service.search(null, null, null, null, 1L, PageRequest.of(0, 10)).getTotalElements());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void offerSummary_groupsByShopIdThenName_andCountsStatuses() {
+        User admin = new User();
+        admin.setId(1L);
+        admin.setUserPhoneNumber("13800000000");
+        admin.setUserRole("admin");
+
+        AdsNormalPostBack neom1 = order("133280", "NEOM Wellbeing", "Pending", "20.91", "0.59", "2026-11-19 08:18:19");
+        AdsNormalPostBack neom2 = order("133280", "NEOM Wellbeing", "Rejected", "3.98", "0.11", "2026-11-18 07:00:00");
+        neom2.setMatchStatus("MATCHED");
+        AdsNormalPostBack sally1 = order(null, "Sally Beauty UK", "pending", "215.42", "0.95", "2026-11-14 08:53:18");
+        AdsNormalPostBack sally2 = order(null, "sally beauty uk", "approved", "29.84", "0.13", "2026-11-15 09:51:35");
+        AdsNormalPostBack sally3 = order(null, "Sally Beauty UK", "pending", "58.29", "0.25", "2026-11-16 10:16:44");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(adsNormalPostBackRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(neom1, sally1, neom2, sally2, sally3));
+
+        List<Map<String, Object>> rows = service.offerSummary(null, null, null, 1L);
+
+        assertEquals(2, rows.size());
+        Map<String, Object> sally = rows.get(0);
+        assertEquals("Sally Beauty UK", sally.get("advertiserShopName"));
+        assertEquals(3L, sally.get("orderCount"));
+        assertEquals(new BigDecimal("1.33"), sally.get("commission"));
+        assertEquals(Map.of("pending", 2L, "approved", 1L), sally.get("orderStatusCounts"));
+        assertEquals("2026-11-14 08:53:18", sally.get("firstOrderTime"));
+        assertEquals("2026-11-16 10:16:44", sally.get("lastOrderTime"));
+
+        Map<String, Object> neom = rows.get(1);
+        assertEquals("133280", neom.get("advertiserShopId"));
+        assertEquals(2L, neom.get("orderCount"));
+        assertEquals(1L, neom.get("refundedOrderCount"));
+        assertEquals(1L, neom.get("matchedOrderCount"));
+        assertEquals(new BigDecimal("24.89"), neom.get("orderAmount"));
+        assertEquals("BonusArrive", neom.get("affiliateSites"));
+    }
+
+    private static AdsNormalPostBack order(String shopId, String shopName, String status,
+                                           String amount, String commission, String orderTime) {
+        AdsNormalPostBack order = new AdsNormalPostBack();
+        order.setAdsOwner("13800000000");
+        order.setAffiliateSite("BonusArrive");
+        order.setAdvertiserShopId(shopId);
+        order.setAdvertiserShopName(shopName);
+        order.setStatus(status);
+        order.setOrderAmount(new BigDecimal(amount));
+        order.setUserCommissionAmount(new BigDecimal(commission));
+        order.setOrderTime(orderTime);
+        return order;
     }
 }
