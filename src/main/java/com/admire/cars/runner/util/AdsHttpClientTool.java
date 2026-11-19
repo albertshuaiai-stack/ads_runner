@@ -5,7 +5,6 @@ import com.admire.cars.runner.constant.StatusConstant;
 import com.admire.cars.runner.dto.IpVerificationDto;
 import com.admire.cars.runner.entity.*;
 import com.admire.cars.runner.repository.AdsTaskLogRepository;
-import com.admire.cars.runner.repository.IpProxyInfoRepository;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
 import lombok.extern.slf4j.Slf4j;
@@ -48,10 +47,6 @@ public class AdsHttpClientTool {
 
     @Autowired
     private AdsTaskLogRepository adsTaskLogRepository;
-
-    @Autowired
-    private IpProxyInfoRepository ipProxyInfoRepository;
-
 
     private static final int MAX_REDIRECT_HOPS = 10;
     private static final Pattern JS_REDIRECT_PATTERN = Pattern.compile(
@@ -403,134 +398,6 @@ public class AdsHttpClientTool {
         return adsHttpResponseDto;
     }
 
-    /**
-     * Normal Ads Test
-     * @param affiliateAds
-     * @param targetRegion
-     * @return
-     */
-    public AdsHttpResponseDto applyAffiliateAd(AffiliateAds affiliateAds, String targetRegion) {
-        OkHttpClient httpClient = null;
-        IpProxyInfo ipProxyInfo = null;
-        IpVerificationDto ipVerification = null;
-        final List<String> proxyFailures = new ArrayList<>();
-
-        List<IpProxyInfo> proxies = ipProxyInfoRepository
-                .findByAdsOwnerAndStatusIgnoreCaseAndTargetCountryIgnoreCaseAndProxyTypeAndProxyProtocolOrderByIdDesc(
-                        affiliateAds.getAdsOwner(),
-                        StatusConstant.ENABLED,
-                        targetRegion,
-                        Constant.PROXY_TYPE_DYNAMIC,
-                        Constant.PROXY_PROTOCOL_SOCKETS5);
-        if (proxies.isEmpty()) {
-            log.warn("No ENABLED IP_PROXY_INFO found for adsOwner: {} with targetCountry: {}", affiliateAds.getAdsOwner(), targetRegion);
-            throw new IllegalArgumentException("No ENABLED IP_PROXY_INFO found for adsOwner: " + affiliateAds.getAdsOwner());
-        }
-        for (IpProxyInfo proxy : proxies) {
-            httpClient = ipProxyService.buildOkHttpClient(proxy.getProxyInfo());
-            ipVerification = ipProxyService.ipVerification4OkHttpClient(httpClient, affiliateAds.getRegion());
-            ipProxyInfo = proxy;
-            if (ipVerification.isMatched()) {
-                break;
-            } else {
-                proxyFailures.add("proxyId=" + ipProxyInfo.getId()
-                        + " region mismatch expected=" + affiliateAds.getRegion()
-                        + " actual=" + ipVerification.getCountryCode());
-            }
-        }
-        String affiliateUrl = requireText(affiliateAds.getTrackingUrl(), "affiliateUrl is required");
-        final String landingPageUrl = requireText(affiliateAds.getSiteUrl(), "landingPageUrl is required");
-
-        if (null != ipVerification && ipVerification.isMatched()) {
-            String userAgent = userAgentService.getUserAgent();
-            log.info("AFFILIATE_TEST_TASK_PROXY_VERIFIEDproxyId={} proxyInfo={} region={}, ipVerification: {}",
-                    ipProxyInfo.getId(), ipProxyInfo.getProxyInfo(), ipVerification);
-            String enrichedAffiliateUrl = enrichAffiliateUrl(affiliateUrl);
-            AdsHttpRequestDto adsHttpRequestDto = new AdsHttpRequestDto(enrichedAffiliateUrl,landingPageUrl,Constant.DEVICE_TYPE_DESK,userAgent);
-            URI requestUri = toRequestUri(enrichedAffiliateUrl, "affiliateUrl");
-            try {
-                // Redirect Start
-                OkHttpClient redirectClient = httpClient.newBuilder()
-                        .followRedirects(false)
-                        .followSslRedirects(false)
-                        .callTimeout(autoTaskConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS)
-                        .writeTimeout(autoTaskConfig.getRequestTimeoutMillis(), TimeUnit.MILLISECONDS)
-                        .build();
-                URI currentUri = requestUri;
-                for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
-                    if (Thread.currentThread().isInterrupted()) {
-                        log.warn("Apply Normal Affiliate Ads (test) aborted: thread interrupted before request");
-                        return new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), "Interrupted");
-                    }
-                    Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
-                    okhttp3.Call call = redirectClient.newCall(request);
-                    try (Response response = call.execute()) {
-                        int statusCode = response.code();
-                        URI responseUri = response.request() != null && response.request().url() != null
-                                ? response.request().url().uri()
-                                : currentUri;
-                        log.warn("Apply Normal Affiliate Ads. Request URL={} Response={} hop={} status={}", currentUri, responseUri, hop + 1, statusCode);
-                        if (statusCode >= 200 && statusCode < 300) {
-                            if (isLandingPage(responseUri, adsHttpRequestDto.getLandingPageUrl())){
-                                return new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
-                            }
-                            String redirectTarget = null;
-                            String responseBody = null;
-                            if (response.body() != null) {
-                                responseBody = response.body().string();
-                                redirectTarget = extractClientRedirectTarget(responseBody);
-                            }
-                            if (!StringUtils.hasText(redirectTarget)) {
-                                redirectTarget = extractRefreshHeaderTarget(response.header("Refresh"));
-                            }
-                            if (!StringUtils.hasText(redirectTarget)) {
-                                redirectTarget = response.header("Location");
-                            }
-
-//                            if (StringUtils.hasText(redirectTarget)) {
-//                                String decoded = extractEncodedRedirectFromString(redirectTarget);
-//                                if (StringUtils.hasText(decoded)) {
-//                                    redirectTarget = decoded;
-//                                }
-//                            } else if (StringUtils.hasText(responseBody)) {
-//                                String decodedFromBody = extractEncodedRedirectFromString(responseBody);
-//                                if (StringUtils.hasText(decodedFromBody)) {
-//                                    redirectTarget = decodedFromBody;
-//                                }
-//                            }
-
-                            if (StringUtils.hasText(redirectTarget)) {
-                                currentUri = resolveRedirectUri(currentUri, redirectTarget);
-                                continue;
-                            }
-                            return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response body does not contain a redirect target");
-                        } else if (statusCode >= 300 && statusCode < 400) {
-                            String location = response.header("Location");
-                            if (!StringUtils.hasText(location)) {
-                                return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "No Location found from header.");
-                            }
-                            URI nextUri = currentUri.resolve(location.trim());
-                            currentUri = nextUri;
-                            continue;
-                        } else if (isBlockedLandingPage(statusCode, responseUri, adsHttpRequestDto.getLandingPageUrl())) {
-                            log.warn("Affiliate test landing page blocked by anti-bot, accepted url={} status={}", responseUri, statusCode);
-                            return new AdsHttpResponseDto(StatusConstant.SUCCESS, statusCode, responseUri.toString(), "");
-                        } else {
-                            return new AdsHttpResponseDto(StatusConstant.FAILED, statusCode, responseUri.toString(), "Response status code is not a redirect or success code");
-                        }
-                    }
-                }
-                // Redirect End
-            } catch (IOException proxyIoException) {
-                log.error("Apply Affiliate Ads. Request URL={} error={}", requestUri, proxyIoException.getMessage(), proxyIoException);
-                return new AdsHttpResponseDto(StatusConstant.FAILED, -1, requestUri.toString(), proxyIoException.getMessage());
-            }
-        }
-        return new AdsHttpResponseDto(StatusConstant.FAILED, -1, null,
-                "IP verification failed: expected country " + targetRegion + ", but got " + ipVerification.getCountryCode());
-
-    }
-
     private void buildAdsTaskLog(AdsTaskLog adsTaskLog, AdsNormalInfo adsNormalInfo,
                                  String ip, String countryCode, Long sequence,String userAgent, String requestUrl) {
         adsTaskLog.setAdsOwner(adsNormalInfo.getAdsOwner());
@@ -559,13 +426,6 @@ public class AdsHttpClientTool {
         adsTaskLog.setSequence(sequence);
         adsTaskLog.setRequestUrl(requestUrl);
         adsTaskLog.setSuccess(false);
-    }
-
-    private String enrichAffiliateUrl(String affiliateUrL) {
-        if (!StringUtils.hasText(affiliateUrL)) {
-            throw new IllegalArgumentException("affiliateUrL is required");
-        }
-        return affiliateUrL.replace("{subid}", UUID.randomUUID().toString());
     }
 
     // 后台模板可能没写 {subid} 占位符, 这时覆盖或补上 subid 参数, 保证每次请求都有唯一点击ID

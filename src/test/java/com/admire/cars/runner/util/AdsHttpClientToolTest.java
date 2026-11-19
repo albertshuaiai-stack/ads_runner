@@ -7,7 +7,6 @@ import com.admire.cars.runner.entity.AdsMatrixAffiliateInfo;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.repository.AdsTaskLogRepository;
-import com.admire.cars.runner.repository.IpProxyInfoRepository;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
 import okhttp3.OkHttpClient;
@@ -39,9 +38,6 @@ class AdsHttpClientToolTest {
 
     @Mock
     private AdsTaskLogRepository adsTaskLogRepository;
-
-    @Mock
-    private IpProxyInfoRepository ipProxyInfoRepository;
 
     @InjectMocks
     private AdsHttpClientTool adsHttpClientTool;
