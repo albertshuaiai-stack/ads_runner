@@ -36,7 +36,8 @@ Spring Boot 3 + Java 17，包根 `com.admire.cars.runner`。部署形态：Windo
 ### 4. Postback 归因与投入产出统计
 - 联盟订单回调 `/api/postback|/api/yp/postback|/api/pb/postback` 落 `ADS_NORMAL_POST_BACK`，`PostBackAttributionService` 按 subId→clickId→normalAdsId 归因（MATCHED/PARTIAL/UNMATCHED）。
 - 统计入口 `PostBackAttributionService.stats`（Conversions 页）：每任务 Orders/Refunded/Conversion/Ad Cost(USD)/Profit/ROAS。
-  - 广告花费：脚本上报的 `cost`（账户币种）存 `ADS_NORMAL_INFO.LAST_REPORT_COST/COST_CURRENCY`，用 `EXCHANGE_RATE` 表最新汇率折 USD；佣金按 USD 口径；ROAS=佣金÷花费。
+  - 广告花费：脚本上报的 `cost`（账户币种累计值）写入花费台账 `ADS_CAMPAIGN_COST`（`AdsCampaignCostService`，按 Google Ads campaign id 一行，旧脚本无 id 时按名称 `NAME:` 一行），**与 Normal 任务生命周期解耦**：删任务、在 Google Ads 删除/同名重建广告后历史投入都保留。任务花费 = 同名台账行之和；总花费 = 当前任务的台账 + 曾绑定过 Normal 任务（`NORMAL_ADS_ID` 非空）但任务已删除的台账，从未绑定的（如 Matrix）不计。用 `EXCHANGE_RATE` 最新汇率折 USD；佣金按 USD 口径；ROAS=佣金÷花费。`ADS_NORMAL_INFO.LAST_REPORT_COST` 仅保留为兼容/台账缺失时的回退。
+  - 暂停（PAUSED）的广告新脚本也上报，但只记花费，不参与换链和额度（避免和同名在投广告的点击混淆）。
   - 退单识别：status 命中关键词 reject/refund/cancel/void/decline/revers（不区分大小写）。
 - Click 页 `clickSummary`：返回"已启用过的链 + 最新 500 条"合并，否则最新链全是排队未用的恒为 0。
 

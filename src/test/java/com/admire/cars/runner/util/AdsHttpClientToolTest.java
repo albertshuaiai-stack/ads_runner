@@ -1,5 +1,6 @@
 package com.admire.cars.runner.util;
 
+import com.admire.cars.runner.config.AutoTaskConfig;
 import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.constant.StatusConstant;
 import com.admire.cars.runner.dto.IpVerificationDto;
@@ -17,16 +18,24 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AdsHttpClientToolTest {
@@ -325,6 +334,57 @@ class AdsHttpClientToolTest {
             assertEquals(baseUrl + "/final?onelink=3/abc&click_id=T2oFu&sub_id=4216", response.getUrl());
         } finally {
             server.stop(0);
+        }
+    }
+
+    // 关闭 OkHttp 自身超时、服务端不响应, 模拟线上 callTimeout 未触发导致的卡死
+    // OkHttp timeouts disabled and the server never answers, mimicking the prod hang where callTimeout did not fire
+    @Test
+    void applyAffiliateAd_normalReleasesCallerWhenHardDeadlineExceeded() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService serverExecutor = Executors.newCachedThreadPool();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/index/index/openurl", exchange -> {
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.setExecutor(serverExecutor);
+        server.start();
+        try {
+            String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            AdsNormalInfo adsNormalInfo = buildNormalInfo(baseUrl);
+            AutoTaskConfig autoTaskConfig = new AutoTaskConfig();
+            autoTaskConfig.setHardDeadlineMillis(500L);
+            ReflectionTestUtils.setField(adsHttpClientTool, "autoTaskConfig", autoTaskConfig);
+            doReturn("Mozilla/5.0").when(userAgentService).getUserAgent();
+            OkHttpClient noTimeoutClient = new OkHttpClient.Builder()
+                    .readTimeout(0, TimeUnit.MILLISECONDS)
+                    .callTimeout(0, TimeUnit.MILLISECONDS)
+                    .build();
+            doReturn(noTimeoutClient).when(ipProxyService).buildOkHttpClient(any());
+            doReturn(new IpVerificationDto("127.0.0.1", "US", true))
+                    .when(ipProxyService)
+                    .ipVerification4OkHttpClient(any(), eq("US"));
+
+            long start = System.nanoTime();
+            AdsHttpResponseDto response = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertEquals(StatusConstant.FAILED, response.getStatus());
+            assertTrue(response.getError().contains("Hard deadline exceeded"), response.getError());
+            assertTrue(elapsedMillis < 5_000, "caller must be released by the hard deadline, took " + elapsedMillis + " ms");
+            // 服务端仍未响应, 能落库说明在途请求已被取消、执行线程已脱困
+            // the server still has not answered, so saving the logs proves the in-flight call was cancelled
+            verify(adsTaskLogRepository, timeout(3_000)).saveAll(any());
+        } finally {
+            release.countDown();
+            server.stop(0);
+            serverExecutor.shutdownNow();
         }
     }
 

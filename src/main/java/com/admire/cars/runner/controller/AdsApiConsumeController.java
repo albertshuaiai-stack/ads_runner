@@ -17,6 +17,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -286,6 +287,10 @@ public class AdsApiConsumeController {
             response.put("message", "post received.");
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
+            // 校验失败不落库, 打印原因方便排查联盟回调 / validation rejected the postback; log the reason for triage
+            log.warn("POSTBACK_REJECTED site={} orderNo={} apiKeyPresent={} error={}",
+                    adsNormalPostBack.getAffiliateSite(), adsNormalPostBack.getOrderNo(),
+                    StringUtils.hasText(apiKeyParam), e.getMessage());
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
@@ -317,12 +322,13 @@ public class AdsApiConsumeController {
 
 
 
+    // 联盟金额常带多余小数位(27.000), 统一按分入库 / normalize network amounts to two decimals
     private BigDecimal parseBigDecimal(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
         try {
-            return new BigDecimal(value.trim());
+            return new BigDecimal(value.trim()).setScale(2, RoundingMode.HALF_UP);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(fieldName + " must be a valid decimal number");
         }

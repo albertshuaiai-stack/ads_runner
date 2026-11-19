@@ -23,6 +23,10 @@ public class AutoTaskConfig {
     @Value("${auto.task.request.timeout.millis:10000}")
     private int requestTimeoutMillis;
 
+    // 单次换链执行的硬截止时间, 防止底层 HTTP 卡死占住调度线程 / hard deadline of one link run so a stuck HTTP call cannot hold a scheduler thread
+    @Value("${auto.task.hard.deadline.millis:120000}")
+    private long hardDeadlineMillis;
+
     @Value("${ip.verification.switch:true}")
     private boolean ipVerification = true;
 

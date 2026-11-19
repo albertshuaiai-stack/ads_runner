@@ -9,6 +9,7 @@ import com.admire.cars.runner.repository.IpProxyInfoRepository;
 import com.admire.cars.runner.service.proxy.IpProxyService;
 import com.admire.cars.runner.service.proxy.UserAgentService;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -25,9 +26,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -103,13 +113,18 @@ public class AdsHttpClientTool {
      * @param adsNormalInfo
      * @return
      */
+    public AdsHttpResponseDto applyAffiliateAd(AdsNormalInfo adsNormalInfo) {
+        return runWithHardDeadline(Constant.ADS_TYPE_NORMAL, adsNormalInfo.getCampainName(),
+                () -> applyNormalWithRetry(adsNormalInfo));
+    }
+
     // 403/超时/IP 国家不匹配时重建代理连接重试, 每次重试出口 IP 可能变化
     // retry with a fresh proxy connection on 403, timeout or country mismatch
-    public AdsHttpResponseDto applyAffiliateAd(AdsNormalInfo adsNormalInfo) {
+    private AdsHttpResponseDto applyNormalWithRetry(AdsNormalInfo adsNormalInfo) {
         AdsHttpResponseDto last = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             last = doApplyNormalAd(adsNormalInfo);
-            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last)) {
+            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last) || isAborted()) {
                 return last;
             }
             log.warn("normal affiliate retry campaign={} attempt={}/{} code={} error={}",
@@ -154,9 +169,13 @@ public class AdsHttpClientTool {
                         .build();
                 URI currentUri = requestUri;
                 for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
+                    if (isAborted()) {
+                        adsHttpResponseDto = abortedResponse(currentUri);
+                        break;
+                    }
                     final long startTime = System.currentTimeMillis();
                     Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
-                    try (Response response = redirectClient.newCall(request).execute()) {
+                    try (Response response = newTrackedCall(redirectClient, request).execute()) {
                         int statusCode = response.code();
                         URI responseUri = response.request() != null && response.request().url() != null
                                 ? response.request().url().uri()
@@ -264,10 +283,15 @@ public class AdsHttpClientTool {
      * @return
      */
     public AdsHttpResponseDto applyAffiliateAd(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
+        return runWithHardDeadline(Constant.ADS_TYPE_MATRIX, matrixInfo.getCampainName(),
+                () -> applyMatrixWithRetry(matrixInfo, adsMatrixAffiliateInfo));
+    }
+
+    private AdsHttpResponseDto applyMatrixWithRetry(AdsMatrixInfo matrixInfo, AdsMatrixAffiliateInfo adsMatrixAffiliateInfo) {
         AdsHttpResponseDto last = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             last = doApplyMatrixAd(matrixInfo, adsMatrixAffiliateInfo);
-            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last)) {
+            if (StatusConstant.SUCCESS.equals(last.getStatus()) || !shouldRetry(last) || isAborted()) {
                 return last;
             }
             log.warn("matrix affiliate retry campaign={} attempt={}/{} code={} error={}",
@@ -303,9 +327,13 @@ public class AdsHttpClientTool {
                         .build();
                 URI currentUri = requestUri;
                 for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
+                    if (isAborted()) {
+                        adsHttpResponseDto = abortedResponse(currentUri);
+                        break;
+                    }
                     final long startTime = System.currentTimeMillis();
                     Request request = buildRequest(adsHttpRequestDto, currentUri.toString());
-                    try (Response response = redirectClient.newCall(request).execute()) {
+                    try (Response response = newTrackedCall(redirectClient, request).execute()) {
                         int statusCode = response.code();
                         URI responseUri = response.request() != null && response.request().url() != null
                                 ? response.request().url().uri()
@@ -932,6 +960,130 @@ public class AdsHttpClientTool {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    // 硬截止兜底: 线上出现过 OkHttp callTimeout 未触发, Quartz 线程永久卡住且 @DisallowConcurrentExecution 让该任务不再执行
+    // hard deadline fallback: prod saw OkHttp callTimeout never fire, hanging Quartz threads and blocking the job forever
+    private static final long DEFAULT_HARD_DEADLINE_MILLIS = 120_000L;
+    private static final int STACK_LOG_DEPTH = 40;
+    private static final AtomicInteger AFFILIATE_THREAD_SEQ = new AtomicInteger();
+    private static final ExecutorService AFFILIATE_EXECUTOR = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "ads-affiliate-http-" + AFFILIATE_THREAD_SEQ.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
+    });
+    // 当前执行线程的在途请求, 超时时主动取消以关闭 socket / in-flight call of the running task, cancelled on deadline
+    private static final ThreadLocal<AtomicReference<Call>> IN_FLIGHT_CALL = new ThreadLocal<>();
+
+    // 在独立线程执行并限时等待, 超时则打印卡死线程栈、取消在途请求并返回失败
+    // run on a worker thread with a deadline; on timeout log the stuck stack, cancel the call and fail
+    private AdsHttpResponseDto runWithHardDeadline(String adsType, String campaign, Callable<AdsHttpResponseDto> task) {
+        final long deadlineMillis = resolveHardDeadlineMillis();
+        final String callerName = Thread.currentThread().getName();
+        final AtomicReference<Call> inFlight = new AtomicReference<>();
+        final AtomicReference<Thread> runner = new AtomicReference<>();
+        Future<AdsHttpResponseDto> future = AFFILIATE_EXECUTOR.submit(() -> {
+            Thread current = Thread.currentThread();
+            String originalName = current.getName();
+            // 沿用调度线程名, 跳转日志仍可按 Worker 关联 / keep the scheduler thread name so hop logs stay correlated
+            current.setName(callerName + "-http");
+            runner.set(current);
+            IN_FLIGHT_CALL.set(inFlight);
+            try {
+                return task.call();
+            } finally {
+                IN_FLIGHT_CALL.remove();
+                current.setName(originalName);
+            }
+        });
+        try {
+            return future.get(deadlineMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException timeoutException) {
+            Thread stuck = runner.get();
+            log.error("AFFILIATE_HARD_DEADLINE_EXCEEDED adsType={} campaign={} deadlineMs={} thread={} stack={}\nwatchdog={}",
+                    adsType, campaign, deadlineMillis,
+                    stuck != null ? stuck.getName() : "None",
+                    formatStack(stuck), formatOkioWatchdogStack());
+            abortRun(future, inFlight);
+            return new AdsHttpResponseDto(StatusConstant.FAILED, -1, null,
+                    "Hard deadline exceeded after " + deadlineMillis + " ms");
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            log.warn("AFFILIATE_DEADLINE_WAIT_INTERRUPTED adsType={} campaign={}", adsType, campaign);
+            abortRun(future, inFlight);
+            return new AdsHttpResponseDto(StatusConstant.FAILED, -1, null, "Interrupted while waiting for affiliate request");
+        } catch (ExecutionException executionException) {
+            Throwable cause = executionException.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException(cause);
+        }
+    }
+
+    private long resolveHardDeadlineMillis() {
+        if (autoTaskConfig != null && autoTaskConfig.getHardDeadlineMillis() > 0) {
+            return autoTaskConfig.getHardDeadlineMillis();
+        }
+        return DEFAULT_HARD_DEADLINE_MILLIS;
+    }
+
+    private void abortRun(Future<?> future, AtomicReference<Call> inFlight) {
+        future.cancel(true);
+        Call call = inFlight.get();
+        if (call != null) {
+            // cancel 本身也可能被锁住, 放到池线程执行, 不拖住调度线程 / cancel itself may block, so run it off the scheduler thread
+            AFFILIATE_EXECUTOR.execute(() -> {
+                call.cancel();
+                log.warn("AFFILIATE_IN_FLIGHT_CALL_CANCELLED url={}", call.request().url());
+            });
+        }
+    }
+
+    private Call newTrackedCall(OkHttpClient client, Request request) {
+        Call call = client.newCall(request);
+        AtomicReference<Call> holder = IN_FLIGHT_CALL.get();
+        if (holder != null) {
+            holder.set(call);
+        }
+        return call;
+    }
+
+    // 超时后执行线程被中断, 不再继续后续跳转, 避免与下一轮任务重叠产生多余点击
+    // the worker is interrupted after the deadline; stop further hops so it cannot overlap the next run
+    private boolean isAborted() {
+        return Thread.currentThread().isInterrupted();
+    }
+
+    private AdsHttpResponseDto abortedResponse(URI currentUri) {
+        log.warn("AFFILIATE_RUN_ABORTED_AFTER_DEADLINE url={}", currentUri);
+        return new AdsHttpResponseDto(StatusConstant.FAILED, -1, currentUri.toString(), "Aborted after hard deadline");
+    }
+
+    private static String formatStack(Thread thread) {
+        if (thread == null) {
+            return "None";
+        }
+        StackTraceElement[] frames = thread.getStackTrace();
+        StringBuilder builder = new StringBuilder("state=").append(thread.getState());
+        for (int i = 0; i < Math.min(frames.length, STACK_LOG_DEPTH); i++) {
+            builder.append("\n\tat ").append(frames[i]);
+        }
+        return builder.toString();
+    }
+
+    // callTimeout 与 HTTP/2 读超时由 Okio Watchdog 线程触发, 它卡住时这些超时全部失效
+    // callTimeout and HTTP/2 read timeouts are fired by the Okio Watchdog thread; if it is stuck they never fire
+    private static String formatOkioWatchdogStack() {
+        for (Map.Entry<Thread, StackTraceElement[]> entry : Thread.getAllStackTraces().entrySet()) {
+            if (entry.getKey().getName().startsWith("Okio Watchdog")) {
+                return entry.getKey().getName() + " " + formatStack(entry.getKey());
+            }
+        }
+        return "None";
     }
 
     private Request buildRequest(AdsHttpRequestDto adsHttpRequestDto, String url) {

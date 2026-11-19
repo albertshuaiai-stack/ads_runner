@@ -168,4 +168,7 @@
     <!-- Add ADS_NORMAL_INFO lifetime ad cost and currency from the Ads script -->
     <include file="db/changelog/db.changelog-074-normal-ad-cost.xml"/>
 
+    <!-- Ad cost ledger per Google Ads campaign, survives task and campaign deletion -->
+    <include file="db/changelog/db.changelog-076-campaign-cost-ledger.xml"/>
+
 </databaseChangeLog>

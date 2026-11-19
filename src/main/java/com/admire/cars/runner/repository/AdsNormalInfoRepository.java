@@ -17,6 +17,9 @@ public interface AdsNormalInfoRepository extends JpaRepository<AdsNormalInfo, Lo
 
     Optional<AdsNormalInfo> findByCampainNameAndAdsOwner(String campainName, String adsOwner);
 
+    // 同名任务可能不止一个, 用列表避免唯一结果异常 / several tasks may share a name, so return a list
+    List<AdsNormalInfo> findByAdsOwnerAndCampainNameOrderByIdDesc(String adsOwner, String campainName);
+
     // 后台已上架的 normaltask 列表 / listed normal tasks
     List<AdsNormalInfo> findByAdsOwnerOrderByIdDesc(String adsOwner);
 

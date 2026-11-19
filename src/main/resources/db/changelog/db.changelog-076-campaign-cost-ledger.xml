@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Google Ads 花费台账: 每个 campaign 一行累计花费, 与 Normal 任务生命周期解耦, 删任务/删广告后历史投入不丢 -->
+    <!-- Ad cost ledger: one lifetime-cost row per Google Ads campaign, kept after the task or campaign is deleted -->
+    <changeSet id="076-create-campaign-cost-ledger" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="ADS_CAMPAIGN_COST"/>
+            </not>
+        </preConditions>
+        <createTable tableName="ADS_CAMPAIGN_COST">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="ADS_OWNER" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <!-- ID:<campaignId>, 旧脚本无 id 时为 NAME:<name>, 重建归档为 NAME:<name>@<millis> -->
+            <!-- ID:<campaignId>; NAME:<name> for old scripts; NAME:<name>@<millis> once archived -->
+            <column name="CAMPAIGN_KEY" type="VARCHAR(160)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CAMPAIGN_ID" type="VARCHAR(32)"/>
+            <column name="CAMPAIGN_NAME" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CAMPAIGN_STATUS" type="VARCHAR(16)"/>
+            <column name="LIFETIME_COST" type="DECIMAL(18,4)" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="COST_CURRENCY" type="VARCHAR(8)"/>
+            <!-- 最近一次绑定的 Normal 任务, 任务删除后保留 / last bound normal task, kept after the task is deleted -->
+            <column name="NORMAL_ADS_ID" type="BIGINT"/>
+            <column name="LAST_REPORT_TIME" type="TIMESTAMP"/>
+            <column name="CREATE_DATE" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPDATE_DATE" type="TIMESTAMP"/>
+        </createTable>
+        <addUniqueConstraint tableName="ADS_CAMPAIGN_COST" columnNames="ADS_OWNER, CAMPAIGN_KEY"
+                             constraintName="UK_ADS_CAMPAIGN_COST_KEY"/>
+        <createIndex indexName="IDX_ADS_CAMPAIGN_COST_OWNER_NAME" tableName="ADS_CAMPAIGN_COST">
+            <column name="ADS_OWNER"/>
+            <column name="CAMPAIGN_NAME"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- 用现有任务上的累计花费初始化台账, 同名任务取最大值 / seed from the cost already stored on normal tasks -->
+    <changeSet id="076-seed-campaign-cost-ledger" author="copilot">
+        <sql>
+            INSERT INTO ADS_CAMPAIGN_COST (ADS_OWNER, CAMPAIGN_KEY, CAMPAIGN_NAME, LIFETIME_COST, COST_CURRENCY,
+                                           NORMAL_ADS_ID, LAST_REPORT_TIME, CREATE_DATE)
+            SELECT ADS_OWNER, CONCAT('NAME:', CAMPAIN_NAME), CAMPAIN_NAME, MAX(LAST_REPORT_COST), MAX(COST_CURRENCY),
+                   MAX(ID), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            FROM ADS_NORMAL_INFO
+            WHERE LAST_REPORT_COST IS NOT NULL AND ADS_OWNER IS NOT NULL AND CAMPAIN_NAME IS NOT NULL
+            GROUP BY ADS_OWNER, CAMPAIN_NAME
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
