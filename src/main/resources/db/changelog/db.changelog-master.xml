@@ -174,4 +174,7 @@
     <!-- Landing collector: email profile/password/2FA columns and gmail link rule status -->
     <include file="db/changelog/db.changelog-077-cashback-collector.xml"/>
 
+    <!-- Add COUNT_DATE so normal/matrix success and failed counters cover the current day -->
+    <include file="db/changelog/db.changelog-078-task-count-date.xml"/>
+
 </databaseChangeLog>

@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import java.net.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -67,6 +68,7 @@ public class NormalAdsAutoTaskJob extends AdsAutoTaskJob {
             log.info("NORMAL_AUTO_TASK_DAILY_LIMIT_SKIP adsId={} jobId={}", adsId, jobId);
             return;
         }
+        adsNormalInfo.rollCountDate(LocalDate.now().toString());
         try {
             AdsHttpResponseDto adsHttpResponseDto = adsHttpClientTool.applyAffiliateAd(adsNormalInfo);
             if (StatusConstant.SUCCESS.equals(adsHttpResponseDto.getStatus())) {

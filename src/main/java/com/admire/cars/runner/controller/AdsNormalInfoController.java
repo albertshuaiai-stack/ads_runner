@@ -1,7 +1,9 @@
 package com.admire.cars.runner.controller;
 
+import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.service.AdsNormalInfoService;
+import com.admire.cars.runner.service.ShiftLinkRotationHelper;
 import com.admire.cars.runner.event.AdsAutoTaskSchedulerService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -12,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,10 +24,13 @@ public class AdsNormalInfoController {
 
     private final AdsNormalInfoService adsNormalInfoService;
     private final AdsAutoTaskSchedulerService adsAutoTaskSchedulerService;
+    private final ShiftLinkRotationHelper rotationHelper;
 
-    public AdsNormalInfoController(AdsNormalInfoService adsNormalInfoService, AdsAutoTaskSchedulerService adsAutoTaskSchedulerService) {
+    public AdsNormalInfoController(AdsNormalInfoService adsNormalInfoService, AdsAutoTaskSchedulerService adsAutoTaskSchedulerService,
+                                   ShiftLinkRotationHelper rotationHelper) {
         this.adsNormalInfoService = adsNormalInfoService;
         this.adsAutoTaskSchedulerService = adsAutoTaskSchedulerService;
+        this.rotationHelper = rotationHelper;
     }
 
     @PostMapping
@@ -131,6 +137,11 @@ public class AdsNormalInfoController {
                 adsAutoTaskSchedulerService.getExecuteTimeInfo(adsNormalInfo.getId(), adsNormalInfo.getAdsOwner(), "Normal");
         adsNormalInfo.setLastExecuteTime(executeTimeInfo.lastExecuteTime());
         adsNormalInfo.setNextExecuteTime(executeTimeInfo.nextExecuteTime());
+        // 今天还没跑过的任务显示 0 / tasks that have not run today show zero
+        adsNormalInfo.rollCountDate(LocalDate.now().toString());
+        adsNormalInfo.setAvailableCount(rotationHelper.availableCount(
+                rotationHelper.loadPool(adsNormalInfo.getAdsOwner(), adsNormalInfo.getCampainName(), Constant.ADS_TYPE_NORMAL),
+                rotationHelper.capacity(Constant.ADS_TYPE_NORMAL)));
         return adsNormalInfo;
     }
 }
