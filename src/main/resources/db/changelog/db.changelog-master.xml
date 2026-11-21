@@ -177,4 +177,7 @@
     <!-- Add COUNT_DATE so normal/matrix success and failed counters cover the current day -->
     <include file="db/changelog/db.changelog-078-task-count-date.xml"/>
 
+    <!-- Email browser type for the landing collector: 1=AdsPower Browser, 2=BitBrowser -->
+    <include file="db/changelog/db.changelog-079-tool-email-browser-type.xml"/>
+
 </databaseChangeLog>

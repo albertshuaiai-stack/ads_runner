@@ -52,7 +52,11 @@ public class ToolEmail {
     @Column(name = "REMARKS", length = 64)
     private String remarks;
 
-    // 指纹浏览器环境编号(AdsPower 列表里的编号) / browser profile serial number, e.g. the AdsPower serial
+    // 浏览器类型: 1=AdsPower Browser, 2=比特浏览器 / browser type: 1=AdsPower Browser, 2=BitBrowser
+    @Column(name = "BROWSER_TYPE", nullable = false)
+    private Integer browserType = 1;
+
+    // 指纹浏览器环境编号(AdsPower 列表里的编号 / 比特浏览器环境 ID) / browser profile id in the selected browser
     @Column(name = "ENV_SERIAL", length = 32)
     private String envSerial;
 

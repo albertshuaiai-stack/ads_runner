@@ -5,6 +5,7 @@ import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.ToolEmailRepository;
 import com.admire.cars.runner.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional
 public class ToolEmailService {
@@ -125,6 +127,9 @@ public class ToolEmailService {
         if (updateData.getRemarks() != null) {
             existing.setRemarks(updateData.getRemarks());
         }
+        if (updateData.getBrowserType() != null) {
+            existing.setBrowserType(updateData.getBrowserType());
+        }
         if (updateData.getEnvSerial() != null) {
             existing.setEnvSerial(updateData.getEnvSerial());
         }
@@ -154,6 +159,14 @@ public class ToolEmailService {
         User owner = userRepository.findByUserPhoneNumber(toolEmail.getAdsOwner().trim())
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found by phone number: " + toolEmail.getAdsOwner()));
         toolEmail.setAdsOwner(owner.getUserPhoneNumber());
+
+        Integer browserType = toolEmail.getBrowserType();
+        if (browserType == null || (browserType != 1 && browserType != 2)) {
+            if (browserType != null) {
+                log.warn("TOOL_EMAL browserType={} is invalid, defaulting to 1", browserType);
+            }
+            toolEmail.setBrowserType(1);
+        }
 
         toolEmail.setUserName(trimToNull(toolEmail.getUserName()));
         toolEmail.setEmailAddress(trimToNull(toolEmail.getEmailAddress()));

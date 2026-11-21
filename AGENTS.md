@@ -46,7 +46,7 @@ Spring Boot 3 + Java 17，包根 `com.admire.cars.runner`。部署形态：Windo
 
 ### 6. 落地页采集与导入（`LandingImportService` / `LandingCollectorController`）
 - 本地工具 `lunalvabeau_site/landing_collector` 采集返利平台落地页，产出 `CashBack/邮箱名/平台/商家.txt`。
-- `GET /api/collector/accounts?api_key=`：给采集脚本返回邮箱、`ENV_SERIAL`（指纹浏览器环境编号）、`PLATFORM_PWD`（返利平台密码，各平台共用，登录账号=邮箱地址）、`TWO_FA_URL`、该邮箱各平台 Gmail Link Rule 状态。
+- `GET /api/collector/accounts?api_key=`：给采集脚本返回邮箱、`BROWSER_TYPE`（1=AdsPower Browser，2=比特浏览器）、`ENV_SERIAL`（该浏览器里的环境编号）、`PLATFORM_PWD`（返利平台密码，各平台共用，登录账号=邮箱地址）、`TWO_FA_URL`、该邮箱各平台 Gmail Link Rule 状态。
 - `POST /api/collector/landing-import?api_key=`（上传 bat）与 `POST /api/landing-import`（JWT，后台 Import from Folder）同一逻辑：邮箱不存在跳过；平台不存在自动建；Gmail Link Rule 不存在自动建（Match ID 自增 `GL000001`）；规则 `DISABLED` 整个文件跳过；重复 URL 跳过。服务**不加事务**，每条 ShiftLink 各自提交。
 - Gmail Link Rule（`GMAIL_PLATFORM_LINK.STATUS`）RUNNING / DISABLED 手动切换（`PUT /api/gmail-platform-links/{id}/status`）；统计里 DISABLED 视为 LOCKED（优先于返利账号表状态）。手工历史表 `SHIFT_LINK_HISTORY` 前端已下线，但历史数据仍并入统计。
 

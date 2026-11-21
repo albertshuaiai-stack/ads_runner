@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 邮箱表: 浏览器类型 1=AdsPower Browser, 2=比特浏览器; 存量邮箱默认 1 -->
+    <!-- email table: browser type 1=AdsPower Browser, 2=BitBrowser; existing rows default to 1 -->
+    <changeSet id="079-tool-email-browser-type" author="copilot">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="TOOL_EMAL" columnName="BROWSER_TYPE"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="TOOL_EMAL">
+            <column name="BROWSER_TYPE" type="INT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

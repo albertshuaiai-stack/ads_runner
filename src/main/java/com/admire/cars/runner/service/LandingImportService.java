@@ -197,8 +197,8 @@ public class LandingImportService {
         return link;
     }
 
-    // 落地页采集工具用: 返回邮箱、环境编号、平台密码、2FA 网址和该邮箱各平台规则状态
-    // for the landing collector: gmail, profile serial, platform password, 2FA url and rule status per platform
+    // 落地页采集工具用: 返回邮箱、浏览器类型、环境编号、平台密码、2FA 网址和该邮箱各平台规则状态
+    // for the landing collector: gmail, browser type, profile serial, platform password, 2FA url and rule status
     public List<Map<String, Object>> collectorAccounts(Long currentUserId, List<String> userNames) {
         User owner = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("ADS_USER not found: " + currentUserId));
@@ -222,6 +222,7 @@ public class LandingImportService {
             Map<String, Object> account = new LinkedHashMap<>();
             account.put("userName", email.getUserName());
             account.put("emailAddress", email.getEmailAddress());
+            account.put("browserType", email.getBrowserType() == null ? 1 : email.getBrowserType());
             account.put("envSerial", email.getEnvSerial());
             account.put("platformPwd", email.getPlatformPwd());
             account.put("twoFaUrl", email.getTwoFaUrl());
