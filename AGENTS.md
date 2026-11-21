@@ -36,16 +36,23 @@ Spring Boot 3 + Java 17，包根 `com.admire.cars.runner`。部署形态：Windo
 ### 4. Postback 归因与投入产出统计
 - 联盟订单回调 `/api/postback|/api/yp/postback|/api/pb/postback` 落 `ADS_NORMAL_POST_BACK`，`PostBackAttributionService` 按 subId→clickId→normalAdsId 归因（MATCHED/PARTIAL/UNMATCHED）。
 - 统计入口 `PostBackAttributionService.stats`（Conversions 页）：每任务 Orders/Refunded/Conversion/Ad Cost(USD)/Profit/ROAS。
-  - 广告花费：脚本上报的 `cost`（账户币种）存 `ADS_NORMAL_INFO.LAST_REPORT_COST/COST_CURRENCY`，用 `EXCHANGE_RATE` 表最新汇率折 USD；佣金按 USD 口径；ROAS=佣金÷花费。
+  - 广告花费：脚本上报的 `cost`（账户币种累计值）写入花费台账 `ADS_CAMPAIGN_COST`（`AdsCampaignCostService`，按 Google Ads campaign id 一行，旧脚本无 id 时按名称 `NAME:` 一行），**与 Normal 任务生命周期解耦**：删任务、在 Google Ads 删除/同名重建广告后历史投入都保留。任务花费 = 同名台账行之和；总花费 = 当前任务的台账 + 曾绑定过 Normal 任务（`NORMAL_ADS_ID` 非空）但任务已删除的台账，从未绑定的（如 Matrix）不计。用 `EXCHANGE_RATE` 最新汇率折 USD；佣金按 USD 口径；ROAS=佣金÷花费。`ADS_NORMAL_INFO.LAST_REPORT_COST` 仅保留为兼容/台账缺失时的回退。
+  - 暂停（PAUSED）的广告新脚本也上报，但只记花费，不参与换链和额度（避免和同名在投广告的点击混淆）。
   - 退单识别：status 命中关键词 reject/refund/cancel/void/decline/revers（不区分大小写）。
 - Click 页 `clickSummary`：返回"已启用过的链 + 最新 500 条"合并，否则最新链全是排队未用的恒为 0。
 
 ### 5. Normal Task 的 subid 占位符
 - 保存（create/update 走 `validateAndNormalize`）时 `ensureSubIdPlaceholder` 规范化 affiliate URL：`subid=`/`sub_id=`（大小写不敏感）统一成 `subid={subid}`，多处只留一处，缺失则追加；`sub2id=` 不动；超 128 字符放弃追加。
 
+### 6. 落地页采集与导入（`LandingImportService` / `LandingCollectorController`）
+- 本地工具 `lunalvabeau_site/landing_collector` 采集返利平台落地页，产出 `CashBack/邮箱名/平台/商家.txt`。
+- `GET /api/collector/accounts?api_key=`：给采集脚本返回邮箱、`BROWSER_TYPE`（1=AdsPower Browser，2=比特浏览器）、`ENV_SERIAL`（该浏览器里的环境编号）、`PLATFORM_PWD`（返利平台密码，各平台共用，登录账号=邮箱地址）、`TWO_FA_URL`、该邮箱各平台 Gmail Link Rule 状态。
+- `POST /api/collector/landing-import?api_key=`（上传 bat）与 `POST /api/landing-import`（JWT，后台 Import from Folder）同一逻辑：邮箱不存在跳过；平台不存在自动建；Gmail Link Rule 不存在自动建（Match ID 自增 `GL000001`）；规则 `DISABLED` 整个文件跳过；重复 URL 跳过。服务**不加事务**，每条 ShiftLink 各自提交。
+- Gmail Link Rule（`GMAIL_PLATFORM_LINK.STATUS`）RUNNING / DISABLED 手动切换（`PUT /api/gmail-platform-links/{id}/status`）；统计里 DISABLED 视为 LOCKED（优先于返利账号表状态）。手工历史表 `SHIFT_LINK_HISTORY` 前端已下线，但历史数据仍并入统计。
+
 ## 安全与对外接口
 
-- `AuthInterceptor`（JWT，header `AMtoken` 或 `Authorization: Bearer`）拦截 `/api/**`，白名单在 `WebConfig`：register/health/login/postback 系列/click/`/api/normal/ads`/`/api/matrix/ads`/`/api/track/report`。**新对外接口必须加白名单**（`/api/track/report` 忘加导致 401 的教训）。
+- `AuthInterceptor`（JWT，header `AMtoken` 或 `Authorization: Bearer`）拦截 `/api/**`，白名单在 `WebConfig`：register/health/login/postback 系列/click/`/api/normal/ads`/`/api/matrix/ads`/`/api/track/report`/`/api/collector/**`。**新对外接口必须加白名单**（`/api/track/report` 忘加导致 401 的教训）。
 - 对外接口用 `api_key`（query param）自校验：`UserService.getEnabledUserByApiKey`，遗留 key 是手机号 Base64。
 
 ## 目录速查

@@ -13,4 +13,9 @@ public interface GmailPlatformLinkRepository extends JpaRepository<GmailPlatform
     List<GmailPlatformLink> findByAdsOwner(String adsOwner);
 
     List<GmailPlatformLink> findByAdsOwnerAndUserName(String adsOwner, String userName);
+
+    List<GmailPlatformLink> findByAdsOwnerAndUserNameIgnoreCaseAndPlatformNameIgnoreCase(
+            String adsOwner, String userName, String platformName);
+
+    List<GmailPlatformLink> findByMatchIdStartingWith(String prefix);
 }

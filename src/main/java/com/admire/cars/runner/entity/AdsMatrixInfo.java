@@ -68,6 +68,10 @@ public class AdsMatrixInfo {
     @Column(name = "LAST_SUCCESS_DATE")
     private LocalDateTime lastSuccessDate;
 
+    // 成功/失败计数所属日期(服务器本地自然日) / server-local day the success/failed counters belong to
+    @Column(name = "COUNT_DATE", length = 10)
+    private String countDate;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 
@@ -80,9 +84,22 @@ public class AdsMatrixInfo {
     @Transient
     private LocalDateTime nextExecuteTime;
 
+    // 当前可被 Google Ads 拉取使用的链数, 仅展示 / links Google Ads can still use, display only
+    @Transient
+    private Long availableCount;
+
     @OneToMany(mappedBy = "matrixInfo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonManagedReference
     private List<AdsMatrixAffiliateInfo> affiliateInfos = new ArrayList<>();
+
+    // 跨天先把计数归零 / reset the counters when the day changes
+    public void rollCountDate(String today) {
+        if (!today.equals(countDate)) {
+            successCount = 0L;
+            failedCount = 0L;
+            countDate = today;
+        }
+    }
 
     public Long getSuccessCount() {
         if (successCount == null) {

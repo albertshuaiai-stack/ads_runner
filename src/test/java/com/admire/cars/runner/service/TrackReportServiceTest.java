@@ -1,6 +1,7 @@
 package com.admire.cars.runner.service;
 
 import com.admire.cars.runner.config.ShiftLinkClickConfig;
+import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.entity.User;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,6 +38,9 @@ class TrackReportServiceTest {
     private ShiftLinkClickConfig clickConfig;
     private ShiftLinkRotationHelper helper;
     private TrackReportService service;
+    private NormalShiftLinkQuotaService quotaService;
+    private AdsNormalInfoRepository normalInfoRepository;
+    private AdsCampaignCostService costService;
     private final List<ShiftLink> normalLinks = new ArrayList<>();
 
     @BeforeEach
@@ -53,8 +60,11 @@ class TrackReportServiceTest {
         when(linkRepository.findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(OWNER, CAMPAIGN, "Matrix"))
                 .thenReturn(List.of());
 
+        quotaService = mock(NormalShiftLinkQuotaService.class);
+        normalInfoRepository = mock(AdsNormalInfoRepository.class);
+        costService = mock(AdsCampaignCostService.class);
         service = new TrackReportService(userService, linkRepository, helper,
-                mock(NormalShiftLinkQuotaService.class), mock(AdsNormalInfoRepository.class));
+                quotaService, normalInfoRepository, costService);
     }
 
     private ShiftLink link(long id, Long clickBase, long displayTimes) {
@@ -70,7 +80,7 @@ class TrackReportServiceTest {
 
     private void report(long clicks) {
         service.applyCampaignClicks(API_KEY,
-                List.of(new TrackReportService.CampaignClicks(CAMPAIGN, clicks, null, null)));
+                List.of(new TrackReportService.CampaignClicks(CAMPAIGN, clicks, null, null, null, null)));
     }
 
     @Test
@@ -141,5 +151,47 @@ class TrackReportServiceTest {
         assertEquals(active, helper.selectForTemplate(normalLinks, 10L).orElseThrow());
         assertEquals(active, helper.current(normalLinks).orElseThrow());
         assertEquals(100L, retired.getClickBase());
+    }
+
+    // 暂停的同名旧广告只记花费, 不能用它的点击数换链 / a paused campaign only updates the ledger, never rotation
+    @Test
+    void pausedCampaignOnlyRecordsCost() {
+        ShiftLink active = link(5, 100L, 0);
+        link(9, null, 0);
+
+        service.applyCampaignClicks(API_KEY, List.of(new TrackReportService.CampaignClicks(
+                CAMPAIGN, 500L, new BigDecimal("88.5"), "CNY", "111", "PAUSED")));
+
+        assertEquals(0L, active.getDisplayTimes());
+        verify(linkRepository, never()).save(any());
+        verify(quotaService, never()).recordClicks(any(), any(), anyLong());
+        verify(costService).record(OWNER, "111", CAMPAIGN, "PAUSED", new BigDecimal("88.5"), "CNY", null);
+    }
+
+    @Test
+    void enabledCampaignRecordsCostAgainstNewestTask() {
+        AdsNormalInfo task = new AdsNormalInfo();
+        task.setId(9L);
+        when(normalInfoRepository.findByAdsOwnerAndCampainNameOrderByIdDesc(OWNER, CAMPAIGN)).thenReturn(List.of(task));
+
+        service.applyCampaignClicks(API_KEY, List.of(new TrackReportService.CampaignClicks(
+                CAMPAIGN, 10L, new BigDecimal("12.34"), "cny", "222", "ENABLED")));
+
+        verify(costService).record(OWNER, "222", CAMPAIGN, "ENABLED", new BigDecimal("12.34"), "cny", 9L);
+        assertEquals(new BigDecimal("12.34"), task.getLastReportCost());
+        assertEquals("CNY", task.getCostCurrency());
+    }
+
+    // 台账写入失败不能影响换链 / a ledger failure must not break rotation
+    @Test
+    void ledgerFailureDoesNotBreakRotation() {
+        ShiftLink newest = link(3, null, 0);
+        doThrow(new IllegalStateException("duplicate key")).when(costService)
+                .record(any(), any(), any(), any(), any(), any(), any());
+
+        service.applyCampaignClicks(API_KEY, List.of(new TrackReportService.CampaignClicks(
+                CAMPAIGN, 100L, BigDecimal.ONE, "CNY", "333", "ENABLED")));
+
+        assertEquals(100L, newest.getClickBase());
     }
 }

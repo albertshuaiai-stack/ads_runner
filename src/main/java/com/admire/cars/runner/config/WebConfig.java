@@ -31,7 +31,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/matrix/ads",
                         // Ads 脚本点击上报, 由 Controller 自行校验 api_key / script click report, api_key checked in controller
                         "/api/track/report",
-                        "/api/track/daily");
+                        "/api/track/daily",
+                        // 落地页采集/上传脚本, 由 Controller 自行校验 api_key / landing collector scripts, api_key checked in controller
+                        "/api/collector/**");
     }
 
     @Override

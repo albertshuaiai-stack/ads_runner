@@ -65,15 +65,31 @@ public class PostBackImportService {
         int matched = 0;
         int partial = 0;
         int unmatched = 0;
+        int skippedNoOrderId = 0;
+        int skippedDuplicate = 0;
+        // 文件内订单时间范围, 全部跳过时可判断是否传了旧账单 / action time range in the file, reveals a stale export
+        String earliestActionTime = null;
+        String latestActionTime = null;
         for (int i = 1; i < lines.size(); i++) {
             total++;
             AdsNormalPostBack postBack = toPostBack(parseLine(lines.get(i)), header, adsOwner, affiliateSite);
             if (postBack == null) {
                 skipped++;
+                skippedNoOrderId++;
                 continue;
+            }
+            String actionTime = postBack.getOrderTime();
+            if (StringUtils.hasText(actionTime)) {
+                if (earliestActionTime == null || actionTime.compareTo(earliestActionTime) < 0) {
+                    earliestActionTime = actionTime;
+                }
+                if (latestActionTime == null || actionTime.compareTo(latestActionTime) > 0) {
+                    latestActionTime = actionTime;
+                }
             }
             if (postBackRepository.findByAdsOwnerAndOrderNo(adsOwner, postBack.getOrderNo()).isPresent()) {
                 skipped++;
+                skippedDuplicate++;
                 continue;
             }
             postBackRepository.save(postBack);
@@ -88,8 +104,9 @@ public class PostBackImportService {
             }
             imported++;
         }
-        log.info("POSTBACK_IMPORT_DONE owner={} platform={} total={} imported={} skipped={} matched={} partial={} unmatched={}",
-                adsOwner, affiliateSite, total, imported, skipped, matched, partial, unmatched);
+        log.info("POSTBACK_IMPORT_DONE owner={} platform={} total={} imported={} skipped={} skippedDuplicate={} skippedNoOrderId={} matched={} partial={} unmatched={} fileActionTimeRange={}~{}",
+                adsOwner, affiliateSite, total, imported, skipped, skippedDuplicate, skippedNoOrderId,
+                matched, partial, unmatched, earliestActionTime, latestActionTime);
         return new ImportResult(total, imported, skipped, matched, partial, unmatched);
     }
 

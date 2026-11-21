@@ -74,6 +74,16 @@ public interface AdsNormalPostBackRepository extends JpaRepository<AdsNormalPost
             """)
     long countUnmatched(@Param("adsOwner") String adsOwner);
 
+    // 按天明细用: 取该账号全部 postback (订单量小, 全量加载后按 orderTime 归一化日期分组)
+    // For daily breakdown: load all postbacks of the owner (few rows), group by normalized order date
+    // null 表示全部(admin); 派生方法生成 ads_owner = NULL 匹配不到任何行, 必须手写兜底
+    // null means all owners (admin); a derived query would compile to ads_owner = NULL and match nothing
+    @Query("""
+            select p from AdsNormalPostBack p
+            where (:adsOwner is null or p.adsOwner = :adsOwner)
+            """)
+    List<AdsNormalPostBack> findByAdsOwner(@Param("adsOwner") String adsOwner);
+
     // 全局口径含未归因订单, 含退单数 / global totals include unmatched orders and refunded count
     @Query("""
             select count(p), coalesce(sum(p.orderAmount), 0), coalesce(sum(p.userCommissionAmount), 0),

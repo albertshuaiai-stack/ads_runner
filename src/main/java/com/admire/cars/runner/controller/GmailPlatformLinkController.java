@@ -95,6 +95,21 @@ public class GmailPlatformLinkController {
         }
     }
 
+    // 手动标记该邮箱在该平台是否还在运行 / manually mark whether the account still runs on the platform
+    @PutMapping("/{id}/status")
+    public ResponseEntity<Map<String, Object>> updateStatus(@PathVariable Long id, @RequestParam String status,
+                                                            HttpServletRequest request) {
+        try {
+            GmailPlatformLink updated = service.updateStatus(id, status, getUserId(request));
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("success", true);
+            resp.put("data", GmailPlatformLinkDto.fromEntity(updated));
+            return ResponseEntity.ok(resp);
+        } catch (IllegalArgumentException e) {
+            return badRequest(e);
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> delete(@PathVariable Long id, HttpServletRequest request) {
         try {

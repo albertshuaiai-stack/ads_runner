@@ -33,17 +33,20 @@ public class TrackReportService {
     private final ShiftLinkRotationHelper rotationHelper;
     private final NormalShiftLinkQuotaService normalQuotaService;
     private final AdsNormalInfoRepository adsNormalInfoRepository;
+    private final AdsCampaignCostService campaignCostService;
 
     public TrackReportService(UserService userService,
                               ShiftLinkRepository shiftLinkRepository,
                               ShiftLinkRotationHelper rotationHelper,
                               NormalShiftLinkQuotaService normalQuotaService,
-                              AdsNormalInfoRepository adsNormalInfoRepository) {
+                              AdsNormalInfoRepository adsNormalInfoRepository,
+                              AdsCampaignCostService campaignCostService) {
         this.userService = userService;
         this.shiftLinkRepository = shiftLinkRepository;
         this.rotationHelper = rotationHelper;
         this.normalQuotaService = normalQuotaService;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
+        this.campaignCostService = campaignCostService;
     }
 
     @Transactional
@@ -62,13 +65,20 @@ public class TrackReportService {
             }
             long clicks = row.clicks() == null ? 0L : Math.max(row.clicks(), 0L);
             String campaignName = row.name().trim();
-            log.info("click report row owner={} campaign={} clicks={} cost={} currency={}",
-                    adsOwner, campaignName, clicks, row.cost(), row.currency());
+            boolean enabled = isEnabled(row.status());
+            log.info("click report row owner={} campaign={} campaignId={} status={} clicks={} cost={} currency={}",
+                    adsOwner, campaignName, row.id(), row.status(), clicks, row.cost(), row.currency());
+            if (!enabled) {
+                // 暂停的广告只记花费, 不参与换链和额度, 避免与同名在投广告的点击数混淆
+                // paused campaigns only update the cost ledger; their clicks must not drive rotation or quota
+                recordCost(adsOwner, row, campaignName, false);
+                continue;
+            }
             boolean matrixChanged = redistribute(adsOwner, campaignName, clicks, MATRIX_ADS_TYPE);
             boolean normalChanged = redistribute(adsOwner, campaignName, clicks, NORMAL_ADS_TYPE);
             // 累计点击增量换算成当天 Normal 生成额度 / turn the click delta into today's normal allowance
             normalQuotaService.recordClicks(adsOwner, campaignName, clicks);
-            recordCost(adsOwner, campaignName, row.cost(), row.currency());
+            recordCost(adsOwner, row, campaignName, true);
             if (matrixChanged || normalChanged) {
                 updatedCampaigns++;
             }
@@ -76,25 +86,41 @@ public class TrackReportService {
         return updatedCampaigns;
     }
 
-    // 记录 campaign 累计花费, 供 Post Back 计算投入产出; 旧脚本不带花费时保持原值
-    // Store lifetime ad cost for ROI stats; rows without cost (old scripts) keep the previous value
-    private void recordCost(String adsOwner, String campaignName, BigDecimal cost, String currency) {
+    // 旧脚本不带状态, 视为在投 / rows from old scripts carry no status and are treated as enabled
+    private static boolean isEnabled(String status) {
+        return !StringUtils.hasText(status) || "ENABLED".equalsIgnoreCase(status.trim());
+    }
+
+    // 花费写入按 campaign 的台账(删除任务/广告后仍保留); 在投广告同时刷新任务上的最近花费, 兼容旧读取方
+    // Cost goes to the per-campaign ledger that survives deletions; enabled rows also refresh the task field for old readers
+    private void recordCost(String adsOwner, CampaignClicks row, String campaignName, boolean enabled) {
+        BigDecimal cost = row.cost();
         if (cost == null || cost.signum() < 0) {
             return;
         }
-        Optional<AdsNormalInfo> found = adsNormalInfoRepository.findByCampainNameAndAdsOwner(campaignName, adsOwner);
-        if (found.isEmpty()) {
-            log.info("ad cost skipped, no normal campaign owner={} campaign={} cost={}", adsOwner, campaignName, cost);
+        List<AdsNormalInfo> tasks = adsNormalInfoRepository.findByAdsOwnerAndCampainNameOrderByIdDesc(adsOwner, campaignName);
+        AdsNormalInfo task = tasks.isEmpty() ? null : tasks.get(0);
+        try {
+            campaignCostService.record(adsOwner, row.id(), campaignName, row.status(), cost, row.currency(),
+                    task == null ? null : task.getId());
+        } catch (RuntimeException e) {
+            log.warn("CAMPAIGN_COST_RECORD_FAILED owner={} campaign={} campaignId={} cost={} error={}",
+                    adsOwner, campaignName, row.id(), cost, e.getMessage());
+        }
+        if (task == null) {
+            log.info("ad cost ledger only, no normal campaign owner={} campaign={} cost={}", adsOwner, campaignName, cost);
             return;
         }
-        AdsNormalInfo ads = found.get();
-        String normalizedCurrency = StringUtils.hasText(currency)
-                ? currency.trim().toUpperCase(Locale.ROOT) : ads.getCostCurrency();
-        ads.setLastReportCost(cost);
-        ads.setCostCurrency(normalizedCurrency);
-        adsNormalInfoRepository.save(ads);
+        if (!enabled) {
+            return;
+        }
+        String normalizedCurrency = StringUtils.hasText(row.currency())
+                ? row.currency().trim().toUpperCase(Locale.ROOT) : task.getCostCurrency();
+        task.setLastReportCost(cost);
+        task.setCostCurrency(normalizedCurrency);
+        adsNormalInfoRepository.save(task);
         log.info("ad cost recorded adsId={} owner={} campaign={} cost={} currency={}",
-                ads.getId(), adsOwner, campaignName, cost, normalizedCurrency);
+                task.getId(), adsOwner, campaignName, cost, normalizedCurrency);
     }
 
     // 在用的链 clicks - clickBase 达到阈值就换成最新未用过的链, 新链基准记为当前 clicks; 与脚本拉取频率无关
@@ -158,7 +184,8 @@ public class TrackReportService {
         return true;
     }
 
-    // cost: 累计花费(账户币种), currency: 账户币种代码 / lifetime cost in account currency and its code
-    public record CampaignClicks(String name, Long clicks, BigDecimal cost, String currency) {
+    // cost: 累计花费(账户币种), currency: 账户币种代码, id: Google Ads campaign id(旧脚本为空), status: ENABLED/PAUSED(旧脚本为空)
+    // lifetime cost and account currency; id and status are empty for old scripts
+    public record CampaignClicks(String name, Long clicks, BigDecimal cost, String currency, String id, String status) {
     }
 }

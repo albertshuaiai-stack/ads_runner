@@ -6,6 +6,7 @@ import com.admire.cars.runner.entity.AdsDailyStat;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.entity.AdsSearchTermStat;
+import com.admire.cars.runner.repository.AdsCampaignCostRepository;
 import com.admire.cars.runner.repository.AdsCampaignPlanRepository;
 import com.admire.cars.runner.repository.AdsCampaignSnapshotRepository;
 import com.admire.cars.runner.repository.AdsDailyStatRepository;
@@ -50,6 +51,8 @@ class AdsAdvisorServiceTest {
     private AdsNormalPostBackRepository postBackRepository;
     @Mock
     private PostBackAttributionService attributionService;
+    @Mock
+    private AdsCampaignCostRepository campaignCostRepository;
 
     private AdsNormalInfo task(long id, String name, String status, Long clicks, String cost, String currency) {
         AdsNormalInfo task = new AdsNormalInfo();
@@ -136,7 +139,8 @@ class AdsAdvisorServiceTest {
         when(postBackRepository.findAttributedByOwner(null)).thenReturn(List.of(order, noTime));
 
         AdsAdvisorService service = new AdsAdvisorService(planRepository, dailyStatRepository, snapshotRepository,
-                searchTermRepository, normalInfoRepository, postBackRepository, attributionService, new AdsPlanEvaluator());
+                searchTermRepository, normalInfoRepository, postBackRepository, attributionService, new AdsPlanEvaluator(),
+                campaignCostRepository);
 
         Map<String, Object> review = service.review(null, null);
 
@@ -162,5 +166,86 @@ class AdsAdvisorServiceTest {
         List<Map<String, Object>> candidates = (List<Map<String, Object>>) byName.get("negativeCandidates");
         assertEquals("teepublic login", candidates.get(0).get("term"));
         assertFalse(String.valueOf(review.get("markdown")).isBlank());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reviewMergesTasksWithSameCampaignName() {
+        LocalDate today = LocalDate.now();
+        when(attributionService.resolveOwnerForRead(isNull(), isNull())).thenReturn(null);
+        lenient().when(attributionService.toUsd(any(), any())).thenReturn(BigDecimal.ONE);
+        when(normalInfoRepository.findAllByOrderByIdDesc()).thenReturn(List.of(
+                task(1, "neomwellbeing", "RUNNING", 100L, "10", "USD"),
+                task(2, "neomwellbeing", "PAUSED", 50L, "5", "USD")));
+        when(planRepository.findByOwner(null)).thenReturn(List.of());
+        when(snapshotRepository.findByOwner(null)).thenReturn(List.of());
+
+        AdsDailyStat stat = new AdsDailyStat();
+        stat.setAdsOwner(OWNER);
+        stat.setCampaignName("neomwellbeing");
+        stat.setStatDate(today);
+        stat.setNetwork("SEARCH");
+        stat.setClicks(7L);
+        stat.setImpressions(70L);
+        stat.setCost(new BigDecimal("3"));
+        stat.setCurrency("USD");
+        when(dailyStatRepository.findSince(isNull(), any())).thenReturn(List.of(stat));
+        when(searchTermRepository.findSince(isNull(), any())).thenReturn(List.of());
+
+        long now = System.currentTimeMillis() / 1000;
+        AdsNormalPostBack order1 = new AdsNormalPostBack();
+        order1.setNormalAdsId(1L);
+        order1.setStatus("Approved");
+        order1.setOrderTime(String.valueOf(now));
+        order1.setUserCommissionAmount(new BigDecimal("2"));
+        AdsNormalPostBack order2 = new AdsNormalPostBack();
+        order2.setNormalAdsId(2L);
+        order2.setStatus("Approved");
+        order2.setOrderTime(String.valueOf(now));
+        order2.setUserCommissionAmount(new BigDecimal("4"));
+        when(postBackRepository.findAttributedByOwner(null)).thenReturn(List.of(order1, order2));
+
+        AdsAdvisorService service = new AdsAdvisorService(planRepository, dailyStatRepository, snapshotRepository,
+                searchTermRepository, normalInfoRepository, postBackRepository, attributionService, new AdsPlanEvaluator(),
+                campaignCostRepository);
+
+        Map<String, Object> review = service.review(null, null);
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) review.get("tasks");
+
+        // 涓や釜鍚屽悕 task 鍙嚭涓€琛?/ two same-name tasks produce one row
+        assertEquals(1, rows.size());
+        Map<String, Object> row = rows.get(0);
+        assertEquals(2, row.get("taskCount"));
+        assertEquals(List.of(1L, 2L), row.get("taskIds"));
+        Map<String, Object> m = (Map<String, Object>) row.get("metrics");
+        // 鐐瑰嚮涓庤姳璐规寜 task 姹囨€?/ clicks and lifetime cost are summed
+        assertEquals(150L, m.get("lifetimeClicks"));
+        assertEquals(15.0, (Double) m.get("lifetimeCostUsd"), 0.001);
+        // 璁㈠崟鍚堝苟, 7 澶╂暟鎹彧绠椾竴浠戒笉閲嶅 / orders merged, 7-day data counted once
+        assertEquals(2L, m.get("orders"));
+        assertEquals(6.0, (Double) m.get("effectiveCommission"), 0.001);
+        assertEquals(7L, m.get("clicks7d"));
+        assertTrue(String.valueOf(review.get("markdown")).contains("[1, 2]"));
+    }
+
+    @Test
+    void orderDate_parsesCommonAffiliateFormats() {
+        // 鏃堕棿鎴崇 (9-13 浣嶆暟瀛? / epoch seconds
+        assertTrue(AdsAdvisorService.orderDate("1764000000") != null);
+        // yyyy-MM-dd / ISO style
+        assertEquals(LocalDate.of(2026, 11, 17), AdsAdvisorService.orderDate("2026-11-17 10:30:00"));
+        // 绱у噾 yyyyMMdd / compact digits
+        assertEquals(LocalDate.of(2026, 11, 17), AdsAdvisorService.orderDate("20261117"));
+        // 绱у噾 yyyyMMddHHmm / compact datetime
+        assertEquals(LocalDate.of(2026, 11, 17), AdsAdvisorService.orderDate("20261117093000".substring(0, 12)));
+        // 缇庡紡 MM/dd/yyyy / US style month first
+        assertEquals(LocalDate.of(2026, 11, 17), AdsAdvisorService.orderDate("11/17/2026 12:00"));
+        // dd/MM/yyyy 姝т箟鍏滃簳 (17 涓嶅彲鑳芥槸鏈堜唤) / day-first fallback when day > 12
+        assertEquals(LocalDate.of(2026, 11, 17), AdsAdvisorService.orderDate("17/11/2026"));
+        // Nov 17, 2026 椋庢牸 / "MMM d, yyyy" style
+        assertEquals(LocalDate.of(2026, 11, 17), AdsAdvisorService.orderDate("Nov 17, 2026 09:12"));
+        // 瑙ｆ瀽涓嶄簡鐨勮繑鍥?null / unparseable values return null
+        assertEquals(null, AdsAdvisorService.orderDate("not a date"));
+        assertEquals(null, AdsAdvisorService.orderDate(""));
     }
 }

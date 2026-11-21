@@ -1,11 +1,13 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.entity.AdsCampaignCost;
 import com.admire.cars.runner.entity.AdsCampaignPlan;
 import com.admire.cars.runner.entity.AdsCampaignSnapshot;
 import com.admire.cars.runner.entity.AdsDailyStat;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.entity.AdsSearchTermStat;
+import com.admire.cars.runner.repository.AdsCampaignCostRepository;
 import com.admire.cars.runner.repository.AdsCampaignPlanRepository;
 import com.admire.cars.runner.repository.AdsCampaignSnapshotRepository;
 import com.admire.cars.runner.repository.AdsDailyStatRepository;
@@ -22,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,6 +45,12 @@ public class AdsAdvisorService {
 
     static final int REVIEW_DAYS = 7;
     static final int TERM_CANDIDATE_LIMIT = 15;
+    // 美式斜杠日期 / US style slashed date, e.g. 11/17/2026
+    private static final java.util.regex.Pattern US_SLASH_DATE =
+            java.util.regex.Pattern.compile("(\\d{1,2})/(\\d{1,2})/(\\d{4})");
+    // "Nov 17, 2026" 风格 / "MMM d, yyyy" style
+    private static final DateTimeFormatter MMM_D_YYYY =
+            DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
 
     private final AdsCampaignPlanRepository planRepository;
     private final AdsDailyStatRepository dailyStatRepository;
@@ -51,6 +60,7 @@ public class AdsAdvisorService {
     private final AdsNormalPostBackRepository postBackRepository;
     private final PostBackAttributionService attributionService;
     private final AdsPlanEvaluator planEvaluator;
+    private final AdsCampaignCostRepository campaignCostRepository;
 
     public AdsAdvisorService(AdsCampaignPlanRepository planRepository,
                              AdsDailyStatRepository dailyStatRepository,
@@ -59,7 +69,8 @@ public class AdsAdvisorService {
                              AdsNormalInfoRepository normalInfoRepository,
                              AdsNormalPostBackRepository postBackRepository,
                              PostBackAttributionService attributionService,
-                             AdsPlanEvaluator planEvaluator) {
+                             AdsPlanEvaluator planEvaluator,
+                             AdsCampaignCostRepository campaignCostRepository) {
         this.planRepository = planRepository;
         this.dailyStatRepository = dailyStatRepository;
         this.snapshotRepository = snapshotRepository;
@@ -68,6 +79,7 @@ public class AdsAdvisorService {
         this.postBackRepository = postBackRepository;
         this.attributionService = attributionService;
         this.planEvaluator = planEvaluator;
+        this.campaignCostRepository = campaignCostRepository;
     }
 
     // ---------- plans ----------
@@ -180,13 +192,37 @@ public class AdsAdvisorService {
         postBackRepository.findAttributedByOwner(owner).forEach(order ->
                 orders.computeIfAbsent(order.getNormalAdsId(), k -> new ArrayList<>()).add(order));
         Map<String, Optional<BigDecimal>> rateCache = new HashMap<>();
+        // 累计花费取自按 campaign 的台账, 删任务/删广告后不清零 / lifetime cost from the ledger, kept after deletions
+        Map<String, List<AdsCampaignCost>> ledger = AdsCampaignCostService.groupByCampaign(
+                owner == null ? campaignCostRepository.findAll() : campaignCostRepository.findByAdsOwner(owner));
 
-        List<Map<String, Object>> rows = new ArrayList<>();
+        // 同名 campaign 合并成一行: Google Ads 一个 campaign 只有一份每日数据, 多 task 时把订单/花费汇总
+        // Merge tasks sharing a campaign name: Google Ads reports one row per campaign, so sum orders/cost
+        Map<String, List<AdsNormalInfo>> grouped = new LinkedHashMap<>();
         for (AdsNormalInfo task : tasks) {
-            String key = ownerKey(task.getAdsOwner(), task.getCampainName());
-            rows.add(reviewTask(task, plans.get(key), snapshots.get(key), daily.getOrDefault(key, List.of()),
-                    terms.getOrDefault(key, List.of()), orders.getOrDefault(task.getId(), List.of()),
-                    today, from7d, rateCache));
+            grouped.computeIfAbsent(ownerKey(task.getAdsOwner(), task.getCampainName()),
+                    k -> new ArrayList<>()).add(task);
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int mergedCampaigns = 0;
+        for (Map.Entry<String, List<AdsNormalInfo>> entry : grouped.entrySet()) {
+            String key = entry.getKey();
+            List<AdsNormalInfo> group = entry.getValue();
+            if (group.size() > 1) {
+                mergedCampaigns++;
+            }
+            List<AdsNormalPostBack> groupOrders = new ArrayList<>();
+            List<Long> taskIds = new ArrayList<>();
+            for (AdsNormalInfo task : group) {
+                taskIds.add(task.getId());
+                groupOrders.addAll(orders.getOrDefault(task.getId(), List.of()));
+            }
+            Map<String, Object> row = reviewTask(mergeTasks(group, rateCache), plans.get(key), snapshots.get(key),
+                    daily.getOrDefault(key, List.of()), terms.getOrDefault(key, List.of()),
+                    groupOrders, today, from7d, rateCache, ledger.get(key));
+            row.put("taskIds", taskIds);
+            row.put("taskCount", group.size());
+            rows.add(row);
         }
         rows.sort(Comparator.comparingInt((Map<String, Object> row) -> AdsReviewRules.priority((String) row.get("decision")))
                 .thenComparing(row -> String.valueOf(row.get("campaignName"))));
@@ -202,14 +238,57 @@ public class AdsAdvisorService {
         result.put("summary", summary);
         result.put("tasks", rows);
         result.put("markdown", reviewMarkdown(today, owner, summary, rows));
-        log.info("ADS_REVIEW_BUILT owner={} tasks={} summary={}", owner, rows.size(), summary);
+        log.info("ADS_REVIEW_BUILT owner={} tasks={} rows={} mergedCampaigns={} summary={}",
+                owner, tasks.size(), rows.size(), mergedCampaigns, summary);
         return result;
+    }
+
+    // 同名任务汇总: 累计花费按各自币种折 USD 后相加, 点击求和, 任一 RUNNING 即视为在投
+    // Merge: convert each task's lifetime cost to USD before summing, sum clicks, keep RUNNING if any
+    private AdsNormalInfo mergeTasks(List<AdsNormalInfo> group, Map<String, Optional<BigDecimal>> rateCache) {
+        AdsNormalInfo first = group.get(0);
+        if (group.size() == 1) {
+            return first;
+        }
+        AdsNormalInfo merged = new AdsNormalInfo();
+        merged.setId(first.getId());
+        merged.setAdsOwner(first.getAdsOwner());
+        merged.setCampainName(first.getCampainName());
+        merged.setCampainCountry(first.getCampainCountry());
+        merged.setPlatformName(first.getPlatformName());
+        merged.setLandingPageUrl(first.getLandingPageUrl());
+        long clicks = 0L;
+        BigDecimal costUsd = null;
+        boolean running = false;
+        for (AdsNormalInfo task : group) {
+            clicks += value(task.getLastReportClicks());
+            if ("RUNNING".equalsIgnoreCase(task.getStatus())) {
+                running = true;
+            }
+            if (task.getLastReportCost() != null) {
+                Double usd = usd(task.getCostCurrency(), task.getLastReportCost(), rateCache);
+                if (usd != null) {
+                    costUsd = (costUsd == null ? BigDecimal.ZERO : costUsd).add(BigDecimal.valueOf(usd));
+                }
+            }
+        }
+        merged.setLastReportClicks(clicks);
+        merged.setStatus(running ? "RUNNING" : first.getStatus());
+        if (costUsd != null) {
+            // 已经是 USD, reviewTask 再折一次乘以 1 / already USD, reviewTask converts it by 1
+            merged.setCostCurrency("USD");
+            merged.setLastReportCost(costUsd);
+        }
+        log.info("ADS_REVIEW_TASKS_MERGED campaign={} taskIds={} clicks={} costUsd={}",
+                first.getCampainName(), group.stream().map(AdsNormalInfo::getId).toList(), clicks, costUsd);
+        return merged;
     }
 
     private Map<String, Object> reviewTask(AdsNormalInfo task, AdsCampaignPlan plan, AdsCampaignSnapshot snapshot,
                                            List<AdsDailyStat> daily, List<AdsSearchTermStat> terms,
                                            List<AdsNormalPostBack> orders, LocalDate today, LocalDate from7d,
-                                           Map<String, Optional<BigDecimal>> rateCache) {
+                                           Map<String, Optional<BigDecimal>> rateCache,
+                                           List<AdsCampaignCost> ledgerRows) {
         long clicks7d = 0;
         long impressions7d = 0;
         double cost7d = 0;
@@ -278,7 +357,9 @@ public class AdsAdvisorService {
                 planNet = commission * AdsPlanEvaluator.approvalRate(plan);
             }
         }
-        Double lifetimeCost = usd(task.getCostCurrency(), task.getLastReportCost(), rateCache);
+        Double lifetimeCost = ledgerRows == null || ledgerRows.isEmpty()
+                ? usd(task.getCostCurrency(), task.getLastReportCost(), rateCache)
+                : ledgerCostUsd(ledgerRows, rateCache);
         String currency = snapshot == null ? null : snapshot.getCurrency();
         AdsReviewRules.TaskMetrics metrics = new AdsReviewRules.TaskMetrics(
                 task.getId(), task.getCampainName(), task.getStatus(),
@@ -401,12 +482,36 @@ public class AdsAdvisorService {
         return "PENDING";
     }
 
-    // orderTime 可能是秒/毫秒时间戳或 yyyy-MM-dd... / epoch seconds, millis, or a date string
+    // orderTime 可能是秒/毫秒时间戳、紧凑数字或各种日期字符串, 联盟平台格式不统一
+    // order time may be epoch seconds/millis, compact digits or various date strings; networks are inconsistent
     static LocalDate orderDate(String orderTime) {
         if (!StringUtils.hasText(orderTime)) {
             return null;
         }
         String value = orderTime.trim();
+        // 紧凑 yyyyMMdd / compact yyyyMMdd (before the epoch check: it is 8 digits, not an epoch)
+        if (value.matches("\\d{8}")) {
+            try {
+                return LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE);
+            } catch (DateTimeParseException e) {
+                // fall through / 继续尝试其它格式
+            }
+        }
+        // 紧凑 yyyyMMddHHmm(ss), 以 20 开头避免和毫秒时间戳混淆 / compact datetime, starts with year 20xx
+        if (value.matches("\\d{12}") && value.startsWith("20")) {
+            try {
+                return LocalDate.parse(value, DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+            } catch (DateTimeParseException e) {
+                // fall through / 继续尝试其它格式
+            }
+        }
+        if (value.matches("\\d{14}") && value.startsWith("20")) {
+            try {
+                return LocalDate.parse(value, DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            } catch (DateTimeParseException e) {
+                // fall through / 继续尝试其它格式
+            }
+        }
         if (value.matches("\\d{9,13}")) {
             long epoch = Long.parseLong(value);
             Instant instant = value.length() >= 13 ? Instant.ofEpochMilli(epoch) : Instant.ofEpochSecond(epoch);
@@ -416,10 +521,31 @@ public class AdsAdvisorService {
             try {
                 return LocalDate.parse(value.substring(0, 10).replace('/', '-'));
             } catch (DateTimeParseException e) {
-                return null;
+                // fall through / 继续尝试其它格式
             }
         }
-        return null;
+        // 美式 MM/dd/yyyy, 联盟平台最常见; 月份>12 时自动按 dd/MM 兜底
+        // US style month first (most affiliate feeds); falls back to day-first when month > 12
+        java.util.regex.Matcher matcher = US_SLASH_DATE.matcher(value);
+        if (matcher.find()) {
+            try {
+                return LocalDate.of(Integer.parseInt(matcher.group(3)),
+                        Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+            } catch (java.time.DateTimeException e) {
+                try {
+                    return LocalDate.of(Integer.parseInt(matcher.group(3)),
+                            Integer.parseInt(matcher.group(2)), Integer.parseInt(matcher.group(1)));
+                } catch (java.time.DateTimeException e2) {
+                    // fall through / 继续尝试其它格式
+                }
+            }
+        }
+        // Nov 17, 2026 风格 / "MMM d, yyyy" style
+        try {
+            return LocalDate.parse(value.length() >= 12 ? value.substring(0, 12).trim() : value, MMM_D_YYYY);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private Double usd(String currency, BigDecimal amount, Map<String, Optional<BigDecimal>> rateCache) {
@@ -430,6 +556,19 @@ public class AdsAdvisorService {
         Optional<BigDecimal> rate = rateCache.computeIfAbsent(code,
                 c -> Optional.ofNullable(attributionService.toUsd(c, BigDecimal.ONE)));
         return rate.map(r -> amount.multiply(r).doubleValue()).orElse(null);
+    }
+
+    // 同名 campaign 全部台账行折 USD 求和, 任一行缺汇率返回空 / sum ledger rows in USD, null when any rate is missing
+    private Double ledgerCostUsd(List<AdsCampaignCost> rows, Map<String, Optional<BigDecimal>> rateCache) {
+        double total = 0;
+        for (AdsCampaignCost row : rows) {
+            Double usd = usd(row.getCostCurrency(), row.getLifetimeCost(), rateCache);
+            if (usd == null) {
+                return null;
+            }
+            total += usd;
+        }
+        return total;
     }
 
     // ---------- markdown ----------
@@ -464,7 +603,9 @@ public class AdsAdvisorService {
             if (AdsReviewRules.PAUSED.equals(row.get("decision"))) {
                 continue;
             }
-            md.append("\n## ").append(row.get("campaignName")).append(" (task ").append(row.get("normalAdsId"))
+            Object taskIds = row.get("taskIds");
+            md.append("\n## ").append(row.get("campaignName")).append(" (task ")
+                    .append(taskIds == null ? row.get("normalAdsId") : taskIds)
                     .append(") - ").append(row.get("decision")).append('\n');
             ((List<String>) row.get("reasons")).forEach(reason -> md.append("- Why: ").append(reason).append('\n'));
             ((List<String>) row.get("actions")).forEach(action -> md.append("- Do: ").append(action).append('\n'));

@@ -1,12 +1,16 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.entity.AdsCampaignCost;
 import com.admire.cars.runner.entity.AdsClickTrack;
+import com.admire.cars.runner.entity.AdsDailyStat;
 import com.admire.cars.runner.entity.AdsNormalInfo;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.entity.ExchangeRate;
 import com.admire.cars.runner.entity.ShiftLink;
 import com.admire.cars.runner.entity.User;
+import com.admire.cars.runner.repository.AdsCampaignCostRepository;
 import com.admire.cars.runner.repository.AdsClickTrackRepository;
+import com.admire.cars.runner.repository.AdsDailyStatRepository;
 import com.admire.cars.runner.repository.AdsNormalInfoRepository;
 import com.admire.cars.runner.repository.AdsNormalPostBackRepository;
 import com.admire.cars.runner.repository.ExchangeRateRepository;
@@ -21,14 +25,19 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,19 +66,25 @@ public class PostBackAttributionService {
     private final ShiftLinkRepository shiftLinkRepository;
     private final UserRepository userRepository;
     private final ExchangeRateRepository exchangeRateRepository;
+    private final AdsDailyStatRepository adsDailyStatRepository;
+    private final AdsCampaignCostRepository campaignCostRepository;
 
     public PostBackAttributionService(AdsNormalPostBackRepository postBackRepository,
                                       AdsClickTrackRepository clickTrackRepository,
                                       AdsNormalInfoRepository adsNormalInfoRepository,
                                       ShiftLinkRepository shiftLinkRepository,
                                       UserRepository userRepository,
-                                      ExchangeRateRepository exchangeRateRepository) {
+                                      ExchangeRateRepository exchangeRateRepository,
+                                      AdsDailyStatRepository adsDailyStatRepository,
+                                      AdsCampaignCostRepository campaignCostRepository) {
         this.postBackRepository = postBackRepository;
         this.clickTrackRepository = clickTrackRepository;
         this.adsNormalInfoRepository = adsNormalInfoRepository;
         this.shiftLinkRepository = shiftLinkRepository;
         this.userRepository = userRepository;
         this.exchangeRateRepository = exchangeRateRepository;
+        this.adsDailyStatRepository = adsDailyStatRepository;
+        this.campaignCostRepository = campaignCostRepository;
     }
 
     // 回调落库后立即归因 / called right after a postback is saved
@@ -184,6 +199,12 @@ public class PostBackAttributionService {
         BigDecimal totalCommission = BigDecimal.ZERO;
         BigDecimal totalCostUsd = BigDecimal.ZERO;
         int unconvertedCostTasks = 0;
+        // 花费取自按 campaign 的台账, 删任务/删广告不清零; 同名 campaign 的历史花费合并到任务上
+        // Cost comes from the per-campaign ledger, so deleting the task or the campaign keeps history
+        Map<String, List<AdsCampaignCost>> ledgerByCampaign = AdsCampaignCostService.groupByCampaign(
+                adsOwner == null ? campaignCostRepository.findAll() : campaignCostRepository.findByAdsOwner(adsOwner));
+        Set<String> taskCampaignKeys = new HashSet<>();
+        Map<String, Optional<BigDecimal>> rateCache = new HashMap<>();
 
         for (AdsNormalInfo task : tasks) {
             Object[] clicks = clickAgg.get(task.getId());
@@ -219,19 +240,27 @@ public class PostBackAttributionService {
 
             // 广告花费按当日汇率折算成 USD, 与佣金(USD)同口径计算投入产出
             // Convert ad cost to USD with today's rate so it is comparable with USD commission
-            BigDecimal adCost = task.getLastReportCost();
-            BigDecimal adCostUsd = convertCostToUsd(task, adCost);
-            row.put("adCost", adCost);
-            row.put("costCurrency", task.getCostCurrency());
+            String costKey = AdsCampaignCostService.matchKey(task.getAdsOwner(), task.getCampainName());
+            taskCampaignKeys.add(costKey);
+            List<AdsCampaignCost> ledger = ledgerByCampaign.get(costKey);
+            boolean fromLedger = ledger != null && !ledger.isEmpty();
+            TaskCost cost = fromLedger ? ledgerCost(ledger, rateCache) : taskFieldCost(task, rateCache);
+            BigDecimal adCostUsd = cost.usd();
+            row.put("adCost", cost.amount());
+            row.put("costCurrency", cost.currency());
             row.put("adCostUsd", adCostUsd);
+            row.put("adCostCampaigns", fromLedger ? ledger.size() : 0);
             row.put("profitUsd", adCostUsd == null ? null : commission.subtract(adCostUsd));
             row.put("roas", ratio(commission, adCostUsd));
             rows.add(row);
 
-            if (adCostUsd != null) {
-                totalCostUsd = totalCostUsd.add(adCostUsd);
-            } else if (adCost != null && adCost.signum() > 0) {
-                unconvertedCostTasks++;
+            // 台账里的花费在循环后统一累计, 避免同名任务重复计算 / ledger cost is summed once after the loop
+            if (!fromLedger) {
+                if (adCostUsd != null) {
+                    totalCostUsd = totalCostUsd.add(adCostUsd);
+                } else if (cost.amount() != null && cost.amount().signum() > 0) {
+                    unconvertedCostTasks++;
+                }
             }
 
             totalOrders += orderCount;
@@ -241,6 +270,40 @@ public class PostBackAttributionService {
             totalAmount = totalAmount.add(amount);
             totalCommission = totalCommission.add(commission);
         }
+
+        // 台账花费: 当前任务对应的 + 曾绑定过 Normal 任务但任务已删除的; 从未对应过 Normal 任务的(如 Matrix)不计入
+        // Ledger totals: campaigns of current tasks plus campaigns whose normal task was deleted; never-bound ones are excluded
+        BigDecimal deletedTaskCostUsd = BigDecimal.ZERO;
+        int deletedTaskCampaigns = 0;
+        for (Map.Entry<String, List<AdsCampaignCost>> entry : ledgerByCampaign.entrySet()) {
+            boolean hasTask = taskCampaignKeys.contains(entry.getKey());
+            boolean counted = false;
+            for (AdsCampaignCost ledgerRow : entry.getValue()) {
+                if (!hasTask && ledgerRow.getNormalAdsId() == null) {
+                    continue;
+                }
+                BigDecimal usd = toUsdCached(ledgerRow.getCostCurrency(), ledgerRow.getLifetimeCost(), rateCache);
+                if (usd == null) {
+                    if (ledgerRow.getLifetimeCost() != null && ledgerRow.getLifetimeCost().signum() > 0) {
+                        unconvertedCostTasks++;
+                        log.warn("ledger cost not converted, no exchange rate owner={} campaign={} currency={} cost={}",
+                                ledgerRow.getAdsOwner(), ledgerRow.getCampaignName(), ledgerRow.getCostCurrency(),
+                                ledgerRow.getLifetimeCost());
+                    }
+                    continue;
+                }
+                totalCostUsd = totalCostUsd.add(usd);
+                if (!hasTask) {
+                    deletedTaskCostUsd = deletedTaskCostUsd.add(usd);
+                    counted = true;
+                }
+            }
+            if (counted) {
+                deletedTaskCampaigns++;
+            }
+        }
+        log.info("AD_COST_TOTALS owner={} tasks={} ledgerCampaigns={} totalCostUsd={} deletedTaskCostUsd={} deletedTaskCampaigns={}",
+                adsOwner, tasks.size(), ledgerByCampaign.size(), totalCostUsd, deletedTaskCostUsd, deletedTaskCampaigns);
 
         // 全局口径含未归因订单, 不能只累加各任务 / include unmatched orders in global totals
         List<Object[]> totals = postBackRepository.aggregateTotal(adsOwner);
@@ -269,9 +332,11 @@ public class PostBackAttributionService {
         result.put("unmatchedOrderCount", postBackRepository.countUnmatched(adsOwner));
         result.put("orderAmount", totalAmount);
         result.put("commission", totalCommission);
-        // 总投入产出: 佣金口径含未归因订单, 花费为全部 Normal 任务之和
-        // Totals: commission includes unmatched orders, cost sums all normal tasks
+        // 总投入产出: 佣金口径含未归因订单, 花费含已删除任务的历史投入
+        // Totals: commission includes unmatched orders, cost includes the history of deleted tasks
         result.put("adCostUsd", totalCostUsd);
+        result.put("deletedTaskAdCostUsd", deletedTaskCostUsd);
+        result.put("deletedTaskCampaigns", deletedTaskCampaigns);
         result.put("profitUsd", totalCommission.subtract(totalCostUsd));
         result.put("roas", ratio(totalCommission, totalCostUsd));
         result.put("unconvertedCostTasks", unconvertedCostTasks);
@@ -305,6 +370,10 @@ public class PostBackAttributionService {
         result.put("byPlatform", byPlatform);
         result.put("platforms", new ArrayList<>(platformNames));
 
+        // 按天按 offer 明细: 投放了哪些 offer, 每个 offer 的点击/消耗/cashback, 最近 7 天
+        // Per-day per-offer rows: which offers ran with clicks/cost/cashback each day, last 7 days
+        result.put("daily", buildDailyRows(adsOwner, tasks, 7));
+
         // 归因链路自检, 直接定位卡在哪一环 / attribution health check
         Map<String, Object> health = new LinkedHashMap<>();
         health.put("clickTrackCount", clickTrackRepository.countByOwner(adsOwner));
@@ -313,6 +382,140 @@ public class PostBackAttributionService {
         health.put("matchedCount", postBackRepository.countMatched(adsOwner));
         health.put("recentSubIds", postBackRepository.findRecentSubIds(adsOwner, PageRequest.of(0, 5)));
         result.put("attributionHealth", health);
+        return result;
+    }
+
+    // 按天按 offer 明细: 广告数据来自脚本日快照, 订单按归一化日期+任务分组, 合并成每天每个 offer 一行
+    // Per-day per-offer rows: ad metrics from script snapshots, orders grouped by normalized date and task
+    // 未归因订单单独一行, 不混进任何 offer / unmatched orders stay in their own row
+    private Map<String, Object> buildDailyRows(String adsOwner, List<AdsNormalInfo> tasks, int days) {
+        LocalDate dailyFrom = LocalDate.now().minusDays(days - 1L);
+        // 任务索引: campaignName -> task, id -> task / campaign and id indexed tasks
+        Map<String, AdsNormalInfo> taskByCampaign = new HashMap<>();
+        Map<Long, AdsNormalInfo> taskById = new HashMap<>();
+        for (AdsNormalInfo task : tasks) {
+            taskByCampaign.put(task.getCampainName(), task);
+            taskById.put(task.getId(), task);
+        }
+        // 广告数据: day -> campaignName -> [0]=impressions, [1]=clicks / ad metrics per day and campaign
+        Map<LocalDate, Map<String, long[]>> adByDay = new TreeMap<>();
+        // 折算后的 USD 花费: day -> campaignName -> cost / USD cost per day and campaign
+        Map<LocalDate, Map<String, BigDecimal>> costByDay = new TreeMap<>();
+        long unconvertedCostRows = 0L;
+        for (AdsDailyStat stat : adsDailyStatRepository.findSince(adsOwner, dailyFrom)) {
+            long[] ad = adByDay.computeIfAbsent(stat.getStatDate(), k -> new HashMap<>())
+                    .computeIfAbsent(stat.getCampaignName(), k -> new long[2]);
+            ad[0] += stat.getImpressions() == null ? 0L : stat.getImpressions();
+            ad[1] += stat.getClicks() == null ? 0L : stat.getClicks();
+            if (stat.getCost() == null || stat.getCost().signum() == 0) {
+                continue;
+            }
+            String currency = StringUtils.hasText(stat.getCurrency())
+                    ? stat.getCurrency().trim().toUpperCase(java.util.Locale.ROOT) : USD;
+            BigDecimal rate = USD.equals(currency) ? BigDecimal.ONE : usdRateOf(currency);
+            if (rate == null) {
+                unconvertedCostRows++;
+                continue;
+            }
+            costByDay.computeIfAbsent(stat.getStatDate(), k -> new HashMap<>())
+                    .merge(stat.getCampaignName(), stat.getCost().multiply(rate), BigDecimal::add);
+        }
+        // 订单: day -> taskId(-1 表示未归因) -> [0]=count, [1]=amount, [2]=commission
+        // orders per day and task id (-1 = unmatched)
+        Map<LocalDate, Map<Long, Object[]>> ordersByDay = new TreeMap<>();
+        long skippedOrders = 0L;
+        String skippedOrderTimeSample = null;
+        for (AdsNormalPostBack p : postBackRepository.findByAdsOwner(adsOwner)) {
+            LocalDate day = AdsAdvisorService.orderDate(p.getOrderTime());
+            if (day == null || day.isBefore(dailyFrom)) {
+                if (day == null) {
+                    skippedOrders++;
+                    if (skippedOrderTimeSample == null) {
+                        skippedOrderTimeSample = p.getOrderTime();
+                    }
+                }
+                continue;
+            }
+            Long taskId = p.getNormalAdsId();
+            Object[] agg = ordersByDay.computeIfAbsent(day, k -> new HashMap<>())
+                    .computeIfAbsent(taskId == null ? -1L : taskId, k -> new Object[]{0L, BigDecimal.ZERO, BigDecimal.ZERO});
+            agg[0] = toLong(agg[0]) + 1;
+            agg[1] = ((BigDecimal) agg[1]).add(p.getOrderAmount() == null ? BigDecimal.ZERO : p.getOrderAmount());
+            agg[2] = ((BigDecimal) agg[2]).add(p.getUserCommissionAmount() == null
+                    ? BigDecimal.ZERO : p.getUserCommissionAmount());
+        }
+        // 合并成每天每个 offer 一行 / merge into one row per offer per day
+        TreeSet<LocalDate> allDays = new TreeSet<>();
+        allDays.addAll(adByDay.keySet());
+        allDays.addAll(ordersByDay.keySet());
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<String> dayList = new ArrayList<>();
+        for (LocalDate day : allDays) {
+            dayList.add(day.toString());
+            // 行键: t<taskId> 归到任务, c<campaignName> 只有广告数据, u 未归因订单
+            // row keys: t<id> matched to a task, c<campaign> ad-only, u unmatched orders
+            Map<String, Map<String, Object>> rowsOfDay = new LinkedHashMap<>();
+            for (Map.Entry<String, long[]> entry : adByDay.getOrDefault(day, Map.of()).entrySet()) {
+                AdsNormalInfo task = taskByCampaign.get(entry.getKey());
+                String key = task != null ? "t" + task.getId() : "c" + entry.getKey();
+                Map<String, Object> row = rowsOfDay.computeIfAbsent(key, k -> new LinkedHashMap<>());
+                row.put("date", day.toString());
+                row.put("campaignName", entry.getKey());
+                if (task != null) {
+                    row.put("normalAdsId", task.getId());
+                }
+                row.put("impressions", entry.getValue()[0]);
+                row.put("adClicks", entry.getValue()[1]);
+                row.put("adCostUsd", costByDay.getOrDefault(day, Map.of())
+                        .getOrDefault(entry.getKey(), BigDecimal.ZERO)
+                        .setScale(4, java.math.RoundingMode.HALF_UP));
+                row.put("orderCount", 0L);
+                row.put("orderAmount", BigDecimal.ZERO);
+                row.put("commission", BigDecimal.ZERO);
+            }
+            for (Map.Entry<Long, Object[]> entry : ordersByDay.getOrDefault(day, Map.of()).entrySet()) {
+                Long taskId = entry.getKey();
+                AdsNormalInfo task = taskId >= 0 ? taskById.get(taskId) : null;
+                String key = task != null ? "t" + task.getId() : (taskId >= 0 ? "t?" + taskId : "u");
+                Map<String, Object> row = rowsOfDay.computeIfAbsent(key, k -> {
+                    Map<String, Object> fresh = new LinkedHashMap<>();
+                    fresh.put("date", day.toString());
+                    fresh.put("campaignName", task != null ? task.getCampainName()
+                            : (taskId >= 0 ? "(removed task #" + taskId + ")" : "(unmatched orders)"));
+                    if (task != null) {
+                        fresh.put("normalAdsId", task.getId());
+                    }
+                    fresh.put("impressions", 0L);
+                    fresh.put("adClicks", 0L);
+                    fresh.put("adCostUsd", BigDecimal.ZERO);
+                    fresh.put("orderCount", 0L);
+                    fresh.put("orderAmount", BigDecimal.ZERO);
+                    fresh.put("commission", BigDecimal.ZERO);
+                    return fresh;
+                });
+                Object[] agg = entry.getValue();
+                row.put("orderCount", toLong(row.get("orderCount")) + toLong(agg[0]));
+                row.put("orderAmount", ((BigDecimal) row.get("orderAmount")).add((BigDecimal) agg[1]));
+                row.put("commission", ((BigDecimal) row.get("commission")).add((BigDecimal) agg[2]));
+            }
+            for (Map<String, Object> row : rowsOfDay.values()) {
+                BigDecimal adCostUsd = (BigDecimal) row.get("adCostUsd");
+                BigDecimal commission = (BigDecimal) row.get("commission");
+                row.put("profitUsd", commission.subtract(adCostUsd));
+                row.put("roas", ratio(commission, adCostUsd));
+                rows.add(row);
+            }
+        }
+        if (unconvertedCostRows > 0) {
+            log.warn("daily cost rows skipped for missing exchange rate, owner={}, rows={}", adsOwner, unconvertedCostRows);
+        }
+        if (skippedOrders > 0) {
+            log.warn("daily orders skipped for unparseable order_time, owner={}, count={}, sample={}",
+                    adsOwner, skippedOrders, skippedOrderTimeSample);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("days", dayList);
+        result.put("rows", rows);
         return result;
     }
 
@@ -649,18 +852,65 @@ public class PostBackAttributionService {
         return sorted;
     }
 
-    // 花费折算 USD: USD 原样返回, 其他币种取最新汇率(正向或反向), 缺汇率返回 null
-    // Convert cost to USD with the latest stored rate (direct or inverse); null when no rate exists
-    private BigDecimal convertCostToUsd(AdsNormalInfo task, BigDecimal cost) {
-        if (cost == null) {
-            return null;
+    // 任务展示用花费: amount/currency 为原币种(多币种时为空/MIXED), usd 为折算值, 缺汇率为空
+    // Task cost view: original amount and currency (null/MIXED when mixed) plus USD, null when a rate is missing
+    private record TaskCost(BigDecimal amount, String currency, BigDecimal usd) {
+    }
+
+    // 同名 campaign 的全部台账行合计(含已删除/已重建的旧 campaign) / sum all ledger rows of the campaign name
+    private TaskCost ledgerCost(List<AdsCampaignCost> ledger, Map<String, Optional<BigDecimal>> rateCache) {
+        BigDecimal amount = BigDecimal.ZERO;
+        BigDecimal usd = BigDecimal.ZERO;
+        String currency = null;
+        boolean mixed = false;
+        boolean usdMissing = false;
+        for (AdsCampaignCost row : ledger) {
+            BigDecimal cost = row.getLifetimeCost() == null ? BigDecimal.ZERO : row.getLifetimeCost();
+            String code = StringUtils.hasText(row.getCostCurrency())
+                    ? row.getCostCurrency().trim().toUpperCase(java.util.Locale.ROOT) : null;
+            if (currency == null) {
+                currency = code;
+            } else if (code != null && !code.equals(currency)) {
+                mixed = true;
+            }
+            amount = amount.add(cost);
+            BigDecimal converted = toUsdCached(code, cost, rateCache);
+            if (converted == null) {
+                usdMissing = usdMissing || cost.signum() > 0;
+            } else {
+                usd = usd.add(converted);
+            }
         }
-        BigDecimal usd = toUsd(task.getCostCurrency(), cost);
+        return new TaskCost(mixed ? null : amount, mixed ? "MIXED" : currency, usdMissing ? null : usd);
+    }
+
+    // 台账里没有该 campaign 时退回任务字段(如尚未上报) / fall back to the task field when the ledger has no row yet
+    private TaskCost taskFieldCost(AdsNormalInfo task, Map<String, Optional<BigDecimal>> rateCache) {
+        BigDecimal cost = task.getLastReportCost();
+        if (cost == null) {
+            return new TaskCost(null, task.getCostCurrency(), null);
+        }
+        BigDecimal usd = toUsdCached(task.getCostCurrency(), cost, rateCache);
         if (usd == null) {
             log.warn("ad cost not converted, no exchange rate adsId={} campaign={} currency={} cost={}",
                     task.getId(), task.getCampainName(), task.getCostCurrency(), cost);
         }
-        return usd;
+        return new TaskCost(cost, task.getCostCurrency(), usd);
+    }
+
+    // 带缓存的 USD 折算, 避免每行查一次汇率 / USD conversion with a per-request rate cache
+    private BigDecimal toUsdCached(String currencyCode, BigDecimal amount, Map<String, Optional<BigDecimal>> rateCache) {
+        if (amount == null) {
+            return null;
+        }
+        String currency = StringUtils.hasText(currencyCode)
+                ? currencyCode.trim().toUpperCase(java.util.Locale.ROOT) : USD;
+        if (USD.equals(currency)) {
+            return amount;
+        }
+        return rateCache.computeIfAbsent(currency, code -> Optional.ofNullable(usdRateOf(code)))
+                .map(rate -> amount.multiply(rate).setScale(4, java.math.RoundingMode.HALF_UP))
+                .orElse(null);
     }
 
     // 任意币种金额折算 USD, 缺汇率返回 null; 空币种按 USD / convert any currency to USD, null when no rate

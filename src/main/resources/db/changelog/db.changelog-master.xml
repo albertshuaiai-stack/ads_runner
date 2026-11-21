@@ -155,6 +155,18 @@
     <!-- Add ADS_NORMAL_INFO lifetime ad cost and currency from the Ads script -->
     <include file="db/changelog/db.changelog-074-normal-ad-cost.xml"/>
 
+    <!-- Ad cost ledger per Google Ads campaign, survives task and campaign deletion -->
+    <include file="db/changelog/db.changelog-076-campaign-cost-ledger.xml"/>
+
+    <!-- Landing collector: email profile/password/2FA columns and gmail link rule status -->
+    <include file="db/changelog/db.changelog-077-cashback-collector.xml"/>
+
+    <!-- Add COUNT_DATE so normal/matrix success and failed counters cover the current day -->
+    <include file="db/changelog/db.changelog-078-task-count-date.xml"/>
+
+    <!-- Email browser type for the landing collector: 1=AdsPower Browser, 2=BitBrowser -->
+    <include file="db/changelog/db.changelog-079-tool-email-browser-type.xml"/>
+
     <!-- Drop deprecated affiliate and proxy-info legacy tables -->
     <include file="db/changelog/db.changelog-076-drop-affiliate-legacy-tables.xml"/>
 

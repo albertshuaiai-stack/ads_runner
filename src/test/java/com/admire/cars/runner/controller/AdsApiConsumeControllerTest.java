@@ -1,5 +1,8 @@
 package com.admire.cars.runner.controller;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.admire.cars.runner.entity.AdsNormalPostBack;
 import com.admire.cars.runner.service.AdsApiConsumeService;
 import com.admire.cars.runner.service.AdsNormalPostBackService;
@@ -12,12 +15,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -74,5 +81,49 @@ class AdsApiConsumeControllerTest {
         verify(adsNormalPostBackService).create(captor.capture(), eq("api-key"));
         assertEquals(CLICK_ID, captor.getValue().getSubId());
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
+    }
+
+    @Test
+    void postback_normalizesThreeDecimalAmountsToTwoDecimals() {
+        AdsApiConsumeController controller = new AdsApiConsumeController(userService,
+                adsApiConsumeService, adsNormalPostBackService, postBackAttributionService, objectMapper);
+
+        ResponseEntity<Map<String, Object>> response = controller.createByJson(
+                "api-key", "486048", "Olive Young Global", "sign-1", "O261119541319-1",
+                "1795050197", "27.000", "1.235", "Pending",
+                null, null, "0", request);
+
+        ArgumentCaptor<AdsNormalPostBack> captor = ArgumentCaptor.forClass(AdsNormalPostBack.class);
+        verify(adsNormalPostBackService).create(captor.capture(), eq("api-key"));
+        assertEquals(new BigDecimal("27.00"), captor.getValue().getOrderAmount());
+        assertEquals(new BigDecimal("1.24"), captor.getValue().getUserCommissionAmount());
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+    }
+
+    @Test
+    void postback_logsRejectedPostbackWithReason() {
+        AdsApiConsumeController controller = new AdsApiConsumeController(userService,
+                adsApiConsumeService, adsNormalPostBackService, postBackAttributionService, objectMapper);
+        when(adsNormalPostBackService.create(any(AdsNormalPostBack.class), eq("api-key")))
+                .thenThrow(new IllegalArgumentException("orderAmount must have at most 2 decimal places"));
+
+        Logger logger = (Logger) LoggerFactory.getLogger(AdsApiConsumeController.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            ResponseEntity<Map<String, Object>> response = controller.createByJson(
+                    "api-key", "486048", "Olive Young Global", "sign-2", "O261119541319-2",
+                    "1795050197", "27.000", "0.77", "Pending",
+                    null, null, "0", request);
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+            assertEquals("orderAmount must have at most 2 decimal places", response.getBody().get("message"));
+            assertTrue(appender.list.stream().anyMatch(event ->
+                    event.getFormattedMessage().contains("POSTBACK_REJECTED")
+                            && event.getFormattedMessage().contains("O261119541319-2")));
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

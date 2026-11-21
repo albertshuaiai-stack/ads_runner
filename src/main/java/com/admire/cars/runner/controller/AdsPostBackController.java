@@ -55,6 +55,8 @@ public class AdsPostBackController {
             @RequestParam(required = false) String affiliateSite,
             @RequestParam(required = false) String orderNo,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String advertiserShopId,
+            @RequestParam(required = false) String advertiserShopName,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest request) {
@@ -66,11 +68,28 @@ public class AdsPostBackController {
                     affiliateSite,
                     orderNo,
                     status,
+                    advertiserShopId,
+                    advertiserShopName,
                     getUserIdOrNull(request),
                     PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
             return ResponseEntity.ok(postBacks);
         } catch (IllegalArgumentException ex) {
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
+        }
+    }
+
+    // 按 offer(商家) 汇总订单 / order summary per offer (advertiser shop)
+    @GetMapping("/offers")
+    public ResponseEntity<?> offers(
+            @RequestParam(required = false) String adsOwner,
+            @RequestParam(required = false) String affiliateSite,
+            @RequestParam(required = false) String status,
+            HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(adsNormalPostBackService.offerSummary(
+                    adsOwner, affiliateSite, status, getUserIdOrNull(request)));
+        } catch (IllegalArgumentException ex) {
+            return badRequest(ex);
         }
     }
 
