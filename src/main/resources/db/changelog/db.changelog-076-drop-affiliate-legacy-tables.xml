@@ -5,14 +5,11 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
-    <changeSet id="affiliate-ads-039-rename-table" author="copilot">
-        <renameTable oldTableName="AFFILIATE_ADS_SYNC" newTableName="AFFILIATE_ADS"/>
-    </changeSet>
-
-    <changeSet id="affiliate-ads-040-normalize-status" author="copilot">
-        <update tableName="AFFILIATE_ADS">
-            <column name="STATUS" value="TO_BE_TEST"/>
-        </update>
+    <changeSet id="076-01-drop-affiliate-legacy-tables" author="copilot">
+        <dropTable tableName="AFFILIATE_TEST" ifExists="true"/>
+        <dropTable tableName="AFFILIATE_ADS" ifExists="true"/>
+        <dropTable tableName="AFFILIATE_AUTO_TASK" ifExists="true"/>
+        <dropTable tableName="IP_PROXY_INFO" ifExists="true"/>
     </changeSet>
 
 </databaseChangeLog>
