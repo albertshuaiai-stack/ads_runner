@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 成功/失败计数所属日期(服务器本地自然日), 跨天自动归零 -->
+    <!-- Calendar day (server local) the success/failed counters belong to; counters reset on a new day -->
+    <changeSet id="078-add-task-count-date" author="copilot">
+        <addColumn tableName="ADS_NORMAL_INFO">
+            <column name="COUNT_DATE" type="VARCHAR(10)"/>
+        </addColumn>
+        <addColumn tableName="ADS_MATRIX_INFO">
+            <column name="COUNT_DATE" type="VARCHAR(10)"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

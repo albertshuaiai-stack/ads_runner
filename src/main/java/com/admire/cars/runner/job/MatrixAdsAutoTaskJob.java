@@ -157,14 +157,14 @@ public class MatrixAdsAutoTaskJob extends AdsAutoTaskJob {
     }
 
     private void updateMatrixSuccessCounter(Long adsId, LocalDateTime eventTime) {
-        int updated = adsMatrixInfoRepository.incrementSuccessCount(adsId, eventTime);
+        int updated = adsMatrixInfoRepository.incrementSuccessCount(adsId, eventTime, eventTime.toLocalDate().toString());
         if (updated != 1) {
             throw new IllegalStateException("Failed to update matrix success counter for adsId=" + adsId);
         }
     }
 
     private void updateMatrixFailedCounter(Long adsId, LocalDateTime eventTime) {
-        int updated = adsMatrixInfoRepository.incrementFailedCount(adsId, eventTime);
+        int updated = adsMatrixInfoRepository.incrementFailedCount(adsId, eventTime, eventTime.toLocalDate().toString());
         if (updated != 1) {
             throw new IllegalStateException("Failed to update matrix failed counter for adsId=" + adsId);
         }

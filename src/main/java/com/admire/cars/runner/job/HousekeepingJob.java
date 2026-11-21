@@ -32,13 +32,6 @@ public class HousekeepingJob implements Job {
     private AdsTaskLogRepository adsTaskLogRepository;
 
     @Autowired
-    private AdsMatrixInfoRepository adsMatrixInfoRepository;
-
-    @Autowired
-    private AdsNormalInfoRepository adsNormalInfoRepository;
-
-
-    @Autowired
     private HouseKeepingLogRepository houseKeepingLogRepository;
 
     @Value("${housekeeping.shift-link-log.retention-days:7}")
@@ -90,12 +83,6 @@ public class HousekeepingJob implements Job {
             houseKeepingLogRepository.save(houseKeepingLog);
             log.info("HOUSEKEEPING_JOB_END totalPurged={}", 
                     purgeShiftLinkLog + purgeNormalShiftLink + purgeMatrixShiftLink + purgeAdsTaskLog);
-
-           int revertMatrixCount = adsMatrixInfoRepository.revertSuccessAndFailedCount();
-           int revertNormalCount = adsNormalInfoRepository.revertSuccessAndFailedCount();
-
-           log.info("HOUSEKEEPING_REVERT_SUCCESS_AND_FAILED_COUNT matrixCount={} normalCount={}", revertMatrixCount, revertNormalCount);
-
         } catch (Exception ex) {
             log.error("HOUSEKEEPING_JOB_FAILED", ex);
             throw new IllegalStateException("Housekeeping job failed", ex);

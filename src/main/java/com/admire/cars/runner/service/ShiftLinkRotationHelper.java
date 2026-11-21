@@ -68,4 +68,11 @@ public class ShiftLinkRotationHelper {
         Optional<ShiftLink> active = current(links).filter(link -> !isUsedUp(link, capacity));
         return active.isPresent() ? active : newestUnused(links);
     }
+
+    // Google Ads 还能用的链数: 在用且未用完的 1 条 + 从未启用过的 / active link if not used up plus never-activated links
+    public long availableCount(List<ShiftLink> links, long capacity) {
+        long unused = links.stream().filter(link -> link.getClickBase() == null).count();
+        boolean activeLeft = current(links).filter(link -> !isUsedUp(link, capacity)).isPresent();
+        return unused + (activeLeft ? 1 : 0);
+    }
 }

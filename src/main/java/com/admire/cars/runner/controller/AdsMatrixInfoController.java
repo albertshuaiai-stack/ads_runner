@@ -3,6 +3,7 @@ package com.admire.cars.runner.controller;
 import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.entity.AdsMatrixInfo;
 import com.admire.cars.runner.service.AdsMatrixInfoService;
+import com.admire.cars.runner.service.ShiftLinkRotationHelper;
 import com.admire.cars.runner.event.AdsAutoTaskSchedulerService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,10 +24,13 @@ public class AdsMatrixInfoController {
 
     private final AdsMatrixInfoService adsMatrixInfoService;
     private final AdsAutoTaskSchedulerService adsAutoTaskSchedulerService;
+    private final ShiftLinkRotationHelper rotationHelper;
 
-    public AdsMatrixInfoController(AdsMatrixInfoService adsMatrixInfoService, AdsAutoTaskSchedulerService adsAutoTaskSchedulerService) {
+    public AdsMatrixInfoController(AdsMatrixInfoService adsMatrixInfoService, AdsAutoTaskSchedulerService adsAutoTaskSchedulerService,
+                                   ShiftLinkRotationHelper rotationHelper) {
         this.adsMatrixInfoService = adsMatrixInfoService;
         this.adsAutoTaskSchedulerService = adsAutoTaskSchedulerService;
+        this.rotationHelper = rotationHelper;
     }
 
     @PostMapping
@@ -132,6 +137,11 @@ public class AdsMatrixInfoController {
                 adsAutoTaskSchedulerService.getExecuteTimeInfo(adsMatrixInfo.getId(), adsMatrixInfo.getAdsOwner(), Constant.ADS_TYPE_MATRIX);
         adsMatrixInfo.setLastExecuteTime(executeTimeInfo.lastExecuteTime());
         adsMatrixInfo.setNextExecuteTime(executeTimeInfo.nextExecuteTime());
+        // 今天还没跑过的任务显示 0 / tasks that have not run today show zero
+        adsMatrixInfo.rollCountDate(LocalDate.now().toString());
+        adsMatrixInfo.setAvailableCount(rotationHelper.availableCount(
+                rotationHelper.loadPool(adsMatrixInfo.getAdsOwner(), adsMatrixInfo.getCampainName(), Constant.ADS_TYPE_MATRIX),
+                rotationHelper.capacity(Constant.ADS_TYPE_MATRIX)));
         return adsMatrixInfo;
     }
 }
