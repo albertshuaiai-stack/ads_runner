@@ -187,6 +187,15 @@ public class AdsAdvisorService {
         Map<String, List<AdsDailyStat>> daily = new HashMap<>();
         dailyStatRepository.findSince(owner, from7d).forEach(stat ->
                 daily.computeIfAbsent(ownerKey(stat.getAdsOwner(), stat.getCampaignName()), k -> new ArrayList<>()).add(stat));
+        Map<String, LocalDate> firstSpend = new HashMap<>();
+        for (Object[] row : dailyStatRepository.findFirstSpendDates(owner)) {
+            firstSpend.merge(ownerKey((String) row[0], (String) row[1]), (LocalDate) row[2],
+                    (a, b) -> a.isBefore(b) ? a : b);
+        }
+        Map<String, LocalDate> ownerFirstStat = new HashMap<>();
+        for (Object[] row : dailyStatRepository.findFirstStatDates(owner)) {
+            ownerFirstStat.put(row[0] == null ? "" : (String) row[0], (LocalDate) row[1]);
+        }
         Map<String, List<AdsSearchTermStat>> terms = latestTerms(searchTermRepository.findSince(owner, today.minusDays(3)));
         Map<Long, List<AdsNormalPostBack>> orders = new HashMap<>();
         postBackRepository.findAttributedByOwner(owner).forEach(order ->
@@ -219,7 +228,9 @@ public class AdsAdvisorService {
             }
             Map<String, Object> row = reviewTask(mergeTasks(group, rateCache), plans.get(key), snapshots.get(key),
                     daily.getOrDefault(key, List.of()), terms.getOrDefault(key, List.of()),
-                    groupOrders, today, from7d, rateCache, ledger.get(key));
+                    groupOrders, today, from7d, rateCache, ledger.get(key),
+                    daysRunning(firstSpend.get(key), ownerFirstStat.get(group.get(0).getAdsOwner() == null
+                            ? "" : group.get(0).getAdsOwner()), group, ledger.get(key), today));
             row.put("taskIds", taskIds);
             row.put("taskCount", group.size());
             rows.add(row);
@@ -288,7 +299,7 @@ public class AdsAdvisorService {
                                            List<AdsDailyStat> daily, List<AdsSearchTermStat> terms,
                                            List<AdsNormalPostBack> orders, LocalDate today, LocalDate from7d,
                                            Map<String, Optional<BigDecimal>> rateCache,
-                                           List<AdsCampaignCost> ledgerRows) {
+                                           List<AdsCampaignCost> ledgerRows, Integer daysRunning) {
         long clicks7d = 0;
         long impressions7d = 0;
         double cost7d = 0;
@@ -377,7 +388,7 @@ public class AdsAdvisorService {
                 snapshot == null ? null : usd(currency, snapshot.getCpcCeiling(), rateCache),
                 snapshot == null ? null : toDouble(snapshot.getBudgetLostShare()),
                 snapshot == null ? null : toDouble(snapshot.getRankLostShare()),
-                today);
+                today, daysRunning);
         AdsReviewRules.Decision decision = AdsReviewRules.decide(metrics);
 
         List<String> brandTokens = AdsKeywordRules.brandTokens(
@@ -558,6 +569,40 @@ public class AdsAdvisorService {
         return rate.map(r -> amount.multiply(r).doubleValue()).orElse(null);
     }
 
+    // 开投日 = Google Ads 每日数据里首个有花费的日期, 开投当天算第 1 天; 无花费数据时用最早的任务创建日/台账首次上报日
+    // Start = first day with spend in the Google Ads daily stats (day 1); without it, earliest task creation or ledger row
+    static Integer daysRunning(LocalDate firstSpendDate, LocalDate ownerFirstStatDate,
+                               List<AdsNormalInfo> tasks, List<AdsCampaignCost> ledgerRows, LocalDate today) {
+        LocalDate fallback = null;
+        for (AdsNormalInfo task : tasks) {
+            fallback = earlier(fallback, task.getCreateDate());
+        }
+        if (ledgerRows != null) {
+            for (AdsCampaignCost row : ledgerRows) {
+                fallback = earlier(fallback, row.getCreateDate());
+            }
+        }
+        LocalDate start = firstSpendDate;
+        // 脚本只回看 7 天: 首个花费日落在该 owner 首次上报的回看窗口内时更早的历史可能缺失
+        // The script looks back 7 days: a first spend inside the owner's first lookback window may hide older history
+        if (start == null || ownerFirstStatDate == null
+                || start.isBefore(ownerFirstStatDate.plusDays(REVIEW_DAYS))) {
+            start = fallback == null || (start != null && start.isBefore(fallback)) ? start : fallback;
+        }
+        if (start == null) {
+            return null;
+        }
+        return (int) Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(start, today) + 1);
+    }
+
+    private static LocalDate earlier(LocalDate current, LocalDateTime candidate) {
+        if (candidate == null) {
+            return current;
+        }
+        LocalDate date = candidate.toLocalDate();
+        return current == null || date.isBefore(current) ? date : current;
+    }
+
     // 同名 campaign 全部台账行折 USD 求和, 任一行缺汇率返回空 / sum ledger rows in USD, null when any rate is missing
     private Double ledgerCostUsd(List<AdsCampaignCost> rows, Map<String, Optional<BigDecimal>> rateCache) {
         double total = 0;
@@ -584,8 +629,9 @@ public class AdsAdvisorService {
             }
         });
         md.append("\n\nRules: commission counts approved + pending x approval rate; stop line = 3x net commission "
-                + "per order with 0 orders; ROAS < 0.5 after the stop line = STOP; 0.5-1 = OPTIMIZE; >= 1 = CONTINUE; "
-                + ">= 1.3 with 5+ orders = SCALE. Money in USD.\n\n");
+                + "per order with 0 orders; ROAS < 0.5 after the stop line = STOP (WATCH before day 7 when there are orders); "
+                + "0.5-1 = OPTIMIZE; >= 1 = CONTINUE; >= 1.3 with 5+ orders = SCALE; day 7+ with no order in the "
+                + "last 7 days = STOP. Money in USD.\n\n");
         md.append("| Campaign | Country | Decision | Spend | Spend 7d | Clicks | CPC | Break-even CPC | Orders a/p/r | Eff. commission | ROAS | ROAS 7d |\n");
         md.append("|---|---|---|---|---|---|---|---|---|---|---|---|\n");
         for (Map<String, Object> row : rows) {

@@ -25,7 +25,15 @@ public final class AdsKeywordRules {
             "return", "returns", "refund", "cancel", "unsubscribe", "job", "jobs", "career", "careers",
             "hiring", "salary", "near me", "store hours", "store locator", "address", "manual",
             "warranty", "recall", "lawsuit", "stock price", "reddit", "wiki", "download", "apk",
-            "used", "second hand", "repair", "complaint", "complaints", "scam");
+            "used", "second hand", "repair", "complaint", "complaints", "scam",
+            // 售后/设置类 / setup and troubleshooting
+            "how to", "set up", "setup", "setting up", "not working", "troubleshooting", "unboxing",
+            "instructions", "size chart",
+            // 去第三方零售商购买, 不记佣金 / buying at a third-party retailer earns no commission
+            "where to buy", "amazon", "walmart", "costco", "target", "home depot", "lowes", "lowe's",
+            "best buy", "ebay",
+            // 投资者/公司信息 / investor and company info
+            "valuation", "net worth");
 
     // 优惠码类词, 多数联盟单独约束 / coupon intent, often restricted by network terms
     public static final List<String> COUPON_TERMS = List.of(

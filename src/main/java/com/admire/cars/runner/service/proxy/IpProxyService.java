@@ -3,7 +3,6 @@ package com.admire.cars.runner.service.proxy;
 import com.admire.cars.runner.config.AutoTaskConfig;
 import com.admire.cars.runner.constant.Constant;
 import com.admire.cars.runner.dto.IpVerificationDto;
-import com.admire.cars.runner.entity.IpProxyInfo;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
