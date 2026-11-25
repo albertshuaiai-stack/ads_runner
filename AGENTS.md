@@ -17,8 +17,9 @@ Spring Boot 3 + Java 17，包根 `com.admire.cars.runner`。部署形态：Windo
 - 每条 `ShiftLink` = 一次联盟跳转的完整 URL（fullUrl 必须包含 landingPageUrl 片段，取模板时该片段替换为 `{lpurl}` 交给 Google Ads）。**换链池不看链接状态**（停投由任务层控制），生成时状态固定 RUNNING；实体字段保留只为兼容历史数据。
 - **换链只由真实点击驱动**（`/api/track/report` 上报的 campaign 累计点击），脚本拉取模板、定时任务执行频率都不消耗。规则实现在 `ShiftLinkRotationHelper`（唯一实现）：
   - **最新优先（newest-first）**：在用链达到阈值后，换到"最新生成且从未启用过的链"（按 id 最大），中间被跳过的旧链由每日清理删除。
+  - **Matrix 来源去重**：换链只选 `platformName` 或 `userName`（邮箱）与当前落地页不同的链（两者都相同才算同源，大小写/空格不敏感）；没有不同来源的候选时保持当前链，不换回同源落地页。取模板与点击轮换共用此规则，Normal 不受限制。
   - 链的关键字段：`CLICK_BASE`（启用该链时的累计点击数，最大的 base 即当前在用链）、`DISPLAY_TIMES`（该链在用期间消耗的点击数）。
-  - 阈值是全局配置：`shift-link.click-capacity.normal`（当前 1）、`shift-link.click-capacity.matrix`（当前 10），类型判断在 `ShiftLinkClickConfig.capacityFor`。
+  - 阈值是全局配置：`shift-link.click-capacity.normal`（当前 1）、`shift-link.click-capacity.matrix`（当前 5，按 `CLICK_BASE` 算距上次换链的点击数），类型判断在 `ShiftLinkClickConfig.capacityFor`。
 - 点击上报入口 `TrackReportService.applyCampaignClicks`：换链 + 记录花费 + 累计 Normal 每日额度，同一事务。
 
 ### 2. 自动任务（Quartz）

@@ -160,14 +160,20 @@ public class TrackReportService {
     // 启用最新未用过的链, 以当前累计点击为基准 / activate the newest unused link with the current lifetime clicks as base
     private boolean activateNewest(List<ShiftLink> links, long clicks, String adsType, String campaignName,
                                    long capacity, ShiftLink from, boolean fromJustUsedUp) {
-        Optional<ShiftLink> next = rotationHelper.newestUnused(links);
+        // Matrix 换链必须换到不同平台或邮箱的落地页; 找不到候选就保持当前链 / Matrix must switch to a different platform or email
+        boolean matrix = MATRIX_ADS_TYPE.equals(adsType);
+        Optional<ShiftLink> next = matrix
+                ? rotationHelper.newestUnusedExcludingSameSource(links, from)
+                : rotationHelper.newestUnused(links);
         if (next.isEmpty()) {
             if (fromJustUsedUp) {
-                // 没有可换的新链, 取模板会回退裸落地页, 直到生成新链 / no fresh link, templates fall back to bare lpurl
-                log.warn("shift link exhausted type={} campaign={} linkId={} no unused link, bare lpurl fallback",
-                        adsType, campaignName, from.getId());
+                log.warn("shift link exhausted type={} campaign={} linkId={} reason={} fallback={}",
+                        adsType, campaignName, from.getId(),
+                        matrix ? "no link with different platform or email" : "no unused link",
+                        matrix ? "keep current link" : "bare lpurl");
             }
-            return fromJustUsedUp;
+            // Matrix 不换到同源落地页, 继续用当前链直到出现不同平台或邮箱的新链
+            return !matrix && fromJustUsedUp;
         }
         ShiftLink link = next.get();
         link.setClickBase(clicks);
