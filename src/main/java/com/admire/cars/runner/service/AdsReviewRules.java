@@ -32,6 +32,9 @@ public final class AdsReviewRules {
     static final double MIN_DECIDED_FOR_RATE = 5;
     static final double HIGH_REJECTION = 0.4;
     static final double BAD_NETWORK_SHARE = 0.2;
+    // 有转化的新广告满 7 天才按 ROAS 判停; 满 7 天且近 7 天零转化直接停
+    // Campaigns with orders are not stopped on ROAS before day 7; from day 7, no order in the last 7 days = STOP
+    static final int MIN_JUDGE_DAYS = 7;
 
     private static final Set<String> SMART_BIDDING = Set.of(
             "MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "ENHANCED_CPC");
@@ -51,7 +54,7 @@ public final class AdsReviewRules {
             Double planNetCommissionPerOrder, Double planApprovalRate,
             Boolean searchPartners, Boolean displayNetwork, String geoTargetType, String biddingStrategy,
             Double cpcCeilingUsd, Double budgetLostShare, Double rankLostShare,
-            LocalDate today) {
+            LocalDate today, Integer daysRunning) {
     }
 
     public record Decision(String decision, List<String> reasons, List<String> actions, Map<String, Object> metrics) {
@@ -104,6 +107,7 @@ public final class AdsReviewRules {
         metrics.put("orders7d", m.orders7d());
         metrics.put("roas7d", r(roas7d));
         metrics.put("networkClicks7d", m.networkClicks7d());
+        metrics.put("daysRunning", m.daysRunning());
 
         boolean spentRecently = m.hasDaily() && m.cost7dUsd() != null && m.cost7dUsd() > 0;
         boolean active = "RUNNING".equalsIgnoreCase(m.taskStatus()) || spentRecently;
@@ -117,6 +121,8 @@ public final class AdsReviewRules {
             return new Decision(NO_DATA, reasons, actions, metrics);
         }
 
+        boolean young = m.daysRunning() != null && m.daysRunning() < MIN_JUDGE_DAYS;
+        boolean mature = m.daysRunning() != null && m.daysRunning() >= MIN_JUDGE_DAYS;
         String decision;
         if (m.orders() == 0) {
             if (stopSpend == null) {
@@ -144,6 +150,10 @@ public final class AdsReviewRules {
             decision = WATCH;
             reasons.add("ROAS " + times(roas) + " but spend " + money(cost) + " is below the judging line "
                     + money(stopSpend) + ". Keep collecting data.");
+        } else if ((roas == null || roas < STOP_ROAS) && young) {
+            decision = WATCH;
+            reasons.add("ROAS " + times(roas) + " is low, but the campaign has orders and is only on day "
+                    + m.daysRunning() + ". Judge ROAS on day " + MIN_JUDGE_DAYS + ".");
         } else if (roas == null || roas < STOP_ROAS) {
             decision = STOP;
             reasons.add("ROAS " + times(roas) + " is below " + times(STOP_ROAS) + " after enough spend.");
@@ -154,11 +164,19 @@ public final class AdsReviewRules {
 
         // 近 7 天明显变差时降级 / downgrade when the last 7 days turn bad
         if ((CONTINUE.equals(decision) || SCALE.equals(decision) || WATCH.equals(decision))
-                && stopSpend != null && m.cost7dUsd() != null && m.cost7dUsd() >= stopSpend
+                && !young && stopSpend != null && m.cost7dUsd() != null && m.cost7dUsd() >= stopSpend
                 && (roas7d == null || roas7d < STOP_ROAS)) {
             decision = OPTIMIZE;
             reasons.add("Last 7 days: spent " + money(m.cost7dUsd()) + " with ROAS " + times(roas7d)
                     + ", performance has dropped.");
+        }
+
+        // 满 7 天且近 7 天零转化: 无论累计 ROAS 多少都停 / day 7+ with no order in the last 7 days: stop regardless of lifetime ROAS
+        boolean spent7d = m.cost7dUsd() != null ? m.cost7dUsd() > 0 : m.orders() == 0 && cost > 0;
+        if (!STOP.equals(decision) && mature && m.orders7d() == 0 && spent7d) {
+            decision = STOP;
+            reasons.add("Running for " + m.daysRunning() + " days with no order in the last " + MIN_JUDGE_DAYS
+                    + " days" + (m.cost7dUsd() == null ? "" : " (spent " + money(m.cost7dUsd()) + ")") + ".");
         }
 
         if (STOP.equals(decision)) {
