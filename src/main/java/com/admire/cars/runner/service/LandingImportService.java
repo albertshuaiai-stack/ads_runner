@@ -222,6 +222,7 @@ public class LandingImportService {
             Map<String, Object> account = new LinkedHashMap<>();
             account.put("userName", email.getUserName());
             account.put("emailAddress", email.getEmailAddress());
+            account.put("emailPwd", email.getEmailPwd());
             account.put("browserType", email.getBrowserType() == null ? 1 : email.getBrowserType());
             account.put("envSerial", email.getEnvSerial());
             account.put("platformPwd", email.getPlatformPwd());
