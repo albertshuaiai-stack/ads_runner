@@ -30,10 +30,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -156,6 +158,8 @@ public class AdsAdvisorService {
         to.setAvgOrderValue(from.getAvgOrderValue());
         to.setExpectedApprovalRate(from.getExpectedApprovalRate());
         to.setExpectedCpc(from.getExpectedCpc());
+        to.setReportLagDays(from.getReportLagDays() == null ? null
+                : AdsReviewRules.reportLagDays(from.getReportLagDays()));
         to.setKeywords(from.getKeywords());
         to.setNegativeKeywords(from.getNegativeKeywords());
         to.setNotes(from.getNotes() == null || from.getNotes().length() <= 1000
@@ -300,9 +304,13 @@ public class AdsAdvisorService {
                                            List<AdsNormalPostBack> orders, LocalDate today, LocalDate from7d,
                                            Map<String, Optional<BigDecimal>> rateCache,
                                            List<AdsCampaignCost> ledgerRows, Integer daysRunning) {
+        int lag = AdsReviewRules.reportLagDays(plan == null ? null : plan.getReportLagDays());
+        // 延迟窗口含今天, 窗口内的订单与花费都不参与判停 / the lag window includes today
+        LocalDate lagStart = today.minusDays(lag - 1L);
         long clicks7d = 0;
         long impressions7d = 0;
         double cost7d = 0;
+        double lagCost = 0;
         boolean costConvertible = true;
         LocalDate lastDaily = null;
         Map<String, Long> networkClicks = new TreeMap<>();
@@ -314,6 +322,9 @@ public class AdsAdvisorService {
                 costConvertible = false;
             } else {
                 cost7d += usd;
+                if (lag > 0 && !stat.getStatDate().isBefore(lagStart)) {
+                    lagCost += usd;
+                }
             }
             networkClicks.merge(stat.getNetwork(), value(stat.getClicks()), Long::sum);
             if (lastDaily == null || stat.getStatDate().isAfter(lastDaily)) {
@@ -331,12 +342,19 @@ public class AdsAdvisorService {
         double commissionTotal = 0;
         double approved7d = 0;
         double pending7d = 0;
+        double approvedMatured = 0;
+        double pendingMatured = 0;
+        Set<String> shopNames = new LinkedHashSet<>();
         for (AdsNormalPostBack order : orders) {
             double commission = order.getUserCommissionAmount() == null ? 0 : order.getUserCommissionAmount().doubleValue();
             String bucket = statusBucket(order.getStatus());
             LocalDate orderDate = orderDate(order.getOrderTime());
             boolean recent = orderDate != null && !orderDate.isBefore(from7d);
+            boolean matured = lag == 0 || orderDate == null || orderDate.isBefore(lagStart);
             commissionTotal += commission;
+            if (StringUtils.hasText(order.getAdvertiserShopName())) {
+                shopNames.add(order.getAdvertiserShopName());
+            }
             if (recent) {
                 orders7d++;
             }
@@ -347,6 +365,9 @@ public class AdsAdvisorService {
                     if (recent) {
                         approved7d += commission;
                     }
+                    if (matured) {
+                        approvedMatured += commission;
+                    }
                 }
                 case "REJECTED" -> rejected++;
                 default -> {
@@ -354,6 +375,9 @@ public class AdsAdvisorService {
                     commissionPending += commission;
                     if (recent) {
                         pending7d += commission;
+                    }
+                    if (matured) {
+                        pendingMatured += commission;
                     }
                 }
             }
@@ -388,11 +412,15 @@ public class AdsAdvisorService {
                 snapshot == null ? null : usd(currency, snapshot.getCpcCeiling(), rateCache),
                 snapshot == null ? null : toDouble(snapshot.getBudgetLostShare()),
                 snapshot == null ? null : toDouble(snapshot.getRankLostShare()),
-                today, daysRunning);
+                today, daysRunning,
+                lag, daily.isEmpty() || !costConvertible ? null : lagCost,
+                approvedMatured, pendingMatured,
+                nonBuyingTermCostShare(terms));
         AdsReviewRules.Decision decision = AdsReviewRules.decide(metrics);
 
         List<String> brandTokens = AdsKeywordRules.brandTokens(
-                plan == null ? null : plan.getBrandName(), task.getCampainName(), task.getLandingPageUrl());
+                plan == null ? null : plan.getBrandName(), task.getCampainName(), task.getLandingPageUrl(),
+                shopNames.toArray(new String[0]));
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("normalAdsId", task.getId());
@@ -462,6 +490,20 @@ public class AdsAdvisorService {
             }
         }
         return result;
+    }
+
+    // 搜索词花费里 login/contact 等无效意图词的占比, 无数据返回空 / share of search term spend with non-buying intent
+    static Double nonBuyingTermCostShare(List<AdsSearchTermStat> terms) {
+        double total = 0;
+        double nonBuying = 0;
+        for (AdsSearchTermStat term : terms) {
+            double cost = term.getCost() == null ? 0 : term.getCost().doubleValue();
+            total += cost;
+            if (AdsKeywordRules.findNegativeIntent(term.getSearchTerm()) != null) {
+                nonBuying += cost;
+            }
+        }
+        return total > 0 ? nonBuying / total : null;
     }
 
     // 每个广告系列只取最近一天的搜索词快照 / keep only the latest snapshot per campaign
@@ -630,8 +672,12 @@ public class AdsAdvisorService {
         });
         md.append("\n\nRules: commission counts approved + pending x approval rate; stop line = 3x net commission "
                 + "per order with 0 orders; ROAS < 0.5 after the stop line = STOP (WATCH before day 7 when there are orders); "
-                + "0.5-1 = OPTIMIZE; >= 1 = CONTINUE; >= 1.3 with 5+ orders = SCALE; day 7+ with no order in the "
-                + "last 7 days = STOP. Money in USD.\n\n");
+                + "0.5-1 = OPTIMIZE; >= 1 = CONTINUE; >= 1.3 with 5+ orders = SCALE; day 7 + lag with no order in the "
+                + "last 7 days = STOP (needs $" + (int) AdsReviewRules.NO_PLAN_STOP_SPEND + " judged spend without "
+                + "commission info). Stop checks use judged spend: spend of the last " + AdsReviewRules.DEFAULT_REPORT_LAG_DAYS
+                + " days (plan can override) is excluded while orders come in, and polluted traffic (>= 30% non-search "
+                + "clicks or >= 40% non-buying term spend) is reduced to its clean share and marked OPTIMIZE. "
+                + "Money in USD.\n\n");
         md.append("| Campaign | Country | Decision | Spend | Spend 7d | Clicks | CPC | Break-even CPC | Orders a/p/r | Eff. commission | ROAS | ROAS 7d |\n");
         md.append("|---|---|---|---|---|---|---|---|---|---|---|---|\n");
         for (Map<String, Object> row : rows) {

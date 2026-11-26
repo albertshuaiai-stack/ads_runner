@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 投前方案增加订单回传延迟天数, 每日复盘不判最近 N 天的花费 -->
+    <!-- pre-launch plan gets a postback lag in days; the daily review does not judge spend of the last N days -->
+    <changeSet id="ads-advisor-006-plan-report-lag" author="copilot">
+        <addColumn tableName="ADS_CAMPAIGN_PLAN">
+            <column name="REPORT_LAG_DAYS" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

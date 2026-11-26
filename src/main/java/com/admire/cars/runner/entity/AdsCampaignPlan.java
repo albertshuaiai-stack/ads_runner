@@ -63,6 +63,10 @@ public class AdsCampaignPlan {
     @Column(name = "EXPECTED_CPC", precision = 18, scale = 4)
     private BigDecimal expectedCpc;
 
+    // 订单回传延迟天数 0~7, 空则用默认值 / postback lag in days 0..7, empty means the default
+    @Column(name = "REPORT_LAG_DAYS")
+    private Integer reportLagDays;
+
     // 一行一个: [exact] / "phrase" / broad / one per line
     @Column(name = "KEYWORDS", columnDefinition = "TEXT")
     private String keywords;
