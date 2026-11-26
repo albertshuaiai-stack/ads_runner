@@ -317,6 +317,7 @@ public class AdsAdvisorService {
         double lagCost = 0;
         boolean costConvertible = true;
         LocalDate lastDaily = null;
+        LocalDate lastSpend = null;
         Map<String, Long> networkClicks = new TreeMap<>();
         for (AdsDailyStat stat : daily) {
             clicks7d += value(stat.getClicks());
@@ -333,6 +334,10 @@ public class AdsAdvisorService {
             networkClicks.merge(stat.getNetwork(), value(stat.getClicks()), Long::sum);
             if (lastDaily == null || stat.getStatDate().isAfter(lastDaily)) {
                 lastDaily = stat.getStatDate();
+            }
+            if (stat.getCost() != null && stat.getCost().signum() > 0
+                    && (lastSpend == null || stat.getStatDate().isAfter(lastSpend))) {
+                lastSpend = stat.getStatDate();
             }
         }
         networkClicks.values().removeIf(clicks -> clicks == 0);
@@ -419,7 +424,7 @@ public class AdsAdvisorService {
                 today, daysRunning,
                 lag, daily.isEmpty() || !costConvertible ? null : lagCost,
                 approvedMatured, pendingMatured,
-                nonBuyingTermCostShare(terms));
+                nonBuyingTermCostShare(terms), lastSpend);
         AdsReviewRules.Decision decision = AdsReviewRules.decide(metrics);
 
         List<String> brandTokens = AdsKeywordRules.brandTokens(

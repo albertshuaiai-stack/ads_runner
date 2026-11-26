@@ -43,6 +43,8 @@ public final class AdsReviewRules {
     static final double POLLUTED_TERM_COST_SHARE = 0.4;
     // 无佣金信息且零单时, 按天数判停所需的最低已判花费 USD / judged spend needed for a time-based stop without commission info
     static final double NO_PLAN_STOP_SPEND = 15.0;
+    // 今天或昨天有花费才算仍在花钱 (Google Ads 账户时区与服务器可能差一天) / spend today or yesterday = still spending
+    static final int STILL_SPENDING_DAYS = 2;
 
     private static final Set<String> SMART_BIDDING = Set.of(
             "MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "ENHANCED_CPC");
@@ -65,7 +67,7 @@ public final class AdsReviewRules {
             LocalDate today, Integer daysRunning,
             int reportLagDays, Double lagCostUsd,
             double commissionApprovedMatured, double commissionPendingMatured,
-            Double nonBuyingTermCostShare) {
+            Double nonBuyingTermCostShare, LocalDate lastSpendDate) {
     }
 
     // 方案未填时用默认延迟, 并限制在 0~7 天 / default lag when the plan has none, clamped to 0..7 days
@@ -126,11 +128,20 @@ public final class AdsReviewRules {
         metrics.put("networkClicks7d", m.networkClicks7d());
         metrics.put("daysRunning", m.daysRunning());
 
-        boolean spentRecently = m.hasDaily() && m.cost7dUsd() != null && m.cost7dUsd() > 0;
-        boolean active = "RUNNING".equalsIgnoreCase(m.taskStatus()) || spentRecently;
-        if (!active) {
-            reasons.add("Task is not running and had no spend in the last 7 days.");
+        // 任务已暂停且今天/昨天没花费 = 已停; 任务暂停但 Google Ads 仍在花钱时照常复盘并提醒去停
+        // paused task with no spend today or yesterday = stopped; a paused task whose campaign still spends is reviewed
+        boolean running = "RUNNING".equalsIgnoreCase(m.taskStatus());
+        boolean spendingNow = m.lastSpendDate() != null
+                && !m.lastSpendDate().isBefore(m.today().minusDays(STILL_SPENDING_DAYS - 1L));
+        metrics.put("lastSpendDate", m.lastSpendDate() == null ? null : m.lastSpendDate().toString());
+        if (!running && !spendingNow) {
+            reasons.add("Task is not running and Google Ads has had no spend since "
+                    + (m.lastSpendDate() == null ? "the last 7 days" : m.lastSpendDate()) + ".");
             return new Decision(PAUSED, reasons, actions, metrics);
+        }
+        if (!running) {
+            reasons.add("Task is paused but the Google Ads campaign still spent on " + m.lastSpendDate() + ".");
+            actions.add("Pause the campaign in Google Ads too: pausing the normal task does not stop the ad spend.");
         }
         if (cost == null) {
             reasons.add("Ad cost is not reported or has no exchange rate, so profit cannot be judged.");

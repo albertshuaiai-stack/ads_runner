@@ -50,7 +50,8 @@ class AdsReviewRulesTest {
                 partners, false, "PRESENCE", bidding,
                 null, null, null,
                 TODAY, daysRunning,
-                AdsReviewRules.DEFAULT_REPORT_LAG_DAYS, lagCost, approvedMatured, pendingMatured, nonBuyingShare);
+                AdsReviewRules.DEFAULT_REPORT_LAG_DAYS, lagCost, approvedMatured, pendingMatured, nonBuyingShare,
+                TODAY);
     }
 
     @Test
@@ -67,7 +68,7 @@ class AdsReviewRulesTest {
                 1L, "new", "RUNNING", 0, null, false, null, 0, 0, null, Map.of(),
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null,
                 null, null, null, null, null, null, null, TODAY, null,
-                3, null, 0, 0, null);
+                3, null, 0, 0, null, null);
 
         assertEquals(AdsReviewRules.NO_DATA, AdsReviewRules.decide(m).decision());
     }
@@ -298,7 +299,7 @@ class AdsReviewRulesTest {
                 1L, "fresh", "RUNNING", 49, null, false, null, 0, 0, null, Map.of(),
                 11, 0, 11, 0, 0, 7.79, 7.79, 0, 0, 0, null, null,
                 null, null, null, null, null, null, null, TODAY, null,
-                3, null, 0, 7.79, null);
+                3, null, 0, 7.79, null, null);
 
         assertEquals(AdsReviewRules.NO_DATA, AdsReviewRules.decide(m).decision());
     }
@@ -317,8 +318,32 @@ class AdsReviewRulesTest {
                 1L, "old", "PAUSED", 10, 3.0, true, TODAY, 0, 0, 0.0, Map.of(),
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, null,
                 null, null, null, null, null, null, null, TODAY, null,
-                3, null, 0, 0, null);
+                3, null, 0, 0, null, null);
 
         assertEquals(AdsReviewRules.PAUSED, AdsReviewRules.decide(m).decision());
+    }
+
+    @Test
+    void pausedTaskThatStoppedSpendingIsNotAskedToStopAgain() {
+        // spent 15 in the last 7 days (above the stop line) but the task is paused and the last spend was 3 days ago
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(pausedMetrics(TODAY.minusDays(3)));
+
+        assertEquals(AdsReviewRules.PAUSED, decision.decision());
+    }
+
+    @Test
+    void pausedTaskStillSpendingInGoogleAdsIsReviewed() {
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(pausedMetrics(TODAY.minusDays(1)));
+
+        assertEquals(AdsReviewRules.STOP, decision.decision());
+        assertTrue(decision.actions().stream().anyMatch(a -> a.startsWith("Pause the campaign in Google Ads too")));
+    }
+
+    private AdsReviewRules.TaskMetrics pausedMetrics(LocalDate lastSpend) {
+        return new AdsReviewRules.TaskMetrics(
+                1L, "sallybeauty", "PAUSED", 337, 15.4, true, TODAY, 100, 1000, 10.8, Map.of("SEARCH", 100L),
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, null,
+                null, null, null, null, null, null, null, TODAY, 9,
+                3, 0.0, 0, 0, null, lastSpend);
     }
 }
