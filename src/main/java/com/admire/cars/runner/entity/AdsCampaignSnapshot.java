@@ -75,6 +75,10 @@ public class AdsCampaignSnapshot {
     @Column(name = "REPORT_DATE")
     private LocalDate reportDate;
 
+    // Google Ads 里首次产生花费的日期(脚本回看 180 天) / first day with spend in Google Ads (180-day lookback)
+    @Column(name = "FIRST_SPEND_DATE")
+    private LocalDate firstSpendDate;
+
     @Column(name = "CREATE_DATE", nullable = false)
     private LocalDateTime createDate;
 

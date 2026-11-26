@@ -246,9 +246,13 @@ class AdsReviewRulesTest {
         AdsCampaignCost ledger = new AdsCampaignCost();
         ledger.setCreateDate(TODAY.minusDays(9).atTime(23, 0));
 
-        assertEquals(10, AdsAdvisorService.daysRunning(null, null, List.of(task), List.of(ledger), TODAY));
-        assertEquals(3, AdsAdvisorService.daysRunning(null, null, List.of(task), null, TODAY));
-        assertNull(AdsAdvisorService.daysRunning(null, null, List.of(new AdsNormalInfo()), null, TODAY));
+        assertEquals(10, days(null, null, null, List.of(task), List.of(ledger)));
+        assertEquals(AdsAdvisorService.LAUNCH_FIRST_REPORT,
+                AdsAdvisorService.launch(null, null, null, List.of(task), List.of(ledger)).source());
+        assertEquals(3, days(null, null, null, List.of(task), null));
+        assertEquals(AdsAdvisorService.LAUNCH_TASK_CREATED,
+                AdsAdvisorService.launch(null, null, null, List.of(task), null).source());
+        assertNull(days(null, null, null, List.of(new AdsNormalInfo()), null));
     }
 
     @Test
@@ -257,18 +261,35 @@ class AdsReviewRulesTest {
         AdsNormalInfo task = new AdsNormalInfo();
         task.setCreateDate(TODAY.minusDays(10).atTime(9, 0));
 
-        assertEquals(4, AdsAdvisorService.daysRunning(TODAY.minusDays(3), TODAY.minusDays(30),
-                List.of(task), null, TODAY));
+        assertEquals(4, days(null, TODAY.minusDays(3), TODAY.minusDays(30), List.of(task), null));
     }
 
     @Test
-    void daysRunningKeepsOlderTaskDateWhenSpendHistoryMayBeCut() {
-        // first spend equals the owner's first stat date: older spend may be outside the first lookback window
+    void daysRunningIgnoresTaskCreationWhenGoogleAdsDataExists() {
+        // task created 20 days ago, but Google Ads only started spending 5 days ago
         AdsNormalInfo task = new AdsNormalInfo();
         task.setCreateDate(TODAY.minusDays(20).atTime(9, 0));
 
-        assertEquals(21, AdsAdvisorService.daysRunning(TODAY.minusDays(5), TODAY.minusDays(5),
-                List.of(task), null, TODAY));
+        assertEquals(6, days(null, TODAY.minusDays(5), TODAY.minusDays(5), List.of(task), null));
+    }
+
+    @Test
+    void daysRunningPrefersScriptFirstSpendDate() {
+        // the script saw the first spend 12 days ago; daily stats only start 5 days ago; task is 20 days old
+        AdsNormalInfo task = new AdsNormalInfo();
+        task.setCreateDate(TODAY.minusDays(20).atTime(9, 0));
+        AdsCampaignCost ledger = new AdsCampaignCost();
+        ledger.setCreateDate(TODAY.minusDays(15).atTime(9, 0));
+
+        assertEquals(13, days(TODAY.minusDays(12), TODAY.minusDays(5), TODAY.minusDays(5), List.of(task), List.of(ledger)));
+        assertEquals(AdsAdvisorService.LAUNCH_GOOGLE_ADS, AdsAdvisorService.launch(TODAY.minusDays(12),
+                TODAY.minusDays(5), TODAY.minusDays(5), List.of(task), List.of(ledger)).source());
+    }
+
+    private static Integer days(LocalDate scriptFirstSpend, LocalDate firstSpend, LocalDate ownerFirstStat,
+                                List<AdsNormalInfo> tasks, List<AdsCampaignCost> ledger) {
+        return AdsAdvisorService.daysRunning(
+                AdsAdvisorService.launch(scriptFirstSpend, firstSpend, ownerFirstStat, tasks, ledger), TODAY);
     }
 
     @Test

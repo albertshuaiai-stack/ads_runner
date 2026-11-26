@@ -230,11 +230,15 @@ public class AdsAdvisorService {
                 taskIds.add(task.getId());
                 groupOrders.addAll(orders.getOrDefault(task.getId(), List.of()));
             }
-            Map<String, Object> row = reviewTask(mergeTasks(group, rateCache), plans.get(key), snapshots.get(key),
+            AdsCampaignSnapshot snapshot = snapshots.get(key);
+            Launch launch = launch(snapshot == null ? null : snapshot.getFirstSpendDate(), firstSpend.get(key),
+                    ownerFirstStat.get(group.get(0).getAdsOwner() == null ? "" : group.get(0).getAdsOwner()),
+                    group, ledger.get(key));
+            Map<String, Object> row = reviewTask(mergeTasks(group, rateCache), plans.get(key), snapshot,
                     daily.getOrDefault(key, List.of()), terms.getOrDefault(key, List.of()),
-                    groupOrders, today, from7d, rateCache, ledger.get(key),
-                    daysRunning(firstSpend.get(key), ownerFirstStat.get(group.get(0).getAdsOwner() == null
-                            ? "" : group.get(0).getAdsOwner()), group, ledger.get(key), today));
+                    groupOrders, today, from7d, rateCache, ledger.get(key), daysRunning(launch, today));
+            row.put("launchDate", launch == null ? null : launch.date().toString());
+            row.put("launchSource", launch == null ? null : launch.source());
             row.put("taskIds", taskIds);
             row.put("taskCount", group.size());
             rows.add(row);
@@ -611,30 +615,56 @@ public class AdsAdvisorService {
         return rate.map(r -> amount.multiply(r).doubleValue()).orElse(null);
     }
 
-    // 开投日 = Google Ads 每日数据里首个有花费的日期, 开投当天算第 1 天; 无花费数据时用最早的任务创建日/台账首次上报日
-    // Start = first day with spend in the Google Ads daily stats (day 1); without it, earliest task creation or ledger row
-    static Integer daysRunning(LocalDate firstSpendDate, LocalDate ownerFirstStatDate,
-                               List<AdsNormalInfo> tasks, List<AdsCampaignCost> ledgerRows, LocalDate today) {
-        LocalDate fallback = null;
-        for (AdsNormalInfo task : tasks) {
-            fallback = earlier(fallback, task.getCreateDate());
+    static final String LAUNCH_GOOGLE_ADS = "GOOGLE_ADS";
+    static final String LAUNCH_DAILY_STATS = "DAILY_STATS";
+    static final String LAUNCH_FIRST_REPORT = "FIRST_REPORT";
+    static final String LAUNCH_TASK_CREATED = "TASK_CREATED";
+
+    // 上架日及其来源 / launch date and where it came from
+    record Launch(LocalDate date, String source) {
+    }
+
+    // 上架日 = Google Ads 里首次产生花费的日期, 任务创建日只在没有任何 Google Ads 数据时兜底. 优先级:
+    // 1) 脚本回看 180 天查到的首次花费日; 2) 每日数据的首个花费日(不在首次上报的 7 天回看窗口内才可信);
+    // 3) 每日首花费日与台账首次上报日(脚本第一次看到该系列)取较早者; 4) 任务创建日
+    // Launch = first day with spend in Google Ads; task creation only when there is no Google Ads data at all:
+    // 1) script first spend (180-day lookback); 2) first spend in the daily stats, trusted outside the owner's
+    // first 7-day lookback window; 3) earlier of that and the first ledger report; 4) task creation
+    static Launch launch(LocalDate scriptFirstSpend, LocalDate firstSpendDate, LocalDate ownerFirstStatDate,
+                         List<AdsNormalInfo> tasks, List<AdsCampaignCost> ledgerRows) {
+        if (scriptFirstSpend != null) {
+            return firstSpendDate != null && firstSpendDate.isBefore(scriptFirstSpend)
+                    ? new Launch(firstSpendDate, LAUNCH_DAILY_STATS) : new Launch(scriptFirstSpend, LAUNCH_GOOGLE_ADS);
         }
+        if (firstSpendDate != null && ownerFirstStatDate != null
+                && !firstSpendDate.isBefore(ownerFirstStatDate.plusDays(REVIEW_DAYS))) {
+            return new Launch(firstSpendDate, LAUNCH_DAILY_STATS);
+        }
+        LocalDate firstReport = null;
         if (ledgerRows != null) {
             for (AdsCampaignCost row : ledgerRows) {
-                fallback = earlier(fallback, row.getCreateDate());
+                firstReport = earlier(firstReport, row.getCreateDate());
             }
         }
-        LocalDate start = firstSpendDate;
-        // 脚本只回看 7 天: 首个花费日落在该 owner 首次上报的回看窗口内时更早的历史可能缺失
-        // The script looks back 7 days: a first spend inside the owner's first lookback window may hide older history
-        if (start == null || ownerFirstStatDate == null
-                || start.isBefore(ownerFirstStatDate.plusDays(REVIEW_DAYS))) {
-            start = fallback == null || (start != null && start.isBefore(fallback)) ? start : fallback;
+        if (firstReport != null && (firstSpendDate == null || firstReport.isBefore(firstSpendDate))) {
+            return new Launch(firstReport, LAUNCH_FIRST_REPORT);
         }
-        if (start == null) {
+        if (firstSpendDate != null) {
+            return new Launch(firstSpendDate, LAUNCH_DAILY_STATS);
+        }
+        LocalDate created = null;
+        for (AdsNormalInfo task : tasks) {
+            created = earlier(created, task.getCreateDate());
+        }
+        return created == null ? null : new Launch(created, LAUNCH_TASK_CREATED);
+    }
+
+    // 上架当天算第 1 天 / the launch day is day 1
+    static Integer daysRunning(Launch launch, LocalDate today) {
+        if (launch == null) {
             return null;
         }
-        return (int) Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(start, today) + 1);
+        return (int) Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(launch.date(), today) + 1);
     }
 
     private static LocalDate earlier(LocalDate current, LocalDateTime candidate) {

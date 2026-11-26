@@ -1,5 +1,6 @@
 package com.admire.cars.runner.service;
 
+import com.admire.cars.runner.entity.AdsCampaignSnapshot;
 import com.admire.cars.runner.entity.AdsDailyStat;
 import com.admire.cars.runner.entity.AdsSearchTermStat;
 import com.admire.cars.runner.entity.User;
@@ -66,7 +67,7 @@ class AdsDailyReportServiceTest {
                         new AdsDailyReportService.DailyRow("brand", "2026-11-13", "SEARCH_PARTNERS", 20L, 2L, new BigDecimal("1")),
                         new AdsDailyReportService.DailyRow("brand", "2025-01-01", "SEARCH", 1L, 1L, BigDecimal.ONE),
                         new AdsDailyReportService.DailyRow("brand", "bad-date", "SEARCH", 1L, 1L, BigDecimal.ONE)),
-                null);
+                null, null);
 
         AdsDailyReportService.IngestResult result = service.ingest("key", request);
 
@@ -89,7 +90,8 @@ class AdsDailyReportServiceTest {
                 List.of(
                         new AdsDailyReportService.SearchTermRow("brand", "Brand  Login", 10L, 2L, new BigDecimal("0.4")),
                         new AdsDailyReportService.SearchTermRow("brand", "brand login", 5L, 1L, new BigDecimal("0.2")),
-                        new AdsDailyReportService.SearchTermRow("brand", "brand sale", 8L, 3L, new BigDecimal("0.6"))));
+                        new AdsDailyReportService.SearchTermRow("brand", "brand sale", 8L, 3L, new BigDecimal("0.6"))),
+                null);
 
         AdsDailyReportService.IngestResult result = service.ingest("key", request);
 
@@ -101,5 +103,28 @@ class AdsDailyReportServiceTest {
         assertEquals("brand login", login.getSearchTerm());
         assertEquals(3L, login.getClicks());
         assertEquals(0, new BigDecimal("0.6").compareTo(login.getCost()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void storesFirstSpendDateOnExistingSnapshotsOnly() {
+        AdsCampaignSnapshot brand = new AdsCampaignSnapshot();
+        brand.setCampaignName("brand");
+        brand.setFirstSpendDate(LocalDate.of(2026, 10, 1));
+        when(snapshotRepository.findByOwner("13800000000")).thenReturn(List.of(brand));
+
+        AdsDailyReportService.DailyReportRequest request = new AdsDailyReportService.DailyReportRequest(
+                "USD", "2026-11-13", null, null, null,
+                List.of(
+                        new AdsDailyReportService.FirstSpendRow("brand", "2026-11-02"),
+                        new AdsDailyReportService.FirstSpendRow("paused", "2026-09-01"),
+                        new AdsDailyReportService.FirstSpendRow("brand", "2026-12-30")));
+
+        service.ingest("key", request);
+
+        assertEquals(LocalDate.of(2026, 11, 2), brand.getFirstSpendDate());
+        ArgumentCaptor<Iterable<AdsCampaignSnapshot>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(snapshotRepository).saveAll(captor.capture());
+        assertSame(brand, captor.getValue().iterator().next());
     }
 }

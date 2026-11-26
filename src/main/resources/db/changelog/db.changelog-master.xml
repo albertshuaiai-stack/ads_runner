@@ -170,7 +170,7 @@
     <!-- Drop deprecated affiliate and proxy-info legacy tables -->
     <include file="db/changelog/db.changelog-076-drop-affiliate-legacy-tables.xml"/>
 
-    <!-- Postback lag days on the pre-launch plan -->
-    <include file="db/changelog/db.changelog-080-ads-plan-report-lag.xml"/>
+    <!-- Postback lag days on the pre-launch plan; first spend date on the campaign snapshot -->
+    <include file="db/changelog/db.changelog-080-ads-advisor-lag-launch.xml"/>
 
 </databaseChangeLog>

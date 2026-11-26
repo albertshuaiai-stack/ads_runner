@@ -13,4 +13,12 @@
         </addColumn>
     </changeSet>
 
+    <!-- 广告系列快照增加 Google Ads 首次花费日期, 投放天数按真正上架日算 -->
+    <!-- campaign snapshot gets the first spend date in Google Ads; days running count from the real launch -->
+    <changeSet id="ads-advisor-007-snapshot-first-spend" author="copilot">
+        <addColumn tableName="ADS_CAMPAIGN_SNAPSHOT">
+            <column name="FIRST_SPEND_DATE" type="DATE"/>
+        </addColumn>
+    </changeSet>
+
 </databaseChangeLog>

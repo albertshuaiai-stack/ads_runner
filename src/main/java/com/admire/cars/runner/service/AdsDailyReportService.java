@@ -63,8 +63,13 @@ public class AdsDailyReportService {
     public record SearchTermRow(String name, String term, Long impressions, Long clicks, BigDecimal cost) {
     }
 
+    // 广告系列在 Google Ads 里首次产生花费的日期 = 真正上架日 / first day with spend in Google Ads = real launch date
+    public record FirstSpendRow(String name, String date) {
+    }
+
     public record DailyReportRequest(String currency, String reportDate, List<CampaignSetting> campaigns,
-                                     List<DailyRow> daily, List<SearchTermRow> searchTerms) {
+                                     List<DailyRow> daily, List<SearchTermRow> searchTerms,
+                                     List<FirstSpendRow> firstSpend) {
     }
 
     public record IngestResult(int campaigns, int dailyRows, int searchTerms) {
@@ -83,10 +88,11 @@ public class AdsDailyReportService {
         String currency = StringUtils.hasText(request.currency())
                 ? request.currency().trim().toUpperCase(Locale.ROOT) : null;
         int campaigns = saveSnapshots(adsOwner, currency, reportDate, request.campaigns());
+        int firstSpend = saveFirstSpend(adsOwner, reportDate, request.firstSpend());
         int daily = saveDaily(adsOwner, currency, reportDate, request.daily());
         int terms = saveSearchTerms(adsOwner, reportDate, request.searchTerms());
-        log.info("DAILY_REPORT_SAVED owner={} reportDate={} currency={} campaigns={} dailyRows={} searchTerms={}",
-                adsOwner, reportDate, currency, campaigns, daily, terms);
+        log.info("DAILY_REPORT_SAVED owner={} reportDate={} currency={} campaigns={} firstSpend={} dailyRows={} searchTerms={}",
+                adsOwner, reportDate, currency, campaigns, firstSpend, daily, terms);
         return new IngestResult(campaigns, daily, terms);
     }
 
@@ -123,6 +129,37 @@ public class AdsDailyReportService {
             snapshot.setRankLostShare(share(row.rankLostShare()));
             snapshot.setReportDate(reportDate);
             toSave.add(snapshot);
+        }
+        snapshotRepository.saveAll(toSave);
+        return toSave.size();
+    }
+
+    // 只写到已有快照(在投广告系列)上; 脚本已排除已移除的系列, 同名重建后以新系列为准, 所以直接覆盖
+    // only on existing snapshots (enabled campaigns); removed campaigns are excluded by the script,
+    // so a recreated campaign reports its own launch date and the value is overwritten
+    private int saveFirstSpend(String adsOwner, LocalDate reportDate, List<FirstSpendRow> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return 0;
+        }
+        Map<String, LocalDate> dates = new HashMap<>();
+        for (FirstSpendRow row : rows) {
+            String name = campaignName(row == null ? null : row.name());
+            LocalDate date = row == null ? null : parseDate(row.date());
+            if (name == null || date == null || date.isAfter(reportDate.plusDays(1))) {
+                continue;
+            }
+            dates.merge(name, date, (a, b) -> a.isBefore(b) ? a : b);
+        }
+        if (dates.isEmpty()) {
+            return 0;
+        }
+        List<AdsCampaignSnapshot> toSave = new ArrayList<>();
+        for (AdsCampaignSnapshot snapshot : snapshotRepository.findByOwner(adsOwner)) {
+            LocalDate date = dates.get(snapshot.getCampaignName());
+            if (date != null && !date.equals(snapshot.getFirstSpendDate())) {
+                snapshot.setFirstSpendDate(date);
+                toSave.add(snapshot);
+            }
         }
         snapshotRepository.saveAll(toSave);
         return toSave.size();
