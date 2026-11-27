@@ -15,7 +15,7 @@ public class ShiftLinkClickConfig {
     @Value("${shift-link.click-capacity.normal:1}")
     private long normalCapacity;
 
-    @Value("${shift-link.click-capacity.matrix:10}")
+    @Value("${shift-link.click-capacity.matrix:5}")
     private long matrixCapacity;
 
     // 按类型取阈值, 未识别类型按 Matrix 处理 / capacity by ads type, unknown types use the matrix value

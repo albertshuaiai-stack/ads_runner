@@ -25,7 +25,15 @@ public final class AdsKeywordRules {
             "return", "returns", "refund", "cancel", "unsubscribe", "job", "jobs", "career", "careers",
             "hiring", "salary", "near me", "store hours", "store locator", "address", "manual",
             "warranty", "recall", "lawsuit", "stock price", "reddit", "wiki", "download", "apk",
-            "used", "second hand", "repair", "complaint", "complaints", "scam");
+            "used", "second hand", "repair", "complaint", "complaints", "scam",
+            // 售后/设置类 / setup and troubleshooting
+            "how to", "set up", "setup", "setting up", "not working", "troubleshooting", "unboxing",
+            "instructions", "size chart",
+            // 去第三方零售商购买, 不记佣金 / buying at a third-party retailer earns no commission
+            "where to buy", "amazon", "walmart", "costco", "target", "home depot", "lowes", "lowe's",
+            "best buy", "ebay",
+            // 投资者/公司信息 / investor and company info
+            "valuation", "net worth");
 
     // 优惠码类词, 多数联盟单独约束 / coupon intent, often restricted by network terms
     public static final List<String> COUPON_TERMS = List.of(
@@ -41,6 +49,18 @@ public final class AdsKeywordRules {
     private static final Set<String> HOST_SUFFIXES = Set.of(
             "www", "com", "net", "org", "co", "au", "uk", "ca", "us", "de", "fr", "jp", "sg", "nz", "ie", "in",
             "io", "shop", "store", "hk", "tw", "my", "ph", "es", "it", "nl", "eu");
+
+    // 广告系列名/商家名末尾的非品牌词, 如 MelissaAffiliatePartners、CastleryUS、VevorManyGEOs
+    // trailing non-brand words in campaign / shop names, e.g. MelissaAffiliatePartners, CastleryUS, VevorManyGEOs
+    private static final Set<String> NAME_SUFFIX_WORDS = Set.of(
+            "affiliate", "affiliates", "partner", "partners", "program", "programs", "commission", "network",
+            "many", "geo", "geos", "global", "worldwide", "international", "intl", "official", "store", "shop",
+            "online", "onelink", "app", "web", "inc", "llc", "ltd", "co", "corp", "company",
+            "north", "america", "us", "usa", "uk", "ca", "au", "eu", "de", "fr", "nz", "usca");
+
+    // 驼峰/数字/符号处拆词 / split on camel case, letter-digit boundaries and symbols
+    private static final Pattern NAME_WORD_SPLIT = Pattern.compile(
+            "(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[0-9])(?=[A-Za-z])|[^A-Za-z0-9]+");
 
     private static final Map<String, Pattern> NEGATIVE_INTENT_PATTERNS = compileAll(NEGATIVE_INTENT_TERMS);
     private static final Map<String, Pattern> COUPON_PATTERNS = compileAll(COUPON_TERMS);
@@ -83,8 +103,10 @@ public final class AdsKeywordRules {
         return patterns;
     }
 
-    // 品牌名支持逗号/斜杠分隔多个别名, 缺省时取广告系列名和落地页域名 / brand aliases, falls back to campaign and host
-    public static List<String> brandTokens(String brandName, String campaignName, String landingUrl) {
+    // 品牌名支持逗号/斜杠分隔多个别名, 缺省时取广告系列名、商家名和落地页域名
+    // brand aliases; falls back to the campaign name, advertiser shop names and the landing host
+    public static List<String> brandTokens(String brandName, String campaignName, String landingUrl,
+                                           String... shopNames) {
         Set<String> tokens = new LinkedHashSet<>();
         if (StringUtils.hasText(brandName)) {
             for (String alias : brandName.split("[,/|;]")) {
@@ -93,9 +115,36 @@ public final class AdsKeywordRules {
         }
         if (tokens.isEmpty()) {
             addToken(tokens, campaignName);
+            addToken(tokens, stripNameSuffix(campaignName));
+            if (shopNames != null) {
+                for (String shopName : shopNames) {
+                    addToken(tokens, stripNameSuffix(shopName));
+                }
+            }
             addToken(tokens, hostBrand(landingUrl));
         }
         return new ArrayList<>(tokens);
+    }
+
+    // 去掉末尾的联盟/地区后缀词, 至少保留一个词 / drop trailing affiliate / region words, keep at least one word
+    static String stripNameSuffix(String name) {
+        if (!StringUtils.hasText(name)) {
+            return null;
+        }
+        // GEOs -> GEOS: 缩写的小写复数 s 不单独拆词 / keep the plural s of an acronym in the same word
+        String cleaned = name.replaceAll("\\[[^\\]]*\\]|\\([^)]*\\)", " ")
+                .replaceAll("([A-Z]{2,})s(?![a-z])", "$1S").trim();
+        List<String> words = new ArrayList<>();
+        for (String word : NAME_WORD_SPLIT.split(cleaned)) {
+            if (!word.isEmpty()) {
+                words.add(word.toLowerCase(Locale.ROOT));
+            }
+        }
+        int end = words.size();
+        while (end > 1 && NAME_SUFFIX_WORDS.contains(words.get(end - 1))) {
+            end--;
+        }
+        return String.join("", words.subList(0, end));
     }
 
     public static boolean containsBrand(String text, List<String> brandTokens) {

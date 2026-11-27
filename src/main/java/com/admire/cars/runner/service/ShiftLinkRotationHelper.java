@@ -57,6 +57,29 @@ public class ShiftLinkRotationHelper {
                 .max(BY_CREATION);
     }
 
+    // Matrix 换链: 排除与当前落地页平台相同且邮箱也相同的链(两者都相同才算同源)
+    // Matrix rotation: skip links whose platform AND email both match the current link
+    public Optional<ShiftLink> newestUnusedExcludingSameSource(List<ShiftLink> links, ShiftLink previous) {
+        if (previous == null) {
+            return newestUnused(links);
+        }
+        return links.stream()
+                .filter(link -> link.getId() != null && link.getClickBase() == null)
+                .filter(link -> !sameSource(link, previous))
+                .max(BY_CREATION);
+    }
+
+    private static boolean sameSource(ShiftLink a, ShiftLink b) {
+        return sameText(a.getPlatformName(), b.getPlatformName())
+                && sameText(a.getUserName(), b.getUserName());
+    }
+
+    private static boolean sameText(String a, String b) {
+        String left = a == null ? "" : a.trim();
+        String right = b == null ? "" : b.trim();
+        return left.equalsIgnoreCase(right);
+    }
+
     public boolean isUsedUp(ShiftLink link, long capacity) {
         long used = link.getDisplayTimes() == null ? 0L : link.getDisplayTimes();
         return used >= capacity;
@@ -65,8 +88,25 @@ public class ShiftLinkRotationHelper {
     // 取模板用的链: 在用且未用完的链优先, 否则最新未用过的链(下次点击上报时正式启用), 都没有返回空
     // Link for the template: the active link if not used up, otherwise the newest unused one, else empty
     public Optional<ShiftLink> selectForTemplate(List<ShiftLink> links, long capacity) {
+        return selectForTemplate(links, capacity, false);
+    }
+
+    // requireDifferentSource=Matrix: 在用链用完后只换成不同平台或邮箱的链; 找不到就继续用当前链, 不换回同源落地页
+    // Matrix: after the active link is used up, only switch to a different platform or email; otherwise keep the current link
+    public Optional<ShiftLink> selectForTemplate(List<ShiftLink> links, long capacity,
+                                                  boolean requireDifferentSource) {
         Optional<ShiftLink> active = current(links).filter(link -> !isUsedUp(link, capacity));
-        return active.isPresent() ? active : newestUnused(links);
+        if (active.isPresent()) {
+            return active;
+        }
+        Optional<ShiftLink> previous = current(links);
+        Optional<ShiftLink> next = requireDifferentSource
+                ? newestUnusedExcludingSameSource(links, previous.orElse(null))
+                : newestUnused(links);
+        if (next.isPresent()) {
+            return next;
+        }
+        return requireDifferentSource ? previous : Optional.empty();
     }
 
     // Google Ads 还能用的链数: 在用且未用完的 1 条 + 从未启用过的 / active link if not used up plus never-activated links

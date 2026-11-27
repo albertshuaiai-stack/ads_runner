@@ -17,8 +17,9 @@ Spring Boot 3 + Java 17，包根 `com.admire.cars.runner`。部署形态：Windo
 - 每条 `ShiftLink` = 一次联盟跳转的完整 URL（fullUrl 必须包含 landingPageUrl 片段，取模板时该片段替换为 `{lpurl}` 交给 Google Ads）。**换链池不看链接状态**（停投由任务层控制），生成时状态固定 RUNNING；实体字段保留只为兼容历史数据。
 - **换链只由真实点击驱动**（`/api/track/report` 上报的 campaign 累计点击），脚本拉取模板、定时任务执行频率都不消耗。规则实现在 `ShiftLinkRotationHelper`（唯一实现）：
   - **最新优先（newest-first）**：在用链达到阈值后，换到"最新生成且从未启用过的链"（按 id 最大），中间被跳过的旧链由每日清理删除。
+  - **Matrix 来源去重**：换链只选 `platformName` 或 `userName`（邮箱）与当前落地页不同的链（两者都相同才算同源，大小写/空格不敏感）；没有不同来源的候选时保持当前链，不换回同源落地页。取模板与点击轮换共用此规则，Normal 不受限制。
   - 链的关键字段：`CLICK_BASE`（启用该链时的累计点击数，最大的 base 即当前在用链）、`DISPLAY_TIMES`（该链在用期间消耗的点击数）。
-  - 阈值是全局配置：`shift-link.click-capacity.normal`（当前 1）、`shift-link.click-capacity.matrix`（当前 10），类型判断在 `ShiftLinkClickConfig.capacityFor`。
+  - 阈值是全局配置：`shift-link.click-capacity.normal`（当前 1）、`shift-link.click-capacity.matrix`（当前 5，按 `CLICK_BASE` 算距上次换链的点击数），类型判断在 `ShiftLinkClickConfig.capacityFor`。
 - 点击上报入口 `TrackReportService.applyCampaignClicks`：换链 + 记录花费 + 累计 Normal 每日额度，同一事务。
 
 ### 2. 自动任务（Quartz）
@@ -46,7 +47,7 @@ Spring Boot 3 + Java 17，包根 `com.admire.cars.runner`。部署形态：Windo
 
 ### 6. 落地页采集与导入（`LandingImportService` / `LandingCollectorController`）
 - 本地工具 `lunalvabeau_site/landing_collector` 采集返利平台落地页，产出 `CashBack/邮箱名/平台/商家.txt`。
-- `GET /api/collector/accounts?api_key=`：给采集脚本返回邮箱、`BROWSER_TYPE`（1=AdsPower Browser，2=比特浏览器）、`ENV_SERIAL`（该浏览器里的环境编号）、`PLATFORM_PWD`（返利平台密码，各平台共用，登录账号=邮箱地址）、`TWO_FA_URL`、该邮箱各平台 Gmail Link Rule 状态。
+- `GET /api/collector/accounts?api_key=`：给采集脚本返回邮箱、`EMAIL_PWD`（邮箱密码）、`BROWSER_TYPE`（1=AdsPower Browser，2=比特浏览器）、`ENV_SERIAL`（该浏览器里的环境编号）、`PLATFORM_PWD`（返利平台密码，各平台共用，登录账号=邮箱地址；为空时采集脚本回退用邮箱密码）、`TWO_FA_URL`、该邮箱各平台 Gmail Link Rule 状态。采集器配置文件只写 emails/platforms/ads，其余全靠这里返回。
 - `POST /api/collector/landing-import?api_key=`（上传 bat）与 `POST /api/landing-import`（JWT，后台 Import from Folder）同一逻辑：邮箱不存在跳过；平台不存在自动建；Gmail Link Rule 不存在自动建（Match ID 自增 `GL000001`）；规则 `DISABLED` 整个文件跳过；重复 URL 跳过。服务**不加事务**，每条 ShiftLink 各自提交。
 - Gmail Link Rule（`GMAIL_PLATFORM_LINK.STATUS`）RUNNING / DISABLED 手动切换（`PUT /api/gmail-platform-links/{id}/status`）；统计里 DISABLED 视为 LOCKED（优先于返利账号表状态）。手工历史表 `SHIFT_LINK_HISTORY` 前端已下线，但历史数据仍并入统计。
 

@@ -56,7 +56,8 @@ public class AdsApiConsumeService {
         String adsOwner = user.getUserPhoneNumber();
 
         List<ShiftLink> links = rotationHelper.loadPool(adsOwner, normalizedCampaignName, adsType);
-        Optional<ShiftLink> selected = rotationHelper.selectForTemplate(links, rotationHelper.capacity(adsType));
+        Optional<ShiftLink> selected = rotationHelper.selectForTemplate(
+                links, rotationHelper.capacity(adsType), MATRIX_ADS_TYPE.equals(adsType));
         if (selected.isEmpty()) {
             // 链全部用完时回退裸落地页, 不再复用最后一条链 / all links exhausted, fall back to bare landing page
             log.warn("no available shift link type={} campaign={} owner={}, fallback to bare lpurl",

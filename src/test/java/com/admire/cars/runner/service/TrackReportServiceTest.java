@@ -48,7 +48,7 @@ class TrackReportServiceTest {
         linkRepository = mock(ShiftLinkRepository.class);
         clickConfig = new ShiftLinkClickConfig();
         ReflectionTestUtils.setField(clickConfig, "normalCapacity", 1L);
-        ReflectionTestUtils.setField(clickConfig, "matrixCapacity", 10L);
+        ReflectionTestUtils.setField(clickConfig, "matrixCapacity", 5L);
         helper = new ShiftLinkRotationHelper(linkRepository, clickConfig);
 
         UserService userService = mock(UserService.class);
@@ -75,6 +75,21 @@ class TrackReportServiceTest {
         link.setClickBase(clickBase);
         link.setDisplayTimes(displayTimes);
         normalLinks.add(link);
+        return link;
+    }
+
+    private static ShiftLink matrixLink(List<ShiftLink> pool, long id, Long clickBase,
+                                        String platformName, String userName) {
+        ShiftLink link = new ShiftLink();
+        link.setId(id);
+        link.setSeqNumber(id);
+        link.setAdsType("Matrix");
+        link.setStatus("RUNNING");
+        link.setClickBase(clickBase);
+        link.setDisplayTimes(0L);
+        link.setPlatformName(platformName);
+        link.setUserName(userName);
+        pool.add(link);
         return link;
     }
 
@@ -193,5 +208,40 @@ class TrackReportServiceTest {
                 CAMPAIGN, 100L, BigDecimal.ONE, "CNY", "333", "ENABLED")));
 
         assertEquals(100L, newest.getClickBase());
+    }
+
+    // Matrix 换链: 跳过平台+邮箱都相同的链, 选最新的不同来源链 / skip same platform and email links on rotation
+    @Test
+    void matrixRotationSkipsSamePlatformAndEmail() {
+        List<ShiftLink> matrixLinks = new ArrayList<>();
+        matrixLink(matrixLinks, 1, 100L, "eBay", "a@example.com");
+        ShiftLink sameSource = matrixLink(matrixLinks, 2, null, "eBay", "a@example.com");
+        ShiftLink samePlatform = matrixLink(matrixLinks, 3, null, "eBay", "b@example.com");
+        ShiftLink differentPlatform = matrixLink(matrixLinks, 4, null, "Amazon", "a@example.com");
+        when(linkRepository.findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(OWNER, CAMPAIGN, "Matrix"))
+                .thenReturn(matrixLinks);
+
+        service.applyCampaignClicks(API_KEY,
+                List.of(new TrackReportService.CampaignClicks(CAMPAIGN, 120L, null, null, null, null)));
+
+        assertEquals(120L, differentPlatform.getClickBase());
+        assertNull(sameSource.getClickBase());
+        assertNull(samePlatform.getClickBase());
+    }
+
+    // 只有同源链时不换落地页 / keep the current landing page when only same-source links are available
+    @Test
+    void matrixRotationKeepsCurrentLinkWhenOnlySameSourceAvailable() {
+        List<ShiftLink> matrixLinks = new ArrayList<>();
+        ShiftLink active = matrixLink(matrixLinks, 1, 100L, "eBay", "a@example.com");
+        ShiftLink sameSource = matrixLink(matrixLinks, 2, null, "ebay", " A@EXAMPLE.COM ");
+        when(linkRepository.findByAdsOwnerAndAdsNameAndAdsTypeOrderBySeqNumberAsc(OWNER, CAMPAIGN, "Matrix"))
+                .thenReturn(matrixLinks);
+
+        service.applyCampaignClicks(API_KEY,
+                List.of(new TrackReportService.CampaignClicks(CAMPAIGN, 120L, null, null, null, null)));
+
+        assertNull(sameSource.getClickBase());
+        assertEquals(active, helper.selectForTemplate(matrixLinks, 5L, true).orElseThrow());
     }
 }
