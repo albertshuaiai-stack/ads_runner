@@ -168,10 +168,10 @@ class AdsReviewRulesTest {
 
     @Test
     void recentSpendIsNotJudgedForTheStopLine() {
-        // stop line 3 x 0.525 = 1.575; spent 19 but 18 of it in the lag window => judged 1.0
+        // stop line 3 x 0.525 = 1.575; spent 12 but 11 of it in the lag window => judged 1.0
         AdsReviewRules.Decision decision = AdsReviewRules.decide(
-                metrics(19.0, 368, 0, 0, 0, 0, 0, 0.525, false, "MANUAL_CPC", 2, 0,
-                        18.0, 0, 0, Map.of("SEARCH", 368L), null));
+                metrics(12.0, 80, 0, 0, 0, 0, 0, 0.525, false, "MANUAL_CPC", 2, 0,
+                        11.0, 0, 0, Map.of("SEARCH", 80L), null));
 
         assertEquals(AdsReviewRules.WATCH, decision.decision());
         assertEquals(1.0, (Double) decision.metrics().get("judgedCostUsd"), 1e-9);
@@ -180,11 +180,11 @@ class AdsReviewRulesTest {
 
     @Test
     void lowLifetimeRoasIsNotStoppedWhenJudgedSpendIsProfitable() {
-        // 8 pending orders worth 48, effective 33.6 on 78 spend => ROAS 0.43;
-        // 30 spent in the lag window and 2 orders (12) are recent => judged ROAS (36 x 0.7) / 48 = 0.525
+        // 8 pending orders worth 30, effective 21 on 78 spend => ROAS 0.27;
+        // 30 spent in the lag window and 2 orders (8) are recent => judged ROAS (22 x 0.7) / 48 = 0.32
         AdsReviewRules.Decision decision = AdsReviewRules.decide(
-                metrics(78.0, 382, 0, 8, 0, 0, 48.0, null, false, "MANUAL_CPC", 7, 8,
-                        30.0, 0, 36.0, Map.of("SEARCH", 382L), null));
+                metrics(78.0, 382, 0, 8, 0, 0, 30.0, null, false, "MANUAL_CPC", 7, 8,
+                        30.0, 0, 22.0, Map.of("SEARCH", 382L), null));
 
         assertEquals(AdsReviewRules.OPTIMIZE, decision.decision());
         assertTrue(decision.reasons().stream().anyMatch(r -> r.contains("instead of stopping")));
@@ -223,6 +223,71 @@ class AdsReviewRulesTest {
         assertEquals(AdsReviewRules.WATCH, small.decision());
         assertTrue(small.reasons().stream().anyMatch(r -> r.contains("no commission info")));
         assertEquals(AdsReviewRules.STOP, big.decision());
+    }
+
+    @Test
+    void zeroConversionOverFifteenDollarsStopsOnDayOne() {
+        // day 1, no plan, all spend still in the lag window
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(15.5, 60, 0, 0, 0, 0, 0, null, false, "MANUAL_CPC", 1, 0,
+                        15.5, 0, 0, Map.of("SEARCH", 60L), null));
+
+        assertEquals(AdsReviewRules.STOP, decision.decision());
+        assertTrue(decision.reasons().get(0).startsWith("No conversion after"));
+    }
+
+    @Test
+    void zeroConversionOverHundredClicksStopsEvenWhenCheap() {
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(7.9, 183, 0, 0, 0, 0, 0, null, false, "MANUAL_CPC", 2, 0));
+
+        assertEquals(AdsReviewRules.STOP, decision.decision());
+    }
+
+    @Test
+    void zeroConversionStopsEvenWithPollutedTraffic() {
+        // 76% display clicks would normally be judged on the clean share only
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(26.0, 120, 0, 0, 0, 0, 0, null, false, "MANUAL_CPC", 8, 0,
+                        null, 0, 0, Map.of("SEARCH", 29L, "CONTENT", 91L), null));
+
+        assertEquals(AdsReviewRules.STOP, decision.decision());
+    }
+
+    @Test
+    void onlyRejectedOrdersCountAsNoConversion() {
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(3.6, 150, 0, 0, 6, 0, 0, null, false, "MANUAL_CPC", 3, 6));
+
+        assertEquals(AdsReviewRules.STOP, decision.decision());
+    }
+
+    @Test
+    void exactlyAtTheThresholdsKeepsTesting() {
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(15.0, 100, 0, 0, 0, 0, 0, null, false, "MANUAL_CPC", 2, 0));
+
+        assertEquals(AdsReviewRules.WATCH, decision.decision());
+    }
+
+    @Test
+    void convertingButExpensiveCampaignIsOptimizedWithTargetCpc() {
+        // Melissa: 8 pending orders worth 48.67 => effective 34.07 on 78.08 spend, ROAS 0.44, CPC 0.20
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(78.08, 382, 0, 8, 0, 0, 48.67, null, false, "MANUAL_CPC", 7, 8));
+
+        assertEquals(AdsReviewRules.OPTIMIZE, decision.decision());
+        assertTrue(decision.reasons().stream().anyMatch(r -> r.contains("to break even")));
+        assertTrue(decision.actions().stream().anyMatch(a -> a.startsWith("Lower max CPC")));
+    }
+
+    @Test
+    void convertingButHopelessCampaignStillStops() {
+        // TeePublic: 4 pending orders worth 2.72 => effective 1.9 on 12.65 spend, ROAS 0.15
+        AdsReviewRules.Decision decision = AdsReviewRules.decide(
+                metrics(12.65, 90, 0, 4, 0, 0, 2.72, null, false, "MANUAL_CPC", 9, 4));
+
+        assertEquals(AdsReviewRules.STOP, decision.decision());
     }
 
     @Test

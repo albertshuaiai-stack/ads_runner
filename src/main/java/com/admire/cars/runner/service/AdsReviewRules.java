@@ -25,7 +25,9 @@ public final class AdsReviewRules {
     // 排序: 需要立刻处理的在前 / ordering: the most urgent first
     public static final List<String> PRIORITY = List.of(STOP, NO_DATA, OPTIMIZE, WATCH, SCALE, CONTINUE, PAUSED);
 
-    static final double STOP_ROAS = 0.5;
+    // ROAS = 回本 CPC / 实际 CPC; 低于 0.3 要把 CPC 砍掉 70% 以上才回本, 视为调不回来
+    // ROAS = break-even CPC / actual CPC; below 0.3 the CPC would need a 70%+ cut, treated as not fixable
+    static final double STOP_ROAS = 0.3;
     static final double BREAK_EVEN_ROAS = 1.0;
     static final double SCALE_ROAS = 1.3;
     static final long SCALE_MIN_ORDERS = 5;
@@ -43,6 +45,10 @@ public final class AdsReviewRules {
     static final double POLLUTED_TERM_COST_SHARE = 0.4;
     // 无佣金信息且零单时, 按天数判停所需的最低已判花费 USD / judged spend needed for a time-based stop without commission info
     static final double NO_PLAN_STOP_SPEND = 15.0;
+    // 零转化硬止损: 累计花费超过 $15 或点击超过 100 次仍无有效订单, 不看天数/延迟/流量污染直接停
+    // hard stop with no conversion: over $15 spent or over 100 clicks, regardless of days, lag or traffic quality
+    static final double ZERO_ORDER_STOP_SPEND = 15.0;
+    static final long ZERO_ORDER_STOP_CLICKS = 100;
     // 今天或昨天有花费才算仍在花钱 (Google Ads 账户时区与服务器可能差一天) / spend today or yesterday = still spending
     static final int STILL_SPENDING_DAYS = 2;
 
@@ -173,6 +179,14 @@ public final class AdsReviewRules {
         // 零转化判停要等延迟期过完 / the no-order rule waits until the lag window has passed
         boolean matureForSilence = m.daysRunning() != null && m.daysRunning() >= MIN_JUDGE_DAYS + lag;
         String decision;
+        boolean noConversion = m.approved() + m.pending() == 0;
+        if (noConversion && (cost > ZERO_ORDER_STOP_SPEND || m.lifetimeClicks() > ZERO_ORDER_STOP_CLICKS)) {
+            reasons.add("No conversion after " + money(cost) + " and " + m.lifetimeClicks() + " clicks (stop at over "
+                    + money(ZERO_ORDER_STOP_SPEND) + " or over " + ZERO_ORDER_STOP_CLICKS + " clicks).");
+            actions.add(0, "Pause the Google Ads campaign and the normal task today.");
+            settingActions(m, STOP, cpc, breakEvenCpc, approvalRate, decided, actions);
+            return new Decision(STOP, reasons, actions, metrics);
+        }
         if (m.orders() == 0) {
             if (stopSpend == null) {
                 decision = WATCH;
@@ -220,7 +234,12 @@ public final class AdsReviewRules {
             }
         } else {
             decision = OPTIMIZE;
-            reasons.add("ROAS " + times(roas) + " is between " + times(STOP_ROAS) + " and break-even: fix bids and keywords.");
+            reasons.add("ROAS " + times(roas) + " is between " + times(STOP_ROAS) + " and break-even: it converts, "
+                    + "but costs too much. Fix bids and keywords.");
+            if (cpc != null && breakEvenCpc != null && cpc > breakEvenCpc) {
+                reasons.add("Average CPC " + money(cpc) + " must drop to about " + money(breakEvenCpc) + " (-"
+                        + pct(1 - breakEvenCpc / cpc) + ") to break even.");
+            }
         }
 
         // 近 7 天明显变差时降级 / downgrade when the last 7 days turn bad

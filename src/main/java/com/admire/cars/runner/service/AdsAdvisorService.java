@@ -705,9 +705,11 @@ public class AdsAdvisorService {
                 md.append(decision).append(' ').append(count).append("  ");
             }
         });
-        md.append("\n\nRules: commission counts approved + pending x approval rate; stop line = 3x net commission "
-                + "per order with 0 orders; ROAS < 0.5 after the stop line = STOP (WATCH before day 7 when there are orders); "
-                + "0.5-1 = OPTIMIZE; >= 1 = CONTINUE; >= 1.3 with 5+ orders = SCALE; day 7 + lag with no order in the "
+        md.append("\n\nRules: no approved or pending order after more than $"
+                + (int) AdsReviewRules.ZERO_ORDER_STOP_SPEND + " spend or more than "
+                + AdsReviewRules.ZERO_ORDER_STOP_CLICKS + " clicks = STOP regardless of days; commission counts approved + pending x approval rate; stop line = 3x net commission "
+                + "per order with 0 orders; ROAS < 0.3 after the stop line = STOP (WATCH before day 7 when there are orders); "
+                + "0.3-1 = OPTIMIZE (converts but costs too much: lower CPC, fix keywords); >= 1 = CONTINUE; >= 1.3 with 5+ orders = SCALE; day 7 + lag with no order in the "
                 + "last 7 days = STOP (needs $" + (int) AdsReviewRules.NO_PLAN_STOP_SPEND + " judged spend without "
                 + "commission info). Stop checks use judged spend: spend of the last " + AdsReviewRules.DEFAULT_REPORT_LAG_DAYS
                 + " days (plan can override) is excluded while orders come in, and polluted traffic (>= 30% non-search "
